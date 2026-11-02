@@ -1,0 +1,20 @@
+# 系统文件
+.DS_Store
+
+# 依赖与构建产物（若后续引入 Vite）
+node_modules/
+dist/
+
+# 素材抓取缓存（原始下载件，打包后的图集才入库）
+.cache/
+
+# Python
+__pycache__/
+*.pyc
+
+# 编辑器
+.vscode/
+.idea/
+
+# 本地临时
+*.log
