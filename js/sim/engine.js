@@ -1,7 +1,7 @@
 // 模拟层 M1：固定步长、玩家移动、房间边界、八向动画意图。
 // 纯数据变换，无 DOM/three 依赖（可在 node 无头跑）。渲染层只读状态做插值。
 // 坐标：模拟层 (x, y) 平面，y+ = 南；渲染层映射为 (x, 0, y)。
-import { makeRng } from './rng.js?v=m1i';
+import { makeRng } from './rng.js?v=m1j';
 
 export const STEP = 1 / 60;
 export const ROOM_W = 17;            // 战斗区宽（tile=世界单位）

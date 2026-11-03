@@ -1,15 +1,15 @@
 // 启动入口：素材装载 → 场景装配 → 固定步长主循环（模拟 60Hz + 渲染插值）
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m1i';
-import { createLights } from './gfx/lights.js?v=m1i';
-import { createCamera } from './gfx/camera.js?v=m1i';
-import { buildRoom } from './gfx/scene.js?v=m1i';
-import { createBillboard } from './gfx/sprites.js?v=m1i';
-import { createPostfx } from './gfx/postfx.js?v=m1i';
-import { createHud } from './ui/hud.js?v=m1i';
-import { createCries } from './audio/cries.js?v=m1i';
-import { createInput } from './core/input.js?v=m1i';
-import { createRun, stepRun, STEP, DIRS } from './sim/engine.js?v=m1i';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m1j';
+import { createLights } from './gfx/lights.js?v=m1j';
+import { createCamera } from './gfx/camera.js?v=m1j';
+import { buildRoom } from './gfx/scene.js?v=m1j';
+import { createBillboard } from './gfx/sprites.js?v=m1j';
+import { createPostfx } from './gfx/postfx.js?v=m1j';
+import { createHud } from './ui/hud.js?v=m1j';
+import { createCries } from './audio/cries.js?v=m1j';
+import { createInput } from './core/input.js?v=m1j';
+import { createRun, stepRun, STEP, DIRS, ROOM_W, ROOM_H } from './sim/engine.js?v=m1j';
 
 const hud = createHud();
 const tier = detectTier();
@@ -62,6 +62,20 @@ async function lightingSelfTest(THREE, renderer) {
   return red > 100;
 }
 
+// composer 输出探测：个别 webview 的 WebGL 能直渲染，但 postprocessing 链（半浮点
+// 中间缓冲等）输出全黑。开机走一帧 composer 并用 2D canvas 采样画布，黑则回退直渲染。
+function composerWorks(renderer, composer, canvas) {
+  composer.render(1 / 60);
+  const probe = document.createElement('canvas');
+  probe.width = 16; probe.height = 10;
+  const ctx = probe.getContext('2d');
+  ctx.drawImage(canvas, 0, 0, 16, 10);
+  const d = ctx.getImageData(0, 0, 16, 10).data;
+  let lit = 0;
+  for (let i = 0; i < d.length; i += 4) if (d[i] + d[i+1] + d[i+2] > 45) lit++;
+  return lit >= 8;
+}
+
 async function boot() {
   hud.progress(0.05, '读取图集索引…');
   const atlasData = await (await fetch('assets/atlas/pikachu.json')).json();
@@ -90,7 +104,6 @@ async function boot() {
   const lights = createLights(THREE, scene, tier, 17, 11);
   const camCtl = createCamera(THREE);
   resize(THREE, renderer, camCtl.camera);
-  const alog = window.__aspectLog = [camCtl.camera.aspect];   // [创建+resize后]
   const room = buildRoom(THREE, scene, {
     floor: floorTex, wall: wallTex, wallTop: wallTopTex, flame: flameTex,
   }, lights, tier);
@@ -99,16 +112,22 @@ async function boot() {
   scene.add(player.group);
 
   hud.progress(0.7, '后处理链…');
-  const postfx = await createPostfx(THREE, renderer, scene, camCtl.camera, tier);
-  alog.push(postfx ? 'postfx后:' + camCtl.camera.aspect : 'postfx:null');
-  if (postfx) postfx.setFocusTarget(player.mesh);
-  alog.push('setFocus后:' + camCtl.camera.aspect);
-  if (postfx) postfx.setSize(window.innerWidth, window.innerHeight);
-  alog.push('setSize后:' + camCtl.camera.aspect);
+  let postfx = await createPostfx(THREE, renderer, scene, camCtl.camera, tier);
+  let postfxFallback = false;
+  if (postfx) {
+    postfx.setFocusTarget(player.mesh);
+    postfx.setSize(window.innerWidth, window.innerHeight);
+    // 相机先收敛一拍再探测（首帧相机还在初始位）
+    camCtl.update(0.5, ROOM_W / 2, ROOM_H / 2, 0, 0);
+    if (!composerWorks(renderer, postfx.composer, canvas)) {
+      postfx = null;               // 该环境 composer 输出黑 → 回退直渲染
+      postfxFallback = true;
+      renderer.setRenderTarget(null);
+    }
+  }
 
   hud.progress(0.85, '光照自检…');
   const lightOk = await lightingSelfTest(THREE, renderer);
-  alog.push('自检后:' + camCtl.camera.aspect);
 
   hud.progress(0.92, '叫声（可降级）…');
   const cries = createCries();
@@ -179,7 +198,7 @@ async function boot() {
       anim: p.anim, frame: player.state.frame, dirName: DIRS[p.dir],
       x: p.x, y: p.y,
       cry: cries.statusOf(25),
-      postfx: postfx ? '开' : '关（低档）',
+      postfx: postfx ? '开' : (postfxFallback ? '关（该环境输出黑，已回退直渲染）' : '关（低档）'),
       light: lightOk ? '正常' : '异常（该环境光照管线失效，请用 Chrome/Safari 打开）',
     });
   }

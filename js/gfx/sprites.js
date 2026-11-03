@@ -4,7 +4,7 @@
 //   3) castShadow + customDepthMaterial / customDistanceMaterial（人形投影）
 //   4) 法线朝天倾斜 60°（被环境光打亮）
 //   5) 脚下椭圆假阴影 + 真实投影并存
-import { DIRS } from '../sim/engine.js?v=m1i';
+import { DIRS } from '../sim/engine.js?v=m1j';
 
 const TEXEL = 16;                     // 16 texel = 1 世界单位
 const NORMAL_TILT = 0.866;            // 法线 y 分量（60° 朝天倾斜）
