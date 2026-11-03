@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>宝可梦·晶穴深处 · M1 走路骨架</title>
+<link rel="preload" href="assets/fonts/fusion-pixel-zh.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vendor/three/three.module.js",
+    "postprocessing": "/vendor/postprocessing/index.js"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="loading">
+  <div class="box">
+    <div class="title">宝可梦 · 晶穴深处</div>
+    <div class="sub">Pokémon: Crystal Depths · M1 走路骨架</div>
+    <div class="bar"><div id="load-fill"></div></div>
+    <div id="load-text">启动中…</div>
+    <div id="load-err"></div>
+  </div>
+</div>
+
+<div id="hud" class="hidden">
+  <div id="brand">宝可梦 · 晶穴深处 <span class="tag">M1</span></div>
+  <div id="hint">WASD / 方向键 移动 · C 叫声 · 1/2/3 画质 · ?debug 面板</div>
+</div>
+
+<div id="debug" class="hidden"></div>
+
+<script type="module" src="js/main.js?v=m1i"></script>
+</body>
+</html>

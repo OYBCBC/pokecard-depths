@@ -1,0 +1,76 @@
+/* 宝可梦·晶穴深处 M1 —— HUD/加载页（游戏世界由 three 渲染，DOM 只做 UI） */
+@font-face {
+  font-family: 'Fusion Pixel';
+  src: url('../assets/fonts/fusion-pixel-zh.woff2') format('woff2');
+  font-display: swap;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #10141f;
+  font-family: 'Fusion Pixel', 'PingFang SC', sans-serif;
+  color: #dfe8f5;
+  -webkit-user-select: none; user-select: none;
+}
+
+#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+.hidden { display: none !important; }
+
+/* ---------- 加载页 ---------- */
+#loading {
+  position: fixed; inset: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 40%, #1b2438 0%, #0d111c 75%);
+  transition: opacity .5s;
+}
+#loading.done { opacity: 0; pointer-events: none; }
+#loading .box { text-align: center; width: min(420px, 86vw); }
+#loading .title {
+  font-size: 26px; letter-spacing: 2px;
+  text-shadow: 0 0 18px rgba(127, 212, 255, .55);
+}
+#loading .sub { font-size: 12px; color: #7d8aa5; margin: 8px 0 26px; letter-spacing: 1px; }
+#loading .bar {
+  height: 10px; border: 2px solid #35415c; border-radius: 2px;
+  background: #151c2c; overflow: hidden;
+}
+#load-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #4fc3ff, #7fd4ff);
+  box-shadow: 0 0 12px rgba(127, 212, 255, .8);
+  transition: width .2s;
+}
+#load-text { font-size: 12px; color: #9db0cc; margin-top: 10px; }
+#load-err { font-size: 11px; color: #ff8f8f; margin-top: 8px; white-space: pre-wrap; }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+#brand {
+  position: absolute; top: 14px; left: 18px;
+  font-size: 15px; letter-spacing: 1px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, .8);
+}
+#brand .tag {
+  font-size: 10px; color: #0e1524; background: #7fd4ff;
+  border-radius: 2px; padding: 1px 5px; margin-left: 8px; vertical-align: 2px;
+}
+#hint {
+  position: absolute; bottom: 14px; left: 18px;
+  font-size: 11px; color: #93a4c0; letter-spacing: 1px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, .8);
+}
+
+/* ---------- debug 面板（?debug 开） ---------- */
+#debug {
+  position: fixed; top: 14px; right: 16px; z-index: 15;
+  font-size: 11px; line-height: 1.7; color: #b8cbe8;
+  background: rgba(10, 14, 24, .78);
+  border: 1px solid #2c3958;
+  padding: 8px 12px; border-radius: 3px;
+  white-space: pre; pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .9);
+}
