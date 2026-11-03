@@ -41,7 +41,20 @@ def find_green_center(img, fx, fy, fw, fh):
     return None
 
 
-def pack_anim(anim_png, offsets_png, meta):
+GROUND_ANIMS = {'Walk', 'Idle'}   # 贴地动作：按每帧脚底像素行落地；腾空动作（Hurt 等）用锚点公式
+
+
+def feet_row(anim_png, fx, fy, fw, fh):
+    """帧内最低的不透明像素行（脚底，距帧顶的像素数）；空帧返回 None。"""
+    px = anim_png.load()
+    for yy in range(fh - 1, -1, -1):
+        for xx in range(0, fw, 2):
+            if px[fx + xx, fy + yy][3] > 128:
+                return yy
+    return None
+
+
+def pack_anim(anim_png, offsets_png, meta, name):
     fw, fh = meta['FrameWidth'], meta['FrameHeight']
     n_frames = len(meta['Durations'])
     cols = anim_png.width // fw
@@ -60,13 +73,20 @@ def pack_anim(anim_png, offsets_png, meta):
                 off = (fw // 2, fh // 2)     # 无标记：锚点取帧中心
             ox = off[0] - fw / 2
             oy = off[1] - fh / 2
-            row_frames.append({
+            frame = {
                 'sx': fx, 'sy': fy,
                 'dur': meta['Durations'][col],
                 'ox': round(ox, 1), 'oy': round(oy, 1),
-            })
+            }
+            if name in GROUND_ANIMS:
+                gy = feet_row(anim_png, fx, fy, fw, fh)
+                frame['gy'] = gy if gy is not None else fh   # 空帧按帧底
+            row_frames.append(frame)
         frames.append(row_frames)
-    return {'frameW': fw, 'frameH': fh, 'rows': rows, 'frames': frames}
+    out = {'frameW': fw, 'frameH': fh, 'rows': rows, 'frames': frames}
+    if name in GROUND_ANIMS:
+        out['grounded'] = True
+    return out
 
 
 def main():
@@ -97,7 +117,7 @@ def main():
         anim_png = Image.open(os.path.join(src, f'{name}-Anim.png')).convert('RGBA')
         offsets_path = os.path.join(src, f'{name}-Offsets.png')
         offsets_png = Image.open(offsets_path).convert('RGBA') if os.path.exists(offsets_path) else None
-        packed[name] = pack_anim(anim_png, offsets_png, meta)
+        packed[name] = pack_anim(anim_png, offsets_png, meta, name)
 
         a = packed[name]
         for row in range(a['rows']):

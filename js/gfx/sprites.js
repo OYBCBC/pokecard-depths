@@ -4,7 +4,7 @@
 //   3) castShadow + customDepthMaterial / customDistanceMaterial（人形投影）
 //   4) 法线朝天倾斜 60°（被环境光打亮）
 //   5) 脚下椭圆假阴影 + 真实投影并存
-import { DIRS } from '../sim/engine.js?v=m1j';
+import { DIRS } from '../sim/engine.js?v=m1l';
 
 const TEXEL = 16;                     // 16 texel = 1 世界单位
 const NORMAL_TILT = 0.866;            // 法线 y 分量（60° 朝天倾斜）
@@ -72,8 +72,12 @@ export function createBillboard(THREE, atlasTex, atlasData, shadowTex, opts = {}
 
     const w = a.frameW / TEXEL, h = a.frameH / TEXEL;
     mesh.scale.set(w, h, 1);
-    // 锚点：Offsets 绿色中心（身体中心）。脚底贴地 → 面片中心抬高 (frameH/2 + oy)/16
-    mesh.position.set(-f.ox / TEXEL, (a.frameH / 2 + f.oy) / TEXEL, 0);
+    // 贴地：grounded 动作按每帧脚底像素行 gy 落地（PMD 帧脚下有留白，锚点公式会让精灵悬空 ~13px）；
+    // 腾空动作（Hurt 等）沿用锚点公式（身体中心）
+    const cy = (a.grounded && f.gy != null)
+      ? (f.gy - a.frameH / 2) / TEXEL
+      : (a.frameH / 2 + f.oy) / TEXEL;
+    mesh.position.set(-f.ox / TEXEL, cy, 0);
   }
 
   applyFrame();

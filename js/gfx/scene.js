@@ -1,5 +1,5 @@
 // 场景装配（《03》§6）：洞窟房 17×11 —— 地板/墙体/水晶/火把/浮尘
-import { ROOM_W, ROOM_H } from '../sim/engine.js?v=m1j';
+import { ROOM_W, ROOM_H } from '../sim/engine.js?v=m1l';
 
 export function buildRoom(THREE, scene, tex, lights, tier) {
   const W = ROOM_W, H = ROOM_H;

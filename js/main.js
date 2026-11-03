@@ -1,15 +1,15 @@
 // 启动入口：素材装载 → 场景装配 → 固定步长主循环（模拟 60Hz + 渲染插值）
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m1j';
-import { createLights } from './gfx/lights.js?v=m1j';
-import { createCamera } from './gfx/camera.js?v=m1j';
-import { buildRoom } from './gfx/scene.js?v=m1j';
-import { createBillboard } from './gfx/sprites.js?v=m1j';
-import { createPostfx } from './gfx/postfx.js?v=m1j';
-import { createHud } from './ui/hud.js?v=m1j';
-import { createCries } from './audio/cries.js?v=m1j';
-import { createInput } from './core/input.js?v=m1j';
-import { createRun, stepRun, STEP, DIRS, ROOM_W, ROOM_H } from './sim/engine.js?v=m1j';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m1l';
+import { createLights } from './gfx/lights.js?v=m1l';
+import { createCamera } from './gfx/camera.js?v=m1l';
+import { buildRoom } from './gfx/scene.js?v=m1l';
+import { createBillboard } from './gfx/sprites.js?v=m1l';
+import { createPostfx } from './gfx/postfx.js?v=m1l';
+import { createHud } from './ui/hud.js?v=m1l';
+import { createCries } from './audio/cries.js?v=m1l';
+import { createInput } from './core/input.js?v=m1l';
+import { createRun, stepRun, STEP, DIRS, ROOM_W, ROOM_H } from './sim/engine.js?v=m1l';
 
 const hud = createHud();
 const tier = detectTier();
