@@ -91,12 +91,34 @@ def draw_floor_tile(img, ox, oy, rng, dim=1.0):
         px[ox + x, oy + y + 1] = GLINT[0]
 
 
-def make_floor(rng):
-    img = Image.new('RGB', (ROOM_W * T, ROOM_H * T))
-    for ty in range(ROOM_H):
-        for tx in range(ROOM_W):
-            edge = tx == 0 or ty == 0 or tx == ROOM_W - 1 or ty == ROOM_H - 1
+def make_crack(rng):
+    """墙裂缝 16×16（隐藏房入口的可疑墙）"""
+    img = Image.new('RGBA', (16, 16), (0, 0, 0, 0))
+    px = img.load()
+    x, y = 8, 2
+    for step in range(12):
+        px[min(15, max(0, x)), min(15, max(0, y))] = (12, 14, 22, 220)
+        if 0 <= x + 1 < 16: px[x + 1, y] = (22, 25, 36, 160)
+        x += rng.choice([-1, 0, 0, 1])
+        y += 1
+    return img
+
+
+def make_floor(rng, boss=False, w=None, h=None):
+    w = w or ROOM_W
+    h = h or ROOM_H
+    img = Image.new('RGB', (w * T, h * T))
+    for ty in range(h):
+        for tx in range(w):
+            edge = tx == 0 or ty == 0 or tx == w - 1 or ty == h - 1
             draw_floor_tile(img, tx * T, ty * T, rng, 0.82 if edge else 1.0)
+    if boss:
+        px = img.load()
+        W, H = img.size
+        for y in range(H):
+            for x in range(W):
+                r, g, b = px[x, y]
+                px[x, y] = (min(255, int(r * 1.15 + 10)), int(g * 0.95), int(b * 0.85))
     # 贴墙接触阴影：北/东/西墙根 3px 渐暗（南墙低矮，不压暗）
     px = img.load()
     W, H = img.size
@@ -239,10 +261,57 @@ def make_door():
     return img
 
 
+
+
+def make_coin():
+    img = Image.new('RGBA', (10, 10), (0, 0, 0, 0))
+    px = img.load()
+    for y in range(10):
+        for x in range(10):
+            d = ((x - 4.5) / 4.5) ** 2 + ((y - 4.5) / 4.5) ** 2
+            if d <= 0.16: px[x, y] = (255, 236, 160, 255)
+            elif d <= 0.62: px[x, y] = (255, 200, 60, 255)
+            elif d <= 1.0: px[x, y] = (196, 140, 30, 255)
+    return img
+
+
+def make_heart_px():
+    img = Image.new('RGBA', (10, 9), (0, 0, 0, 0))
+    px = img.load()
+    for y in range(9):
+        for x in range(10):
+            # 两圆 + 三角的经典像素心
+            c1 = ((x - 2.5) / 2.6) ** 2 + ((y - 2.5) / 2.6) ** 2 <= 1
+            c2 = ((x - 7.5) / 2.6) ** 2 + ((y - 2.5) / 2.6) ** 2 <= 1
+            tri = y >= 3 and abs(x - 4.5) <= (8.5 - y) * 0.72
+            if c1 or c2 or tri:
+                edge = y >= 6 or x <= 0 or x >= 9
+                px[x, y] = (150, 30, 50, 255) if edge else (255, 90, 110, 255)
+    return img
+
+
+def make_ring():
+    """预警圈 32×32：外亮环 + 半透明内芯（程序渲染时随剩余时间缩放）"""
+    img = Image.new('RGBA', (32, 32), (0, 0, 0, 0))
+    px = img.load()
+    for y in range(32):
+        for x in range(32):
+            d = ((x - 15.5) / 15.5) ** 2 + ((y - 15.5) / 15.5) ** 2
+            if 0.72 <= d <= 1.0: px[x, y] = (255, 120, 90, 230)
+            elif d < 0.72: px[x, y] = (255, 120, 90, 40)
+    return img
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     rng = random.Random(20261103)
     make_floor(rng).save(os.path.join(OUT, 'cave-floor.png'))
+    rng2 = random.Random(20261104)
+    make_floor(rng2, boss=True, w=24, h=16).save(os.path.join(OUT, 'cave-floor-boss.png'))
+    make_crack(random.Random(77)).save(os.path.join(OUT, 'crack.png'))
+    make_coin().save(os.path.join(OUT, 'coin.png'))
+    make_heart_px().save(os.path.join(OUT, 'heart.png'))
+    make_ring().save(os.path.join(OUT, 'ring.png'))
     make_wall_side(rng).save(os.path.join(OUT, 'cave-wall.png'))
     make_wall_top(rng).save(os.path.join(OUT, 'cave-wall-top.png'))
     make_flame(rng).save(os.path.join(OUT, 'flame.png'))

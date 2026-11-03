@@ -32,13 +32,16 @@ export function stabMultiplier(moveType, atkTypes, stabMul = 1.5) {
 }
 
 /** 单发伤害结算。返回 {dmg, mult, kind: 'super'|'normal'|'weak'|'immune'} */
-export function computeHit({ D, power, moveType, atkTypes, defTypes, spdMod = 1, critChance = 0, rng01 = 0.5, stabMul = 1.5, chart }) {
-  const mult = typeMultiplier(chart, moveType, defTypes);
+export function computeHit({ D, power, moveType, atkTypes, defTypes, spdMod = 1, critChance = 0, rng01 = 0.5, stabMul = 1.5, chart, immuneFloor = 0 }) {
+  let mult = typeMultiplier(chart, moveType, defTypes);
+  // 《01 GDD》§5.2 防卡关：Boss 战的 ×0 免疫按 immuneFloor（0.5）结算，保证任何构筑打得完
+  let kind;
+  if (mult === 0 && immuneFloor > 0) { mult = immuneFloor; kind = 'weak'; }
+  else kind = mult === 0 ? 'immune' : mult > 1 ? 'super' : mult < 1 ? 'weak' : 'normal';
   const stab = stabMultiplier(moveType, atkTypes, stabMul);
   const crit = rng01 < critChance ? 1.5 : 1;
   const raw = D * (power / 40) * mult * stab * spdMod * crit;
   const dmg = mult === 0 ? 0 : Math.max(raw, 0.1);   // 免疫=0；非免疫保底 0.1
-  const kind = mult === 0 ? 'immune' : mult > 1 ? 'super' : mult < 1 ? 'weak' : 'normal';
   return { dmg, mult, kind };
 }
 

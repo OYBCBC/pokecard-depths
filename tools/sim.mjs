@@ -1,4 +1,4 @@
-// 无头平衡模拟：机器人打 N 局，输出 TTK / 生存 / 命中率。
+// 无头平衡模拟：机器人通整层（探图→清房→购物→Boss），输出节奏/生存/经济。
 // 用法：node tools/sim.mjs [局数] [种子基数]
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -6,91 +6,211 @@ import { dirname, join } from 'node:path';
 
 const ROOT = dirname(fileURLToPath(import.meta.url)) + '/..';
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
+const { createRun, stepRun, STEP } = await import(join(ROOT, 'js/sim/engine.js?v=m3f'));
 
-const { createRun, stepRun, STEP } = await import(join(ROOT, 'js/sim/engine.js?v=m2d'));
-
-const tc = D('typechart.json'), ed = D('enemies.json'), mv = D('moves.json'), bal = D('balance.json');
+const tc = D('typechart.json'), ed = D('enemies.json'), mv = D('moves.json'), bal = D('balance.json'), itemsDoc = D('items.json');
 const data = {
-  typechart: tc.chart, enemies: ed.enemies, moves: mv.moves, balance: bal,
-  waves: ed.waves, species: { player: { types: ['electric'] } },
+  typechart: tc.chart, enemies: ed.enemies, moves: mv.moves, items: itemsDoc.items,
+  itemPools: itemsDoc.poolConfig, balance: bal, waves: ed.waves,
+  species: { player: { types: ['electric'] } }, floorNo: 1,
 };
 
-const GAMES = Number(process.argv[2] || 50);
+const GAMES = Number(process.argv[2] || 20);
 const SEED0 = Number(process.argv[3] || 1000);
+const DIRS4 = { '0,-1': [0, -1], '0,1': [0, 1], '-1,0': [-1, 0], '1,0': [1, 0] };
 
-// 机器人策略：
-//  - aim：站桩向最近敌人射击；
-//  - kite：始终向远离最近敌人的方向移动 + 射击（走位风筝）
 function botInput(run, mode) {
   const p = run.player;
+  const w = run.roomW, h = run.roomH;
   let nearest = null, nd = 1e9;
   for (const e of run.enemies) {
-    if (e.state === 'spawning') continue;
-    const d = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
+    if (e.state === 'spawning' || e.family === 'boss') continue;
+    const d = Math.hypot(e.x - p.x, e.y - p.y);
     if (d < nd) { nd = d; nearest = e; }
   }
-  // 也躲敌弹（kite 模式）
-  let danger = null;
-  if (mode === 'kite') {
+  const boss = run.enemies.find((e) => e.family === 'boss');
+  const tgt = nearest || boss;
+  let move = { x: 0, y: 0 };
+  let goal = null;
+
+  if (tgt) {
+    const dx = tgt.x - p.x, dy = tgt.y - p.y, l = Math.hypot(dx, dy) || 1;
+    if (boss) {
+      // Boss 战：近身 2.5 格内纯径向逃离（防墙角贴脸），否则 5~6.5 格环绕
+      if (l < 2.5) { move = { x: -dx / l, y: -dy / l }; }
+      else {
+      const tang = ((p.x * 0.7 + p.y * 1.3) % 2 + 2) % 2 < 1 ? 1 : -1;
+      const ideal = 5.8;
+      const radial = l < ideal - 0.8 ? 1 : l > ideal + 0.8 ? -1 : 0;
+      move = { x: (-dx / l) * radial + (-dy / l) * tang, y: (-dy / l) * radial + (dx / l) * tang };
+      // 冲锋进行中：垂直于冲锋方向规避
+      if (boss.b.mode === 'charge' && boss.b.chargeDir) {
+        const cd = boss.b.chargeDir;
+        const side = (p.x * 0.3 + p.y * 0.7) % 1 < 0.5 ? 1 : -1;
+        move = { x: -cd.y * side, y: cd.x * side };
+      }
+      }
+    } else if (mode === 'kite') {
+      if (l < 2.6) move = { x: -dx / l, y: -dy / l };
+      else if (l > 4.5) move = { x: dx / l, y: dy / l };
+    } else if (l > 5.2) move = { x: dx / l, y: dy / l };
+    // 强躲预警圈 / 敌弹（覆盖其它意图；预警圈半径外圈即全力逃离）
+    let fled = false;
+    for (const t of run.telegraphs) {
+      const tx = t.x - p.x, ty = t.y - p.y, tl = Math.hypot(tx, ty);
+      if (t.kind === 'charge-line' && tl < t.r + 1.6) {
+        // 冲锋线：垂直方向逃离
+        const px = -ty / (tl || 1), py = tx / (tl || 1);
+        const side = (p.x * 0.3 + p.y * 0.7) % 1 < 0.5 ? 1 : -1;
+        move = { x: px * side, y: py * side };
+        fled = true; break;
+      }
+      if (tl < t.r + 1.4) {
+        let ex = tx / (tl || 1), ey = ty / (tl || 1);
+        // 贴墙时混入朝房心分量，防死角
+        const cxw = w / 2 - p.x, cyw = h / 2 - p.y;
+        if (p.x < 2.5 || p.x > w - 2.5 || p.y < 2.5 || p.y > h - 2.5) {
+          const cl2 = Math.hypot(cxw, cyw) || 1;
+          ex = ex * 0.6 + (cxw / cl2) * 0.4;
+          ey = ey * 0.6 + (cyw / cl2) * 0.4;
+        }
+        move = { x: ex, y: ey }; fled = true; break;
+      }
+    }
+    if (fled) void move;
     for (const b of run.projectiles) {
       if (b.owner !== 'enemy') continue;
-      const d = (b.x - p.x) ** 2 + (b.y - p.y) ** 2;
-      if (d < 2.2 * 2.2 && d < nd) { nd = d; danger = b; }
+      const bx = b.x - p.x, by = b.y - p.y, bl = Math.hypot(bx, by);
+      if (bl < 1.6) { move = { x: bx / (bl || 1), y: by / (bl || 1) }; break; }
+    }
+  } else if ((run.room.cleared || ['treasure', 'shop', 'secret'].includes(run.room.type)) && !run.over) {
+    // 优先级：钱/免费台座 > 可支付台座 > 未清房间的门
+    for (const k of run.pickups) {
+      const d = Math.hypot(k.x - p.x, k.y - p.y);
+      if (!goal || d < goal.d) goal = { x: k.x, y: k.y, d };
+    }
+    if (!goal) {
+      for (const d of run.pedestals) {
+        if (d.taken || d.price > p.money) continue;
+        const dist = Math.hypot(d.x - p.x, d.y - p.y);
+        if (!goal || dist < goal.d) goal = { x: d.x, y: d.y, d: dist };
+      }
+    }
+    if (!goal) {
+      // 图 BFS：当前房 → 最近的目标房（未清非 Boss 优先，其次未清 Boss）
+      const startKey = run.cellKey;
+      const targetOf = (c) => {
+        if (!c.cleared && c.type !== 'boss') return 1;
+        if (!c.cleared && c.type === 'boss') return 2;
+        return 0;
+      };
+      const prev = new Map([[startKey, null]]);
+      const q = [startKey];
+      let found = null;
+      while (q.length && !found) {
+        const ck = q.shift();
+        const c = run.map.get(ck);
+        if (ck !== startKey && targetOf(c)) { found = ck; break; }
+        for (const dkey of Object.keys(c.doors)) {
+          if (c.doors[dkey] === 'secret') continue;
+          const [dx, dy] = dkey.split(',').map(Number);
+          const nk = (c.x + dx) + ',' + (c.y + dy);
+          if (!run.map.has(nk) || prev.has(nk)) continue;
+          prev.set(nk, ck);
+          q.push(nk);
+        }
+      }
+      if (found) {
+        // 回溯到第一步
+        let step = found;
+        while (prev.get(step) !== startKey) step = prev.get(step);
+        const [sxp, syp] = step.split(',').map(Number);
+        const cell = run.map.get(startKey);
+        const dx = sxp - cell.x, dy = syp - cell.y;
+        goal = {
+          x: dx === 0 ? w / 2 : (dx < 0 ? 0.5 : w - 0.5),
+          y: dy === 0 ? h / 2 : (dy < 0 ? 0.5 : h - 0.5),
+          d: 1, toDoor: true,
+        };
+      }
+    }
+    if (goal) {
+      const dx = goal.x - p.x, dy = goal.y - p.y, l = Math.hypot(dx, dy);
+      if (l > 0.25) move = { x: dx / l, y: dy / l };
     }
   }
-  const tgt = danger || nearest;
-  let move = { x: 0, y: 0 };
-  if (tgt) {
-    const dx = tgt.x - p.x, dy = tgt.y - p.y;          // 指向目标
-    const awayx = -dx, awayy = -dy;
-    const l = Math.hypot(dx, dy) || 1;
-    if (mode === 'kite') {
-      // 近身风筝（远离），远处逼近（射程 6.5，保持 ~4 格输出）
-      if (l < 2.6) move = { x: awayx / l, y: awayy / l };
-      else if (l > 4.2) move = { x: dx / l, y: dy / l };
-    } else {
-      // aim 模式也向射程外的目标逼近（站桩打不到 6.5 格外的射手）
-      if (l > 5.2) move = { x: dx / l, y: dy / l };
-    }
+  // 防出界（过门目标豁免：传送必须压到 0.78 以内）
+  const toDoor = goal && goal.toDoor;
+  if (!toDoor) {
+    if (p.x < 1.4 && move.x <= 0) move.x = 0.6;
+  if (p.x > w - 1.4 && move.x >= 0) move.x = -0.6;
+  if (p.y < 1.4 && move.y <= 0) move.y = 0.6;
+  if (p.y > h - 1.4 && move.y >= 0) move.y = -0.6;
   }
-  // 撞墙回中
-  if (p.x < 2) move.x = 1; if (p.x > 15) move.x = -1;
-  if (p.y < 2) move.y = 1; if (p.y > 9) move.y = -1;
-  const aim = nearest
-    ? { x: nearest.x - p.x, y: nearest.y - p.y }
-    : { x: 0, y: -1 };
-  return { move, aim, fire: !!nearest, dashEdge: false };
+  const aim = tgt ? { x: tgt.x - p.x, y: tgt.y - p.y } : { x: move.x || 0, y: move.y || -1 };
+  // 保命冲刺：最近敌人 <1.6 且有充能
+  let dash = false;
+  if (tgt && p.dashCharges >= 1) {
+    const dd = Math.hypot(tgt.x - p.x, tgt.y - p.y);
+    if (dd < 1.6) dash = true;
+  }
+  return { move, aim, fire: !!tgt, dashEdge: dash, slotEdge: false, useEdge: p.hp <= 2 && !!p.inv.consumable };
 }
 
-function playGame(seed, mode, maxSeconds = 120) {
+const TRACE = process.argv.includes('--trace');
+function playGame(seed, mode, maxSeconds = 420) {
   const run = createRun(data, seed);
-  let t = 0, waveTimes = [];
-  let lastWave = 0;
+  let t = 0;
+  const roomTimes = new Map();
+  let lastTrace = -2;
   while (t < maxSeconds) {
     stepRun(run, botInput(run, mode), data);
     t += STEP;
-    if (run.room.state === 'cleared') break;
-    if (run.room.waveIdx !== lastWave) { waveTimes.push(t); lastWave = run.room.waveIdx; }
-    if (!run.player.alive) break;
+    if (TRACE) {
+      for (const ev of run.events) {
+        if (ev.t === 'player-hurt') {
+          const bs = run.enemies.find((e) => e.family === 'boss');
+          console.log(`    [受击] t=${t.toFixed(1)} ${ev.dmg}格 hp→${run.player.hp} boss模式=${bs ? bs.b.mode : '-'} 隐=${bs ? !!bs.hidden : '-'}`);
+        }
+      }
+    }
+    if (TRACE && t - lastTrace >= 2) {
+      lastTrace = t;
+      const cell = run.map.get(run.cellKey);
+      console.log(`  t=${t.toFixed(0).padStart(3)} 房[${cell.type}]@${run.cellKey} hp=${run.player.hp}/${run.player.maxHp} 敌=${run.enemies.length} 波=${run.room.waveIdx} 钱=${run.player.money} 台=${run.pedestals.filter(d=>!d.taken).length} 事件=[${run.events.map(e=>e.t).slice(0,4)}]`);
+    }
+    if (!run.player.alive || run.over) break;
+    const ck = run.cellKey;
+    if (!roomTimes.has(ck)) roomTimes.set(ck, t);
+  }
+  if (TRACE) {
+    const boss = run.enemies.find((e) => e.family === 'boss');
+    if (boss && run.map.get(run.cellKey)?.type === 'boss') {
+      // 在 playGame 之外无法拿到逐帧——这里退化为结束时汇总：把 hurt 记录在 roomTimes 里不可行，改在主循环记录
+    }
+  }
+  if (TRACE && !run.player.alive) {
+    const hurt = run.events.filter((e) => e.t === 'player-hurt');
+    console.log('  死亡。最后受击:', hurt.slice(-3).map((e) => e.dmg + '格@' + e.x.toFixed(0) + ',' + e.y.toFixed(0)).join(' '), '时长', t.toFixed(0));
   }
   return {
-    t, dead: !run.player.alive, cleared: run.room.state === 'cleared',
-    kills: run.stats.kills, shots: run.stats.shots, dmg: run.stats.dmgDealt,
-    hpLeft: run.player.hp, waveTimes,
+    t, dead: !run.player.alive, win: run.win,
+    rooms: run.stats.roomsCleared, kills: run.stats.kills, items: run.stats.items,
+    money: run.player.money, hp: run.player.hp, maxHp: run.player.maxHp,
+    passives: run.player.inv.passives.length,
+    bossTime: (() => { const b = [...roomTimes.entries()].find(([k]) => run.map.get(k).type === 'boss'); return b ? run.t - b[1] : null; })(),
   };
 }
 
 for (const mode of ['aim', 'kite']) {
-  const results = [];
-  for (let g = 0; g < GAMES; g++) results.push(playGame((SEED0 + g * 7919) >>> 0, mode));
-  const avg = (f) => (results.reduce((s, r) => s + f(r), 0) / results.length);
-  const ttk = avg((r) => r.t);
-  const cls = results.filter((r) => r.cleared).length;
-  const dead = results.filter((r) => r.dead).length;
-  const acc = avg((r) => (r.shots ? r.kills / r.shots : 0));
-  console.log(`[${mode}] ${GAMES} 局：清房率 ${(cls / GAMES * 100).toFixed(0)}%  死亡率 ${(dead / GAMES * 100).toFixed(0)}%  ` +
-    `平均时长 ${ttk.toFixed(1)}s（目标 8-20s）  击杀/发 ${acc.toFixed(2)}  均伤害 ${avg(r => r.dmg).toFixed(0)}`);
-  const slowest = Math.max(...results.map(r => r.t)).toFixed(1);
-  const fastest = Math.min(...results.map(r => r.t)).toFixed(1);
-  console.log(`       时长区间 ${fastest}s ~ ${slowest}s；单局击杀 ${avg(r => r.kills).toFixed(1)}`);
+  const rs = [];
+  for (let g = 0; g < GAMES; g++) rs.push(playGame((SEED0 + g * 7919) >>> 0, mode));
+  const avg = (f) => (rs.reduce((s, r) => s + f(r), 0) / rs.length);
+  const wins = rs.filter((r) => r.win).length;
+  const bossTimes = rs.map((r) => r.bossTime).filter((v) => v != null);
+  console.log(`[${mode}] ${GAMES} 局：通关率 ${(wins / GAMES * 100).toFixed(0)}%  死亡 ${rs.filter(r => r.dead).length}  ` +
+    `均时长 ${avg(r => r.t).toFixed(0)}s  清房 ${avg(r => r.rooms).toFixed(1)}  击杀 ${avg(r => r.kills).toFixed(1)}  ` +
+    `道具 ${avg(r => r.items).toFixed(1)}  余钱 ${avg(r => r.money).toFixed(0)}`);
+  if (bossTimes.length) console.log(`        Boss 战时长 ${avg0(bossTimes).toFixed(0)}s（目标 45-90s）区间 ${Math.min(...bossTimes).toFixed(0)}~${Math.max(...bossTimes).toFixed(0)}s`);
 }
+function avg0(a) { return a.reduce((s, v) => s + v, 0) / a.length; }

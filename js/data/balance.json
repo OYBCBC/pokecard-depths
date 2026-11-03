@@ -13,7 +13,8 @@
     "dashCharges": 2,
     "dashRecharge": 1.2,
     "ppPerDamage": 0.25,
-    "ppSuperMul": 1.5
+    "ppSuperMul": 1.5,
+    "startMoney": 15
   },
   "enemy": {
     "hpMul": 1.0,
@@ -21,12 +22,55 @@
     "knockback": 4.5,
     "knockbackDecay": 9,
     "separation": 0.55,
-    "contactCooldown": 0.8
+    "contactCooldown": 1.0
   },
   "feel": {
     "hitStopKill": 0.07,
     "hitStopHurt": 0.12,
     "shakeKill": 0.12,
     "shakeHurt": 0.3
+  },
+  "boss": {
+    "hpMul": 1.0
+  },
+  "pickup": {
+    "coinValue": 1,
+    "heartHeal": 1,
+    "dropBands": [
+      [
+        0.18,
+        null
+      ],
+      [
+        0.26,
+        "consumable"
+      ],
+      [
+        0.56,
+        "coin"
+      ],
+      [
+        0.72,
+        "heart"
+      ],
+      [
+        0.82,
+        "coin2"
+      ],
+      [
+        1.01,
+        null
+      ]
+    ],
+    "magnetSpeed": 7
+  },
+  "shop": {
+    "basePrice": [
+      8,
+      11,
+      14
+    ],
+    "heartPrice": 4,
+    "perRoomInflation": 1.0
   }
 }

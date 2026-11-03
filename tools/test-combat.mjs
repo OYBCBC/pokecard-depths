@@ -11,8 +11,18 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { damageStat, fireInterval, typeMultiplier, stabMultiplier, computeHit, enemyPanel } =
-  await import(join(ROOT, 'js/sim/combat.js?v=m2d'));
-const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m2d'));
+  await import(join(ROOT, 'js/sim/combat.js?v=m3f'));
+const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m3f'));
+const { enterRoom } = await import(join(ROOT, 'js/sim/actors.js?v=m3f'));
+function combatNeighbor(run, d) {
+  const cell = run.map.get(run.cellKey);
+  for (const [dk] of Object.entries(cell.doors)) {
+    const [dx, dy] = dk.split(',').map(Number);
+    const nb = run.map.get((cell.x + dx) + ',' + (cell.y + dy));
+    if (nb && nb.type === 'combat') return (cell.x + dx) + ',' + (cell.y + dy);
+  }
+  return run.cellKey;
+}
 
 const tc = D('typechart.json');
 const ed = D('enemies.json');
@@ -79,6 +89,7 @@ test('computeHit：免疫（电打纯地面）伤害 0', () => {
 // ---------- 敌人换算 ----------
 test('enemyPanel：与 enemies.json 手填值一致（种族值换算可复算）', () => {
   for (const [id, spec] of Object.entries(ed.enemies)) {
+    if (spec.family === 'boss') continue;   // Boss HP 手填设计值
     const p = enemyPanel(spec.base);
     near(p.hp, spec.hp, 0.01);
     near(p.speed, spec.speed, 0.01);
@@ -91,7 +102,7 @@ test('enemyPanel：与 enemies.json 手填值一致（种族值换算可复算�
 test('引擎确定性：同种子同输入流 → 同状态', () => {
   const run1 = createRun(data, 12345);
   const run2 = createRun(data, 12345);
-  const input = () => ({ move: { x: 0, y: 0 }, aim: { x: 0.3, y: -0.9 }, fire: true, dashEdge: false });
+  const input = () => ({ move: { x: 0, y: 0 }, aim: { x: 0.3, y: -0.9 }, fire: true, dashEdge: false, slotEdge: false, useEdge: false });
   for (let i = 0; i < 1200; i++) {
     stepRun(run1, input(), data);
     stepRun(run2, input(), data);
@@ -102,29 +113,32 @@ test('引擎确定性：同种子同输入流 → 同状态', () => {
   assert.equal(snap(run1), snap(run2));
 });
 
-test('引擎流程：站桩射击可清两波 → cleared → 过门进房 2（hpMul×1.15）', () => {
+test('引擎流程（楼层）：清两波 → 房间 cleared → 门开', () => {
   const run = createRun(data, 7);
-  const input = (fire) => ({ move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire, dashEdge: false });
-  let t = 0;
-  // 站桩（无敌不死校验除外）——用 K 式直杀推进波次更稳：直接置 0 血
-  for (let i = 0; i < 600 && run.room.state !== 'cleared'; i++) {
-    if (run.enemies.length) for (const e of run.enemies) e.hp = 0;
-    stepRun(run, input(false), data);
-    t++;
+  const cell = run.map.get(run.cellKey);
+  let combatKey = null;
+  for (const [dk] of Object.entries(cell.doors)) {
+    const [dx, dy] = dk.split(',').map(Number);
+    const nb = run.map.get((cell.x + dx) + ',' + (cell.y + dy));
+    if (nb && nb.type === 'combat') { combatKey = (cell.x + dx) + ',' + (cell.y + dy); break; }
   }
-  assert.equal(run.room.state, 'cleared');
-  // 过门
-  const north = { move: { x: 0, y: -1 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false };
-  for (let i = 0; i < 300 && run.room.n === 1; i++) stepRun(run, north, data);
-  assert.equal(run.room.n, 2);
-  near(run.hpMul, 1.15, 1e-9);
-  assert.equal(run.enemies.length > 0, true, '房 2 有新敌人');
+  assert.ok(combatKey, '出生房邻接战斗房');
+  enterRoom(run, data, combatKey);
+  assert.equal(run.enemies.length > 0, true, '战斗房有敌人');
+  const idle = { move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false, slotEdge: false, useEdge: false };
+  for (let i = 0; i < 30; i++) {
+    if (run.enemies.length) for (const e of run.enemies) e.hp = 0;
+    stepRun(run, idle, data);
+  }
+  assert.equal(run.map.get(combatKey).cleared, true, '战斗房清空');
+  assert.equal(run.room.doorOpen, true, '门开');
 });
 
 test('引擎：接触伤害与无敌帧', () => {
   const run = createRun(data, 99);
+  enterRoom(run, data, combatNeighbor(run, data));
   const e = run.enemies[0];
-  const idle = { move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false };
+  const idle = { move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false, slotEdge: false, useEdge: false };
   e.x = run.player.x + 0.3; e.y = run.player.y; e.state = 'active';
   const hp0 = run.player.hp;
   stepRun(run, idle, data);
@@ -139,7 +153,8 @@ test('引擎：接触伤害与无敌帧', () => {
 
 test('引擎：冲刺给无敌与位移', () => {
   const run = createRun(data, 555);
-  const east = { move: { x: 1, y: 0 }, aim: { x: 1, y: 0 }, fire: false, dashEdge: true };
+  enterRoom(run, data, combatNeighbor(run, data));
+  const east = { move: { x: 1, y: 0 }, aim: { x: 1, y: 0 }, fire: false, dashEdge: true, slotEdge: false, useEdge: false };
   const x0 = run.player.x;
   stepRun(run, east, data);
   assert.equal(run.player.dashActive, true);

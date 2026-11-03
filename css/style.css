@@ -114,3 +114,49 @@ html, body {
 .d-seed { font-size: 11px; color: #7d8aa5; }
 .d-hint { margin-top: 18px; font-size: 13px; color: #7fd4ff; animation: blink 1.2s infinite; }
 @keyframes blink { 50% { opacity: .35; } }
+
+/* ---------- M3：金钱/槽位/小地图/道具卡/Boss条/横幅/价签 ---------- */
+#money { position: absolute; top: 46px; right: 18px; font-size: 15px; color: #ffd24a; text-shadow: 0 2px 4px rgba(0,0,0,.8); }
+#slots { position: absolute; top: 70px; right: 18px; display: flex; gap: 6px; }
+.slot { font-size: 11px; color: #93a4c0; border: 1px solid #3a4a6c; padding: 2px 7px; border-radius: 2px; background: rgba(16,22,36,.7); }
+.slot.on { color: #ffe9a0; border-color: #ffd24a; box-shadow: 0 0 8px rgba(255,210,74,.35); }
+.slot.lock { opacity: .5; }
+
+#minimap { position: absolute; top: 14px; right: 16px; display: grid; grid-template-columns: repeat(5, 14px); gap: 2px; }
+.mm { width: 14px; height: 14px; font-size: 9px; line-height: 14px; text-align: center; border-radius: 2px; background: #1a2234; color: #93a4c0; border: 1px solid #2c3958; }
+.mm.off { visibility: hidden; }
+.mm.unseen { background: #1a2234; }
+.mm.seen { background: #2c3958; color: #dfe8f5; }
+.mm.cleared { background: #232d44; color: #7d8aa5; }
+.mm.cur { border-color: #7fd4ff; box-shadow: 0 0 6px rgba(127,212,255,.6); background: #31435f; color: #fff; }
+.mm.hide { visibility: hidden; }
+
+#prices { position: absolute; inset: 0; pointer-events: none; }
+.price { position: absolute; transform: translate(-50%, -100%); font-size: 12px; color: #ffd24a; background: rgba(10,14,24,.85); border: 1px solid #574a20; padding: 1px 6px; border-radius: 2px; }
+.price.free { color: #9fe070; border-color: #2f5720; }
+
+#itemcard { position: absolute; top: 12%; left: 50%; transform: translateX(-50%); pointer-events: none; }
+#itemcard .ic-q0, #itemcard .ic-q1, #itemcard .ic-q2, #itemcard .ic-q3, #itemcard .ic-q4 {
+  display: flex; align-items: center; gap: 12px; background: rgba(10,14,24,.92); border: 2px solid #3a4a6c;
+  padding: 10px 18px; border-radius: 3px; max-width: 420px;
+}
+#itemcard img { width: 30px; height: 30px; image-rendering: pixelated; }
+#itemcard b { display: block; font-size: 15px; margin-bottom: 3px; }
+#itemcard span { font-size: 11px; color: #b8cbe8; }
+#itemcard .ic-q2 { border-color: #3a7ad4; } #itemcard .ic-q3 { border-color: #8a5cd4; }
+#itemcard .ic-q4 { border-color: #d4a53a; box-shadow: 0 0 16px rgba(212,165,58,.4); }
+
+#bossbar { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); width: min(420px, 60vw); height: 12px; border: 2px solid #6b4a4a; background: #1c1016; }
+#boss-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #c46a6a, #ff8a97); transition: width .15s; }
+#boss-name { position: absolute; top: -20px; left: 0; font-size: 12px; color: #ffb8c0; }
+
+#banner { position: absolute; top: 30%; left: 0; right: 0; text-align: center; pointer-events: none; }
+#banner .b-title { font-size: 30px; color: #ffe9c4; text-shadow: 0 0 20px rgba(255,180,90,.6); letter-spacing: 4px; }
+#banner .b-sub { font-size: 13px; color: #93a4c0; margin-top: 8px; }
+
+#flashmask { position: absolute; inset: 0; background: #06080f; opacity: 0; pointer-events: none; transition: opacity .12s; }
+#flashmask.on { opacity: 1; }
+
+#victory { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(8, 10, 18, .85); }
+.v-title { font-size: 26px; color: #ffd24a; text-shadow: 0 0 16px rgba(255,210,74,.5); }
+#v-stats { font-size: 13px; line-height: 1.9; color: #dfe8f5; }

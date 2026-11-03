@@ -1,0 +1,95 @@
+// 道具效果系统（纯函数）：背包 → 数值修饰 mods。引擎与测试共用。
+import { damageStat, fireInterval } from './combat.js?v=m3f';
+
+export const BASE_MODS = () => ({
+  dmgUps: 0, dmgFlat: 0, dmgMul: 1,
+  tears: 0, speedAdd: 0,
+  rangeMul: 1, shotSpeedMul: 1, sizeMul: 1,
+  crit: 0, pierce: 0, split: false, homing: 0, bounce: 0,
+  knockMul: 1, typeMul: {}, superBonus: 0,
+  magnet: 0, killHeal: 0, flinch: 0, dodge: 0,
+  regenRoom: 0, maxHpAdd: 0, blockChance: 0, hurtResist: 0,
+  ppMul: 1, ppCost: 1, lethalGuard: false,
+  lockB: false, tm: null,           // tm = B 槽招式 id
+});
+
+/** 背包 → mods。inv = { passives:[], trinket, badges:[] } */
+export function applyItems(items, inv) {
+  const m = BASE_MODS();
+  const all = [
+    ...inv.passives.map((id) => items[id]).filter(Boolean),
+    inv.trinket ? items[inv.trinket] : null,
+    ...inv.badges.map((id) => items[id]).filter(Boolean),
+  ].filter(Boolean);
+  for (const it of all) {
+    const e = it.effect || {};
+    if (e.dmgUps) m.dmgUps += e.dmgUps;
+    if (e.dmgFlat) m.dmgFlat += e.dmgFlat;
+    if (e.dmgMul) m.dmgMul *= e.dmgMul;
+    if (e.tears) m.tears += e.tears;
+    if (e.speedAdd) m.speedAdd += e.speedAdd;
+    if (e.maxHp) m.maxHpAdd += e.maxHp;
+    if (e.crit) m.crit += e.crit;
+    if (e.pierce) m.pierce += e.pierce;
+    if (e.split) m.split = true;
+    if (e.homing) m.homing = Math.min(0.35, m.homing + e.homing);
+    if (e.sizeMul) m.sizeMul *= e.sizeMul;
+    if (e.knockMul) m.knockMul *= e.knockMul;
+    if (e.superBonus) m.superBonus += e.superBonus;
+    if (e.magnet) m.magnet = Math.max(m.magnet, e.magnet);
+    if (e.killHeal) m.killHeal += e.killHeal;
+    if (e.flinch) m.flinch += e.flinch;
+    if (e.dodge) m.dodge = Math.min(0.5, m.dodge + e.dodge);
+    if (e.regenRoom) m.regenRoom += e.regenRoom;
+    if (e.blockChance) m.blockChance += e.blockChance;
+    if (e.hurtResist) m.hurtResist += e.hurtResist;
+    if (e.ppMul) m.ppMul *= e.ppMul;
+    if (e.ppCost) m.ppCost *= e.ppCost;
+    if (e.lethalGuard) m.lethalGuard = true;
+    if (e.lockB) m.lockB = true;
+    if (e.tm) m.tm = e.tm;
+    if (e.typeMul) for (const k of Object.keys(e.typeMul)) {
+      m.typeMul[k] = (m.typeMul[k] || 1) * e.typeMul[k];
+    }
+  }
+  return m;
+}
+
+/** 当前面板（结算用） */
+export function playerStats(mods) {
+  return {
+    damage: damageStat(mods.dmgUps, mods.dmgFlat) * mods.dmgMul,
+    fireInterval: fireInterval(mods.tears),
+    moveSpeed: 4.2 + mods.speedAdd,
+  };
+}
+
+/** 抽池：按 poolConfig 权重选一件未拥有的（kind 过滤可选） */
+export function rollItem(items, poolConfig, poolName, rand, opts = {}) {
+  const weights = poolConfig[poolName] || poolConfig.drop;
+  const total = Object.values(weights).reduce((a, b) => a + b, 0);
+  let r = rand() * total;
+  let chosenPool = 'O';
+  for (const [k, w] of Object.entries(weights)) {
+    r -= w;
+    if (r <= 0) { chosenPool = k; break; }
+  }
+  const owned = new Set(opts.owned || []);
+  const cands = Object.entries(items).filter(([id, it]) =>
+    it.pools.includes(chosenPool) && !owned.has(id)
+    && (!opts.kinds || opts.kinds.includes(it.kind)));
+  if (!cands.length) {
+    // 池空：从全部未拥有里兜底
+    const all = Object.entries(items).filter(([id, it]) => !owned.has(id));
+    return all.length ? all[Math.floor(rand() * all.length)][0] : null;
+  }
+  // 品质加权：高品质稍稀有（1 / (0.6 + quality*0.35)）
+  const qW = cands.map(([, it]) => 1 / (0.6 + it.quality * 0.35));
+  const qTotal = qW.reduce((a, b) => a + b, 0);
+  let r2 = rand() * qTotal;
+  for (let i = 0; i < cands.length; i++) {
+    r2 -= qW[i];
+    if (r2 <= 0) return cands[i][0];
+  }
+  return cands[cands.length - 1][0];
+}

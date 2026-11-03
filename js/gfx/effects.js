@@ -1,18 +1,28 @@
 // 战斗特效池：弹体面片 + 命中碎屑 + 出生烟尘。全部对象池，无运行时分配。
 export function createEffects(THREE, scene, orbTex) {
-  // ---- 弹体池（bolt/acid 共用几何，材质两种）----
+  // ---- 弹体池：按招式分材质（配色 tint）----
   const POOL = 48;
-  const boltMat = new THREE.MeshBasicMaterial({ map: orbTex.bolt, transparent: true, depthWrite: false, side: THREE.DoubleSide });
-  const acidMat = new THREE.MeshBasicMaterial({ map: orbTex.acid, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const TINTS = {
+    'thunder-shock': 0xffffff, 'water-gun': 0x7fd4ff, 'fire-spin': 0xffa04a,
+    'grass-knot': 0x9fe070, 'acid': null,
+  };
+  const mats = { acid: new THREE.MeshBasicMaterial({ map: orbTex.acid, transparent: true, depthWrite: false, side: THREE.DoubleSide }) };
+  for (const [mv, tint] of Object.entries(TINTS)) {
+    if (tint == null) continue;
+    mats[mv] = new THREE.MeshBasicMaterial({ map: orbTex.bolt, transparent: true, depthWrite: false, side: THREE.DoubleSide, color: tint });
+  }
   const projGeo = new THREE.PlaneGeometry(0.3, 0.3);
   const projPool = [];
   for (let i = 0; i < POOL; i++) {
-    const m1 = new THREE.Mesh(projGeo, boltMat);
-    const m2 = new THREE.Mesh(projGeo, acidMat);
-    m1.visible = m2.visible = false;
-    m1.position.y = m2.position.y = 0.55;
-    scene.add(m1); scene.add(m2);
-    projPool.push({ bolt: m1, acid: m2 });
+    const slot = {};
+    for (const k of Object.keys(mats)) {
+      const m = new THREE.Mesh(projGeo, mats[k]);
+      m.visible = false;
+      m.position.y = 0.55;
+      scene.add(m);
+      slot[k] = m;
+    }
+    projPool.push(slot);
   }
 
   function syncProjectiles(projectiles, alpha) {
@@ -20,15 +30,16 @@ export function createEffects(THREE, scene, orbTex) {
     for (const b of projectiles) {
       if (used >= POOL) break;
       const slot = projPool[used++];
-      const x = b.px + (b.x - b.px) * alpha;
-      const y = b.py + (b.y - b.py) * alpha;
-      const isBolt = b.owner === 'player';
-      slot.bolt.visible = isBolt;
-      slot.acid.visible = !isBolt;
-      const m = isBolt ? slot.bolt : slot.acid;
-      m.position.x = x; m.position.z = y;
+      const key = b.owner === 'player' ? (b.moveId || 'thunder-shock') : 'acid';
+      for (const k of Object.keys(slot)) slot[k].visible = k === key;
+      const m = slot[key];
+      if (m) {
+        m.position.x = b.px + (b.x - b.px) * alpha;
+        m.position.z = b.py + (b.y - b.py) * alpha;
+        m.scale.setScalar(Math.max(0.5, (b.radius * 2) / 0.3));
+      }
     }
-    for (let i = used; i < POOL; i++) { projPool[i].bolt.visible = false; projPool[i].acid.visible = false; }
+    for (let i = used; i < POOL; i++) for (const k of Object.keys(projPool[i])) projPool[i][k].visible = false;
   }
 
   // ---- 命中碎屑池：8 片小面片爆开 ----

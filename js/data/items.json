@@ -1,0 +1,50 @@
+{
+  "v": 1,
+  "_comment": "M3 道具 33 件（被动 20 + 强化 8 + 消耗品 2 + 纪念品 3）。品质 0-4；池 T=宝箱 S=商店 O=普通掉落 C=挑战奖励 X=隐藏房。effect 由 items.js 解释为 mods。",
+  "items": {
+    "tm-water":      { "name": "技能机·水枪",   "icon": "tm-water",      "kind": "passive", "quality": 1, "pools": ["S", "O"], "desc": "B 槽装填水枪（弹速快射程长）", "effect": { "tm": "water-gun" } },
+    "tm-fire":       { "name": "技能机·火焰漩涡", "icon": "tm-fire",       "kind": "passive", "quality": 2, "pools": ["T", "S"], "desc": "B 槽装填火焰弹，15% 灼烧", "effect": { "tm": "fire-spin", "typeMul": { "fire": 1.1 }, "burnChance": 0.15 } },
+    "tm-grass":      { "name": "技能机·打草结",   "icon": "tm-grass",      "kind": "passive", "quality": 1, "pools": ["O"],      "desc": "B 槽装填草弹，对重型敌 ×2", "effect": { "tm": "grass-knot" } },
+    "charcoal":      { "name": "木炭",           "icon": "charcoal",      "kind": "passive", "quality": 2, "pools": ["T"],      "desc": "火招式伤害 +20%", "effect": { "typeMul": { "fire": 1.2 } } },
+    "magnet-item":   { "name": "磁铁",           "icon": "magnet",        "kind": "passive", "quality": 2, "pools": ["T"],      "desc": "电招式伤害 +20%，免疫麻痹", "effect": { "typeMul": { "electric": 1.2 } } },
+    "mystic-water":  { "name": "神秘水滴",       "icon": "mystic-water",  "kind": "passive", "quality": 1, "pools": ["O"],      "desc": "水招式伤害 +20%", "effect": { "typeMul": { "water": 1.2 } } },
+    "choice-specs":  { "name": "讲究眼镜",       "icon": "choice-specs",  "kind": "passive", "quality": 3, "pools": ["T", "S"], "desc": "特攻 ×1.5，锁定 A 槽", "effect": { "dmgMul": 1.5, "lockB": true } },
+    "choice-scarf":  { "name": "讲究围巾",       "icon": "choice-scarf",  "kind": "passive", "quality": 2, "pools": ["S"],      "desc": "移速 +0.3，特攻 -10%", "effect": { "speedAdd": 0.3, "dmgMul": 0.9 } },
+    "wide-lens":     { "name": "广角镜",         "icon": "wide-lens",     "kind": "passive", "quality": 2, "pools": ["T"],      "desc": "弹体变大，更易命中", "effect": { "sizeMul": 1.25 } },
+    "scope-lens":    { "name": "焦点镜",         "icon": "scope-lens",    "kind": "passive", "quality": 2, "pools": ["S"],      "desc": "暴击率 +10%（×1.5 伤害）", "effect": { "crit": 0.1 } },
+    "expert-belt":   { "name": "达人带",         "icon": "expert-belt",   "kind": "passive", "quality": 3, "pools": ["T"],      "desc": "克制命中再 +25%", "effect": { "superBonus": 0.25 } },
+    "big-root":      { "name": "大根茎",         "icon": "big-root",      "kind": "passive", "quality": 2, "pools": ["T"],      "desc": "击杀时 20% 回半格", "effect": { "killHeal": 0.2 } },
+    "light-ball":    { "name": "电气球",         "icon": "light-ball",    "kind": "passive", "quality": 3, "pools": ["T"],      "desc": "皮卡丘专属：特攻 ×2（进化后失效）", "effect": { "dmgMul": 2, "pikachuOnly": true } },
+    "kings-rock":    { "name": "王者之证",       "icon": "kings-rock",   "kind": "passive", "quality": 3, "pools": ["T"],      "desc": "命中 12% 使敌畏缩 0.6s", "effect": { "flinch": 0.12 } },
+    "quick-claw":    { "name": "先制之爪",       "icon": "quick-claw",    "kind": "passive", "quality": 1, "pools": ["O"],      "desc": "出招速度 +0.5", "effect": { "tears": 0.5 } },
+    "hard-stone":    { "name": "硬石头",         "icon": "hard-stone",    "kind": "passive", "quality": 1, "pools": ["O"],      "desc": "击退 +50%", "effect": { "knockMul": 1.5 } },
+    "twisted-spoon": { "name": "弯曲的汤匙",     "icon": "twisted-spoon", "kind": "passive", "quality": 2, "pools": ["S"],      "desc": "弹道轻微追踪", "effect": { "homing": 0.1 } },
+    "leftovers-pick":{"name": "捡拾袋",         "icon": "amulet-coin",   "kind": "passive", "quality": 1, "pools": ["O"],      "desc": "掉落物自动飘来", "effect": { "magnet": 2.6 } },
+    "drill-item":    { "name": "贯穿钻头",       "icon": "razor-fang",    "kind": "passive", "quality": 3, "pools": ["T"],      "desc": "弹体可贯穿 1 个敌人", "effect": { "pierce": 1 } },
+    "split-seed":    { "name": "分裂种子",       "icon": "miracle-seed",  "kind": "passive", "quality": 3, "pools": ["T"],      "desc": "命中后分裂两枚小子弹", "effect": { "split": true } },
+
+    "hp-up":    { "name": "HP增强剂",     "icon": "hp-up",     "kind": "stat", "quality": 1, "pools": ["S", "O"], "desc": "亲密度上限 +1 大心", "effect": { "maxHp": 2 } },
+    "protein":  { "name": "蛋白质",       "icon": "protein",   "kind": "stat", "quality": 1, "pools": ["S", "O"], "desc": "伤害提升值 +1", "effect": { "dmgUps": 1 } },
+    "iron":     { "name": "铁",           "icon": "iron",      "kind": "stat", "quality": 1, "pools": ["S", "O"], "desc": "受伤 10% 概率完全格挡", "effect": { "blockChance": 0.1 } },
+    "calcium":  { "name": "钙",           "icon": "calcium",   "kind": "stat", "quality": 1, "pools": ["S", "O"], "desc": "出招速度 +0.4", "effect": { "tears": 0.4 } },
+    "zinc":     { "name": "锌",           "icon": "zinc",      "kind": "stat", "quality": 1, "pools": ["S", "O"], "desc": "受击伤害偶尔减半", "effect": { "hurtResist": 0.15 } },
+    "carbos":   { "name": "碳水化合物",   "icon": "carbos",    "kind": "stat", "quality": 1, "pools": ["S", "O"], "desc": "移动速度 +0.15", "effect": { "speedAdd": 0.15 } },
+    "pp-up":    { "name": "PP提升剂",     "icon": "pp-up",     "kind": "stat", "quality": 1, "pools": ["S", "O"], "desc": "大招充能 +25%", "effect": { "ppMul": 1.25 } },
+    "pp-max":   { "name": "PP极限提升剂", "icon": "pp-max",    "kind": "stat", "quality": 2, "pools": ["S"],      "desc": "大招所需 PP -15%", "effect": { "ppCost": 0.85 } },
+
+    "sitrus-berry": { "name": "文柚果", "icon": "sitrus-berry", "kind": "consumable", "quality": 1, "pools": ["S", "O"], "desc": "使用后回复 2 格（E）", "effect": { "heal": 2 } },
+    "cheri-berry":  { "name": "木子果", "icon": "cheri-berry",  "kind": "consumable", "quality": 1, "pools": ["O"],      "desc": "使用后回复 1 格（E）", "effect": { "heal": 1 } },
+
+    "leftovers":    { "name": "剩饭",     "icon": "leftovers",      "kind": "trinket", "quality": 2, "pools": ["S"], "desc": "纪念品：每清一房回半格", "effect": { "regenRoom": 0.5 } },
+    "bright-powder":{ "name": "光粉",     "icon": "bright-powder",  "kind": "trinket", "quality": 2, "pools": ["S"], "desc": "纪念品：10% 闪避", "effect": { "dodge": 0.1 } },
+    "focus-sash":   { "name": "气势披带", "icon": "focus-sash",     "kind": "trinket", "quality": 3, "pools": ["T"], "desc": "纪念品：致命伤保留 1 格（每层一次）", "effect": { "lethalGuard": true } }
+  },
+  "_pools": "T 宝箱房 / S 商店 / O 普通房掉落 / C 挑战奖励 / X 隐藏房。抽池规则见 items.js。",
+  "poolConfig": {
+    "treasure":  { "T": 5, "S": 2, "O": 1 },
+    "shop":      { "T": 2, "S": 4, "O": 1 },
+    "drop":      { "O": 5, "S": 1, "T": 1 },
+    "challenge": { "T": 4, "S": 2, "O": 2 },
+    "secret":    { "T": 3, "O": 2, "S": 1 }
+  }
+}

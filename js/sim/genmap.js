@@ -1,0 +1,142 @@
+// 以撒式楼层生成（《02》§6 规格，参照 BorisTheBrace 拆解 + Repentance 逆向伪代码）。
+// 纯函数 + 注入 rng，node 可测；同种子逐位一致。
+//
+// 规格：
+//   13×13 网格，中心 (6,6) 出生房；BFS 扩张：邻居已占/防环规则/50% 随机放弃
+//   目标房数 = min(20, 5 + floor(10×层号/3) + rand(0,1))
+//   重 roll：房数 < target-2，或死端 < 5，或 Boss 与出生房相邻
+//   死端（按距离降序）：Boss → 商店 → 宝箱 → 剩余（挑战/隐藏房候选）
+//   隐藏房：与 ≥3 房相邻、不邻 Boss/其他特殊房的空格；进图不显示，冲刺撞裂缝进入
+
+export const GRID = 13;
+
+export function genMap(rand, floorNo = 1) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const m = tryGen(rand, floorNo);
+    if (m) return m;
+  }
+  // 50 次仍失败（几乎不可能）：退化为纯十字骨架，保底可玩
+  return fallbackGen(rand, floorNo);
+}
+
+function key(x, y) { return x + ',' + y; }
+
+function tryGen(rand, floorNo) {
+  const target = Math.min(20, 5 + Math.floor(10 * floorNo / 3) + (rand() < 0.5 ? 0 : 1));
+  const cells = new Map();          // key -> { x, y, type, }
+  const put = (x, y, type) => cells.set(key(x, y), { x, y, type });
+
+  const cx = 6, cy = 6;
+  put(cx, cy, 'start');
+  const queue = [[cx, cy]];
+  const N = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+  let count = 1;
+
+  while (queue.length && count < target) {
+    const [qx, qy] = queue.shift();
+    for (const [dx, dy] of N) {
+      if (count >= target) break;
+      const nx = qx + dx, ny = qy + dy;
+      if (nx < 0 || ny < 0 || nx >= GRID || ny >= GRID) continue;
+      if (cells.has(key(nx, ny))) continue;
+      // 防环：候选格的已占邻居（除来源格）≥1 → 放弃
+      let occ = 0;
+      for (const [ex, ey] of N) {
+        if (ex === -dx && ey === -dy) continue;
+        if (cells.has(key(nx + ex, ny + ey))) occ++;
+      }
+      if (occ >= 1) continue;
+      if (rand() < 0.5) continue;
+      put(nx, ny, 'combat');
+      queue.push([nx, ny]);
+      count++;
+    }
+  }
+  if (count < target - 2) return null;
+
+  // 死端 = 恰有 1 个邻居的房（不含出生房）
+  const neighborsOf = (x, y) => N.filter(([dx, dy]) => cells.has(key(x + dx, y + dy)));
+  const deadEnds = [...cells.values()]
+    .filter((c) => !(c.x === cx && c.y === cy) && neighborsOf(c.x, c.y).length === 1)
+    .map((c) => ({ ...c, d: Math.abs(c.x - cx) + Math.abs(c.y - cy) }))
+    .sort((a, b) => b.d - a.d);
+  if (deadEnds.length < 5) return null;
+
+  // Boss=最远死端（且不与出生房相邻）
+  const boss = deadEnds[0];
+  if (Math.abs(boss.x - cx) + Math.abs(boss.y - cy) < 2) return null;
+  cells.get(key(boss.x, boss.y)).type = 'boss';
+  const rest = deadEnds.slice(1);
+  const takeDeadEnd = () => {
+    const c = rest.shift();
+    return c ? cells.get(key(c.x, c.y)) : null;
+  };
+  const shop = takeDeadEnd();   if (shop) shop.type = 'shop';
+  const treasure = takeDeadEnd(); if (treasure) treasure.type = 'treasure';
+  const challenge = takeDeadEnd(); if (challenge) challenge.type = 'challenge';
+
+  // 隐藏房：与 ≥3 个普通/出生房相邻的空格（不邻 Boss/特殊房），邻居越多权重越高
+  const special = new Set(['boss', 'shop', 'treasure', 'challenge', 'secret']);
+  let best = null, bestScore = -1;
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      if (cells.has(key(x, y))) continue;
+      let adj = 0, bad = 0, deadAdj = 0;
+      for (const [dx, dy] of N) {
+        const c = cells.get(key(x + dx, y + dy));
+        if (!c) continue;
+        adj++;
+        if (special.has(c.type)) bad++;
+        if (deadEnds.some((de) => de.x === c.x && de.y === c.y)) deadAdj++;
+      }
+      if (adj >= 3 && bad === 0 && deadAdj === 0) {
+        const score = adj + rand() * 2;
+        if (score > bestScore) { bestScore = score; best = { x, y }; }
+      }
+    }
+  }
+  if (best) put(best.x, best.y, 'secret');
+
+  // 运行时字段
+  for (const c of cells.values()) {
+    c.cleared = c.type === 'start';
+    c.visited = c.type === 'start';
+    c.doors = {};
+    for (const [dx, dy] of N) {
+      const nb = cells.get(key(c.x + dx, c.y + dy));
+      if (nb) c.doors[dx + ',' + dy] = nb.type === 'secret' ? 'secret' : 'normal';
+    }
+  }
+
+  return {
+    grid: GRID, target,
+    cells: [...cells.values()],
+    start: { x: cx, y: cy },
+    counts: tally(cells),
+  };
+}
+
+function tally(cells) {
+  const t = {};
+  for (const c of cells.values()) t[c.type] = (t[c.type] || 0) + 1;
+  return t;
+}
+
+function fallbackGen(rand, floorNo) {
+  const cells = new Map();
+  const put = (x, y, type) => cells.set(key(x, y), { x, y, type });
+  put(6, 6, 'start');
+  put(6, 5, 'combat'); put(6, 4, 'combat'); put(6, 3, 'shop');
+  put(5, 6, 'combat'); put(4, 6, 'treasure'); put(3, 6, 'combat');
+  put(7, 6, 'combat'); put(8, 6, 'combat'); put(6, 2, 'boss');
+  for (const c of cells.values()) {
+    c.cleared = c.type === 'start';
+    c.visited = c.type === 'start';
+    c.doors = {};
+    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+      const nb = cells.get(key(c.x + dx, c.y + dy));
+      if (nb) c.doors[dx + ',' + dy] = nb.type === 'secret' ? 'secret' : 'normal';
+    }
+  }
+  return { grid: GRID, target: cells.size, cells: [...cells.values()], start: { x: 6, y: 6 }, counts: tally(cells), fallback: true };
+}
