@@ -200,6 +200,45 @@ def make_shadow():
     return img
 
 
+def make_orb(name, core, mid, edge, size=10):
+    """发光弹体（电击弹/酸液弹）：白核 + 主题色 + 外缘渐隐。"""
+    cx = cy = (size - 1) / 2
+    img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    px = img.load()
+    for y in range(size):
+        for x in range(size):
+            d = ((x - cx) / (size / 2)) ** 2 + ((y - cy) / (size / 2)) ** 2
+            if d <= 0.18:
+                px[x, y] = core + (255,)
+            elif d <= 0.55:
+                px[x, y] = mid + (255,)
+            elif d <= 1.0:
+                px[x, y] = edge + (170,)
+    return img
+
+
+def make_door():
+    """门洞贴图（16×24）：拱形发光洞（open 态，关态用墙体材质盖住）。"""
+    w, h = 16, 24
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    px = img.load()
+    for y in range(h):
+        for x in range(w):
+            # 拱形：上缘半圆
+            if y < 10:
+                dx = (x - 7.5) / 7.5
+                dy = (y - 10) / 10
+                if dx * dx + dy * dy > 1:
+                    continue
+            # 内部：暗洞 + 边缘亮线
+            edge = (x in (0, 1, 14, 15)) or (y >= 22) or (y < 10 and ((x - 7.5) ** 2 / 7.5 ** 2 + (y - 10) ** 2 / 10 ** 2) > 0.64)
+            if edge:
+                px[x, y] = (127, 212, 255, 255)
+            else:
+                px[x, y] = (14, 20, 34, 255)
+    return img
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     rng = random.Random(20261103)
@@ -208,6 +247,9 @@ def main():
     make_wall_top(rng).save(os.path.join(OUT, 'cave-wall-top.png'))
     make_flame(rng).save(os.path.join(OUT, 'flame.png'))
     make_shadow().save(os.path.join(OUT, 'shadow.png'))
+    make_orb('bolt', (255, 255, 220), (255, 234, 106), (255, 200, 40)).save(os.path.join(OUT, 'orb-bolt.png'))
+    make_orb('acid', (240, 255, 210), (150, 220, 90), (80, 160, 60)).save(os.path.join(OUT, 'orb-acid.png'))
+    make_door().save(os.path.join(OUT, 'door.png'))
     print('tiles ->', OUT)
 
 

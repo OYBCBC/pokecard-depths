@@ -49,8 +49,27 @@ export function buildRoom(THREE, scene, tex, lights, tier) {
     scene.add(m);
     return m;
   }
-  wall(cx, -T / 2, W + T * 2, T, 0.9);            // 北
+  // 北墙留 2.4 宽的门洞（清空后开）：两段墙 + 封门闸板 + 发光门洞
+  const GAP = 2.4;
+  const segW = (W - GAP) / 2 + T;
+  wall(cx - (GAP / 2 + segW / 2 - T / 2), -T / 2, segW, T, 0.9);
+  wall(cx + (GAP / 2 + segW / 2 - T / 2), -T / 2, segW, T, 0.9);
   wall(cx, H + T / 2, W + T * 2, T, 0.9);          // 南（低）
+  // 发光门洞（贴图自带拱形）
+  const doorGlow = new THREE.Mesh(
+    new THREE.PlaneGeometry(GAP * 0.95, GAP * 1.4),
+    new THREE.MeshBasicMaterial({ map: tex.door, transparent: true, depthWrite: false, side: THREE.DoubleSide })
+  );
+  doorGlow.position.set(cx, GAP * 0.68, -T / 2 - 0.02);
+  scene.add(doorGlow);
+  // 封门闸板（清空后落下消失）
+  const gate = new THREE.Mesh(
+    new THREE.BoxGeometry(GAP, 0.9, T * 0.8),
+    [0, 1, 2, 3, 4, 5].map(() => new THREE.MeshStandardMaterial({ map: tex.wall, roughness: 0.9 }))
+  );
+  gate.position.set(cx, 0.45, -T / 2);
+  gate.castShadow = gate.receiveShadow = true;
+  scene.add(gate);
   wall(-T / 2, cz, T, H + T * 2, 0.9);             // 西
   wall(W + T / 2, cz, T, H + T * 2, 0.9);          // 东
 
@@ -114,6 +133,10 @@ export function buildRoom(THREE, scene, tex, lights, tier) {
   scene.add(dust);
 
   return {
+    setDoorOpen(open) {
+      gate.visible = !open;
+      doorGlow.material.opacity = open ? 1 : 0.25;
+    },
     update(dt, t) {
       // 火焰帧动画（8fps 闪烁）+ 点光呼吸
       torches.forEach(({ flame, light, phase, base }) => {

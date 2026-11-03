@@ -1,0 +1,32 @@
+{
+  "v": 1,
+  "_comment": "全部可调系数（《02》§4：热更不动代码）。M2 初值，sim.mjs 校准后更新。",
+  "player": {
+    "baseDamage": 3.5,
+    "fireDelayTicks": 10,
+    "shotSpeedMul": 1.0,
+    "moveSpeed": 4.2,
+    "maxHp": 6,
+    "iframesOnHurt": 1.0,
+    "dashSpeed": 13,
+    "dashDuration": 0.18,
+    "dashCharges": 2,
+    "dashRecharge": 1.2,
+    "ppPerDamage": 0.25,
+    "ppSuperMul": 1.5
+  },
+  "enemy": {
+    "hpMul": 1.0,
+    "hpMulPerRoom": 1.15,
+    "knockback": 4.5,
+    "knockbackDecay": 9,
+    "separation": 0.55,
+    "contactCooldown": 0.8
+  },
+  "feel": {
+    "hitStopKill": 0.07,
+    "hitStopHurt": 0.12,
+    "shakeKill": 0.12,
+    "shakeHurt": 0.3
+  }
+}

@@ -4,7 +4,8 @@
 //   3) castShadow + customDepthMaterial / customDistanceMaterial（人形投影）
 //   4) 法线朝天倾斜 60°（被环境光打亮）
 //   5) 脚下椭圆假阴影 + 真实投影并存
-import { DIRS } from '../sim/engine.js?v=m1l';
+// M2 增补：受击闪白（emissive 脉冲）、出生缩放、单例 dispose。
+import { DIRS } from '../sim/engine.js?v=m2d';
 
 const TEXEL = 16;                     // 16 texel = 1 世界单位
 const NORMAL_TILT = 0.866;            // 法线 y 分量（60° 朝天倾斜）
@@ -14,7 +15,6 @@ export function createBillboard(THREE, atlasTex, atlasData, shadowTex, opts = {}
   const [atlasW, atlasH] = atlasData.atlas;
 
   const geometry = new THREE.PlaneGeometry(1, 1);
-  // 法线朝天倾斜：光照在精灵上打出上亮下暗（《03》§5.4）
   {
     const n = geometry.attributes.normal;
     for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, NORMAL_TILT, Math.sqrt(1 - NORMAL_TILT * NORMAL_TILT));
@@ -27,11 +27,12 @@ export function createBillboard(THREE, atlasTex, atlasData, shadowTex, opts = {}
     side: THREE.DoubleSide,
     roughness: 0.85,
     metalness: 0,
+    emissive: 0xffffff,
+    emissiveIntensity: 0,
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = opts.castShadow !== false;
 
-  // 深度/距离材质：让阴影片段按贴图 alpha 裁切，投影是“人形”而不是整块面片
   mesh.customDepthMaterial = new THREE.MeshDepthMaterial({
     depthPacking: THREE.RGBADepthPacking,
     map: atlasTex,
@@ -56,34 +57,34 @@ export function createBillboard(THREE, atlasTex, atlasData, shadowTex, opts = {}
   group.add(mesh);
   group.add(shadowMesh);
 
-  const state = { anim: 'Idle', dir: 0, frame: 0, ticks: 0 };
+  const state = { anim: 'Idle', dir: 0, frame: 0, ticks: 0, flash: 0, spawnK: 1 };
   const uv = geometry.attributes.uv;
 
   function applyFrame() {
     const a = anims[state.anim] || anims.Idle;
     const row = a.rows === 8 ? state.dir : 0;
     const f = a.frames[row][state.frame];
-    // PlaneGeometry 默认 uv：(0,1)(1,1)(0,0)(1,0)
     const u0 = f.x / atlasW, u1 = (f.x + a.frameW) / atlasW;
     const v0 = 1 - (f.y + a.frameH) / atlasH, v1 = 1 - f.y / atlasH;
     uv.setXY(0, u0, v1); uv.setXY(1, u1, v1);
     uv.setXY(2, u0, v0); uv.setXY(3, u1, v0);
     uv.needsUpdate = true;
 
-    const w = a.frameW / TEXEL, h = a.frameH / TEXEL;
+    const k = state.spawnK;
+    const w = a.frameW / TEXEL * k, h = a.frameH / TEXEL * k;
     mesh.scale.set(w, h, 1);
-    // 贴地：grounded 动作按每帧脚底像素行 gy 落地（PMD 帧脚下有留白，锚点公式会让精灵悬空 ~13px）；
-    // 腾空动作（Hurt 等）沿用锚点公式（身体中心）
+    shadowMesh.scale.set(shadowScale * k, shadowScale * 0.55 * k, 1);
+    // 贴地：grounded 动作按每帧脚底像素行 gy 落地；腾空动作（Hurt 等）沿用锚点公式
     const cy = (a.grounded && f.gy != null)
-      ? (f.gy - a.frameH / 2) / TEXEL
-      : (a.frameH / 2 + f.oy) / TEXEL;
-    mesh.position.set(-f.ox / TEXEL, cy, 0);
+      ? (f.gy - a.frameH / 2) / TEXEL * k
+      : (a.frameH / 2 + f.oy) / TEXEL * k;
+    mesh.position.set(-f.ox / TEXEL * k, cy, 0);
   }
 
   applyFrame();
 
   return {
-    group, mesh,
+    group, mesh, shadow: shadowMesh, material,
     get state() { return { ...state }; },
     setPose(anim, dir) {
       const animChanged = state.anim !== anim;
@@ -101,19 +102,27 @@ export function createBillboard(THREE, atlasTex, atlasData, shadowTex, opts = {}
       const a = anims[state.anim] || anims.Idle;
       const row = a.rows === 8 ? state.dir : 0;
       state.ticks += dt * 60;
-      let f = a.frames[row];
+      const f = a.frames[row];
       let guard = 0;
       while (state.ticks >= f[state.frame].dur && guard++ < 32) {
         state.ticks -= f[state.frame].dur;
         state.frame = (state.frame + 1) % f.length;
       }
+      if (state.flash > 0) state.flash = Math.max(0, state.flash - dt);
+      material.emissiveIntensity = (state.flash / 0.12) * 1.6;
       applyFrame();
     },
-    // 世界定位（渲染插值后的坐标）
-    place(x, z) {
-      group.position.set(x, 0, z);
+    flash(t = 0.12) { state.flash = Math.max(state.flash, t); },
+    setSpawnK(k) { state.spawnK = k; applyFrame(); },
+    place(x, z) { group.position.set(x, 0, z); },
+    dispose() {
+      geometry.dispose();
+      material.dispose();
+      mesh.customDepthMaterial.dispose();
+      mesh.customDistanceMaterial.dispose();
+      shadowMesh.geometry.dispose();
+      shadowMesh.material.dispose();
     },
-    shadow: shadowMesh,
   };
 }
 

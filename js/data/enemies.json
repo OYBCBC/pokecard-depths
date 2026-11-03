@@ -1,0 +1,33 @@
+{
+  "v": 1,
+  "_comment": "M2 敌人表：种族值换算公式见《01 GDD》§8.1（hp=2+HP/8；攻/特攻≥100 碰撞 2 格；速度=0.5+SPD/100；特防修正=clamp(sqrt(70/特防),0.6,1.4)），换算产物手填于此，源种族值在 base 字段备查",
+  "enemies": {
+    "rattata": {
+      "dex": 19, "name": "小拉达", "types": ["normal"], "anim": "rattata",
+      "base": { "hp": 30, "atk": 56, "spa": 25, "spd": 35, "spe": 72 },
+      "hp": 5.75, "touchDmg": 1, "speed": 1.22, "spdMod": 1.4,
+      "family": "charger", "score": 2,
+      "radius": 0.42
+    },
+    "caterpie": {
+      "dex": 10, "name": "绿毛虫", "types": ["bug"], "anim": "caterpie",
+      "base": { "hp": 45, "atk": 30, "spa": 20, "spd": 20, "spe": 45 },
+      "hp": 7.63, "touchDmg": 1, "speed": 0.95, "spdMod": 1.4,
+      "family": "wanderer", "score": 1,
+      "radius": 0.4
+    },
+    "oddish": {
+      "dex": 43, "name": "走路草", "types": ["grass", "poison"], "anim": "oddish",
+      "base": { "hp": 45, "atk": 50, "spa": 75, "spd": 65, "spe": 30 },
+      "hp": 7.63, "touchDmg": 1, "speed": 0.8, "spdMod": 1.04,
+      "family": "shooter", "score": 2,
+      "radius": 0.42,
+      "shoot": { "move": "acid", "cooldown": 2.4, "spread": 3, "arcDeg": 50, "firstDelay": 1.2 }
+    }
+  },
+  "_waves_F1": "层1 波次表（score 预算 6+2×1=8）",
+  "waves": [
+    [ { "id": "rattata", "n": 2 }, { "id": "caterpie", "n": 2 } ],
+    [ { "id": "oddish", "n": 2 }, { "id": "rattata", "n": 1 }, { "id": "caterpie", "n": 1 } ]
+  ]
+}

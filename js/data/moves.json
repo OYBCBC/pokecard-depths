@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "moves": {
+    "thunder-shock": { "name": "电击", "type": "electric", "power": 40, "kind": "projectile", "speed": 10, "range": 6.5, "radius": 0.18, "sprite": "orb-bolt" },
+    "acid":          { "name": "溶解液", "type": "poison", "power": 0,  "kind": "projectile", "speed": 5,  "range": 7.0, "radius": 0.16, "sprite": "orb-acid", "enemyShot": true }
+  }
+}
