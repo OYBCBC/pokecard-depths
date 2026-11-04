@@ -6,12 +6,13 @@ import { dirname, join } from 'node:path';
 
 const ROOT = dirname(fileURLToPath(import.meta.url)) + '/..';
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
-const { createRun, stepRun, STEP } = await import(join(ROOT, 'js/sim/engine.js?v=m3f'));
+const { createRun, stepRun, STEP } = await import(join(ROOT, 'js/sim/engine.js?v=m4c'));
 
 const tc = D('typechart.json'), ed = D('enemies.json'), mv = D('moves.json'), bal = D('balance.json'), itemsDoc = D('items.json');
+const fl = D('floors.json');
 const data = {
   typechart: tc.chart, enemies: ed.enemies, moves: mv.moves, items: itemsDoc.items,
-  itemPools: itemsDoc.poolConfig, balance: bal, waves: ed.waves,
+  itemPools: itemsDoc.poolConfig, balance: bal, waves: fl.floors['1'].waves, floors: fl.floors,
   species: { player: { types: ['electric'] } }, floorNo: 1,
 };
 

@@ -1,0 +1,150 @@
+{
+  "v": 1,
+  "floors": {
+    "1": {
+      "name": "洞窟层",
+      "theme": "cave",
+      "boss": "brock",
+      "hpMul": 1.0,
+      "waves": [
+        [
+          {
+            "id": "rattata",
+            "n": 2
+          },
+          {
+            "id": "caterpie",
+            "n": 1
+          }
+        ],
+        [
+          {
+            "id": "oddish",
+            "n": 1
+          },
+          {
+            "id": "rattata",
+            "n": 1
+          },
+          {
+            "id": "caterpie",
+            "n": 1
+          }
+        ]
+      ],
+      "lights": {
+        "hemi": 3824268,
+        "ground": 3814960,
+        "dir": 16771524,
+        "point": 8377599
+      },
+      "bg": 724504
+    },
+    "2": {
+      "name": "发电厂层",
+      "theme": "plant",
+      "boss": "surge",
+      "hpMul": 1.35,
+      "waves": [
+        [
+          {
+            "id": "magnemite",
+            "n": 2
+          },
+          {
+            "id": "poliwag",
+            "n": 1
+          }
+        ],
+        [
+          {
+            "id": "voltorb",
+            "n": 2
+          },
+          {
+            "id": "meowth",
+            "n": 1
+          },
+          {
+            "id": "grimer",
+            "n": 1
+          }
+        ],
+        [
+          {
+            "id": "magnemite",
+            "n": 1
+          },
+          {
+            "id": "koffing",
+            "n": 1
+          },
+          {
+            "id": "electrode",
+            "n": 1
+          }
+        ]
+      ],
+      "lights": {
+        "hemi": 4864618,
+        "ground": 3485759,
+        "dir": 15266047,
+        "point": 10452991
+      },
+      "bg": 920346
+    },
+    "3": {
+      "name": "遗迹层",
+      "theme": "ruins",
+      "boss": "sabrina",
+      "hpMul": 1.8,
+      "waves": [
+        [
+          {
+            "id": "sandshrew",
+            "n": 2
+          },
+          {
+            "id": "abra",
+            "n": 1
+          }
+        ],
+        [
+          {
+            "id": "machop",
+            "n": 1
+          },
+          {
+            "id": "gastly",
+            "n": 2
+          },
+          {
+            "id": "kecleon",
+            "n": 1
+          }
+        ],
+        [
+          {
+            "id": "abra",
+            "n": 1
+          },
+          {
+            "id": "rhyhorn",
+            "n": 1
+          },
+          {
+            "id": "sandslash",
+            "n": 1
+          }
+        ]
+      ],
+      "lights": {
+        "hemi": 6969914,
+        "ground": 4141606,
+        "dir": 16767392,
+        "point": 16757611
+      },
+      "bg": 1314826
+    }
+  }
+}

@@ -242,6 +242,14 @@ export function createProps(THREE, scene, tex) {
   }
   function addPickup(id, kind, x, z) {
     let mesh;
+    if (kind === 'stairs') {
+      mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.5),
+        new THREE.MeshBasicMaterial({ map: tex.door, transparent: true, depthWrite: false, side: THREE.DoubleSide, color: 0xffd24a }));
+      mesh.position.set(x, 0.8, z);
+      props.add(mesh);
+      pickupViews.set(id, mesh);
+      return;
+    }
     if (kind === 'heart') {
       mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.3),
         new THREE.MeshBasicMaterial({ map: tex.heart, transparent: true, depthWrite: false, side: THREE.DoubleSide }));

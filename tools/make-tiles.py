@@ -19,14 +19,29 @@ OUT = os.path.join(ROOT, 'assets', 'tiles')
 T = 16                      # 每格像素
 ROOM_W, ROOM_H = 17, 11     # 房间战斗区（格）
 
-# 洞窟层色板（《03》§4：冷蓝灰石 + 水晶青）
-GROUT = (24, 29, 42)
-STONE = [(52, 61, 82), (60, 72, 95), (68, 82, 106)]   # 暗 / 中 / 亮
-HILITE = (88, 104, 132)
-SHADE = (40, 47, 64)
-PEBBLE = (96, 110, 136)
-CRACK = (30, 35, 50)
-GLINT = [(111, 183, 216), (160, 225, 245)]
+# 三层主题色板（《03》§4：《01》§10 洞窟蓝调 / 发电厂电光紫调 / 遗迹沙金调）
+THEMES = {
+    'cave': dict(GROUT=(24, 29, 42), STONE=[(52, 61, 82), (60, 72, 95), (68, 82, 106)],
+                 HILITE=(88, 104, 132), SHADE=(40, 47, 64), PEBBLE=(96, 110, 136),
+                 CRACK=(30, 35, 50), GLINT=[(111, 183, 216), (160, 225, 245)], WALLB=[(46, 54, 72), (54, 63, 84), (40, 47, 63)], TOPB=(34, 40, 56), TINT=(1.0, 1.0, 1.0)),
+    'plant': dict(GROUT=(28, 22, 44), STONE=[(58, 48, 92), (66, 55, 104), (74, 62, 116)],
+                  HILITE=(100, 84, 148), SHADE=(44, 36, 70), PEBBLE=(108, 92, 160),
+                  CRACK=(34, 27, 54), GLINT=[(190, 140, 255), (225, 180, 255)], WALLB=[(50, 42, 84), (58, 48, 96), (44, 36, 76)], TOPB=(36, 30, 60), TINT=(0.94, 0.90, 1.12)),
+    'ruins': dict(GROUT=(36, 28, 20), STONE=[(96, 78, 54), (108, 88, 62), (120, 98, 70)],
+                  HILITE=(150, 124, 88), SHADE=(72, 58, 40), PEBBLE=(160, 132, 96),
+                  CRACK=(46, 36, 26), GLINT=[(255, 200, 120), (255, 230, 180)], WALLB=[(90, 74, 52), (102, 84, 60), (78, 63, 44)], TOPB=(64, 52, 38), TINT=(1.16, 1.0, 0.82)),
+}
+GROUT, STONE, HILITE, SHADE, PEBBLE, CRACK, GLINT = THEMES['cave']['GROUT'], THEMES['cave']['STONE'], THEMES['cave']['HILITE'], THEMES['cave']['SHADE'], THEMES['cave']['PEBBLE'], THEMES['cave']['CRACK'], THEMES['cave']['GLINT']
+
+
+_THEME = THEMES['cave']
+
+
+def set_theme(name):
+    global GROUT, STONE, HILITE, SHADE, PEBBLE, CRACK, GLINT, _THEME
+    t = THEMES[name]
+    _THEME = t
+    GROUT, STONE, HILITE, SHADE, PEBBLE, CRACK, GLINT = t['GROUT'], t['STONE'], t['HILITE'], t['SHADE'], t['PEBBLE'], t['CRACK'], t['GLINT']
 
 
 def shade(c, k):
@@ -113,12 +128,13 @@ def make_floor(rng, boss=False, w=None, h=None):
             edge = tx == 0 or ty == 0 or tx == w - 1 or ty == h - 1
             draw_floor_tile(img, tx * T, ty * T, rng, 0.82 if edge else 1.0)
     if boss:
+        tr, tg, tb = _THEME['TINT']
         px = img.load()
         W, H = img.size
         for y in range(H):
             for x in range(W):
                 r, g, b = px[x, y]
-                px[x, y] = (min(255, int(r * 1.15 + 10)), int(g * 0.95), int(b * 0.85))
+                px[x, y] = (min(255, int(r * tr * 1.15 + 10)), min(255, int(g * tg * 0.95)), min(255, int(b * tb * 0.85)))
     # 贴墙接触阴影：北/东/西墙根 3px 渐暗（南墙低矮，不压暗）
     px = img.load()
     W, H = img.size
@@ -144,7 +160,7 @@ def make_wall_side(rng):
             length = (n - c) % T or T
             segs.append((c, length))
         for (sx, length) in segs:
-            base = rng.choice([(46, 54, 72), (54, 63, 84), (40, 47, 63)])
+            base = rng.choice(_THEME['WALLB'])
             for dy in range(y0, y1):
                 for dx in range(length - 1):
                     x = (sx + dx) % T
@@ -164,7 +180,8 @@ def make_wall_top(rng):
     px = img.load()
     for y in range(T):
         for x in range(T):
-            c = (34, 40, 56)
+            base_top = _THEME['TOPB']
+            c = base_top
             r = rng.random()
             if r < 0.15:
                 c = (40, 47, 65)
@@ -305,9 +322,14 @@ def make_ring():
 def main():
     os.makedirs(OUT, exist_ok=True)
     rng = random.Random(20261103)
-    make_floor(rng).save(os.path.join(OUT, 'cave-floor.png'))
-    rng2 = random.Random(20261104)
-    make_floor(rng2, boss=True, w=24, h=16).save(os.path.join(OUT, 'cave-floor-boss.png'))
+    for theme in ['cave', 'plant', 'ruins']:
+        set_theme(theme)
+        r1 = random.Random(20261103 if theme == 'cave' else (20261105 if theme == 'plant' else 20261106))
+        make_floor(r1).save(os.path.join(OUT, f'{theme}-floor.png'))
+        make_floor(random.Random(hash(theme) % 99991 + 7), boss=True, w=24, h=16).save(os.path.join(OUT, f'{theme}-floor-boss.png'))
+        make_wall_side(r1).save(os.path.join(OUT, f'{theme}-wall.png'))
+        make_wall_top(r1).save(os.path.join(OUT, f'{theme}-wall-top.png'))
+    set_theme('cave')
     make_crack(random.Random(77)).save(os.path.join(OUT, 'crack.png'))
     make_coin().save(os.path.join(OUT, 'coin.png'))
     make_heart_px().save(os.path.join(OUT, 'heart.png'))

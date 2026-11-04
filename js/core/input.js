@@ -56,6 +56,7 @@ export function createInput(target = window) {
       if (pressedOnce.has(code)) { pressedOnce.delete(code); return true; }
       return false;
     },
+    held(code) { return down.has(code); },
     endFrame() { pressedOnce.clear(); },
     onFirstInteraction(fn) { onFirstKey.push(fn); },
   };

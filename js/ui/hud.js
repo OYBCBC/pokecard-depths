@@ -21,6 +21,8 @@ export function createHud() {
     <div id="nums"></div>
     <div id="prices"></div>
     <div id="itemcard" class="hidden"></div>
+    <div id="peek" class="hidden"></div>
+    <div id="sheet" class="hidden"></div>
     <div id="bossbar" class="hidden"><div id="boss-fill"></div><span id="boss-name"></span></div>
     <div id="banner" class="hidden"></div>
     <div id="flashmask"></div>
@@ -45,6 +47,7 @@ export function createHud() {
   const waveEl = $('wave'), dashEl = $('dash'), numsEl = $('nums');
   const moneyEl = $('money'), slotsEl = $('slots'), minimapEl = $('minimap');
   const pricesEl = $('prices'), itemcardEl = $('itemcard');
+  const peekEl = $('peek'), sheetEl = $('sheet');
   const bossbarEl = $('bossbar'), bossFill = $('boss-fill'), bossName = $('boss-name');
   const bannerEl = $('banner'), flashEl = $('flashmask');
   const deathEl = $('death'), deathStats = $('d-stats');
@@ -65,6 +68,64 @@ export function createHud() {
 
   let fpsFrames = 0, fpsTime = 0, fps = 0, frameMs = 0;
 
+  // ---------- 地图 SVG（小地图 / Tab 大图共用） ----------
+  const MM_ICON = { boss: '☠', shop: '$', treasure: '▣', challenge: '⚔', secret: '?', start: '▲', camp: '♥' };
+  // 可见性（以撒式迷雾）：已访问；或紧邻已访问房（隐藏房须已揭示）
+  function visibleCells(cells) {
+    const vis = new Set();
+    for (const c of cells.values()) {
+      const revealed = c.type !== 'secret' || c.visited
+        || !!(c.doors && Object.values(c.doors).includes('revealed'));
+      if (!revealed) continue;
+      if (c.visited) { vis.add(c.x + ',' + c.y); continue; }
+      const adj = [[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => {
+        const n = cells.get((c.x + dx) + ',' + (c.y + dy));
+        return n && n.visited;
+      });
+      if (adj) vis.add(c.x + ',' + c.y);
+    }
+    return vis;
+  }
+
+  function mapSvg(cells, cellKey, { win = 5, size = 20, gap = 5 } = {}) {
+    const cur = cells.get(cellKey);
+    if (!cur) return '';
+    const vis = visibleCells(cells);
+    const shown = [...cells.values()].filter((c) => vis.has(c.x + ',' + c.y));
+    if (!shown.length) return '';
+    const pitch = size + gap;
+    let x0 = cur.x - (win - 1) / 2, x1 = cur.x + (win - 1) / 2;
+    let y0 = cur.y - (win - 1) / 2, y1 = cur.y + (win - 1) / 2;
+    if (!win) {   // 全层：可见房包围盒
+      x0 = Math.min(...shown.map((c) => c.x)); x1 = Math.max(...shown.map((c) => c.x));
+      y0 = Math.min(...shown.map((c) => c.y)); y1 = Math.max(...shown.map((c) => c.y));
+    }
+    const inWin = (c) => c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1;
+    const px = (x) => (x - x0) * pitch, py = (y) => (y - y0) * pitch;
+    let out = '';
+    // 门连接线（两房都可见且至少一侧已到过）
+    for (const c of shown) {
+      if (!inWin(c)) continue;
+      for (const [dx, dy] of [[1, 0], [0, 1]]) {
+        const n = cells.get((c.x + dx) + ',' + (c.y + dy));
+        if (!n || !vis.has(n.x + ',' + n.y) || !inWin(n)) continue;
+        if (!c.visited && !n.visited) continue;
+        out += `<line class="mmline" x1="${px(c.x) + size / 2}" y1="${py(c.y) + size / 2}" x2="${px(n.x) + size / 2}" y2="${py(n.y) + size / 2}"/>`;
+      }
+    }
+    // 房块
+    for (const c of shown) {
+      if (!inWin(c)) continue;
+      const cls = ['mmr', 't-' + c.type, c.visited ? (c.cleared ? 'cleared' : 'seen') : 'fog',
+        c.x === cur.x && c.y === cur.y ? 'cur' : ''].filter(Boolean).join(' ');
+      const icon = c.visited ? (MM_ICON[c.type] || '') : '';
+      out += `<g class="${cls}"><rect class="body" x="${px(c.x)}" y="${py(c.y)}" width="${size}" height="${size}" rx="${size * 0.16}"/>` +
+        (icon ? `<text x="${px(c.x) + size / 2}" y="${py(c.y) + size / 2}">${icon}</text>` : '') + '</g>';
+    }
+    const w = (x1 - x0 + 1) * pitch - gap, h = (y1 - y0 + 1) * pitch - gap;
+    return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${out}</svg>`;
+  }
+
   function hearts(hp, maxHp) {
     let s = '<span class="hp-label">亲密</span>';
     for (let i = 0; i < maxHp; i += 2) {
@@ -84,14 +145,13 @@ export function createHud() {
       hud.classList.remove('hidden');
       if (debugOn) debug.classList.remove('hidden');
     },
-    game(hp, maxHp, pp, dashCharges, dashMax, roomLabel, money, slots, slotActive, moveB) {
-      hpEl.innerHTML = hearts(hp, maxHp);
-      ppFill.style.width = `${Math.round(pp)}%`;
-      ppText.textContent = `PP ${Math.round(pp)}`;
+    game(hp, maxHp, pp, dashCharges, dashMax, roomLabel, money, companion, zReady) {
+      hpEl.innerHTML = hearts(hp, maxHp) + (companion ? `<span class="comp">${companion}</span>` : '');
+      ppFill.style.width = `${Math.round(pp / (zReady ? 1 : 1) * 1)}%`;
+      ppText.textContent = zReady ? 'PP 满！按 R 放 Z' : `PP ${Math.round(pp)}`;
       waveEl.textContent = roomLabel;
       moneyEl.textContent = `¥ ${money}`;
-      slotsEl.innerHTML = `<span class="slot ${slotActive === 'A' ? 'on' : ''}">A 电击</span>` +
-        (moveB ? `<span class="slot ${slotActive === 'B' ? 'on' : ''}">B ${'换'}</span>` : '');
+      document.getElementById('pp').classList.toggle('zready', !!zReady);
       dashEl.innerHTML = '<span class="d-label">冲刺</span>' +
         Array.from({ length: dashMax }, (_, i) => `<span class="d-dot ${i < dashCharges ? 'on' : ''}"></span>`).join('');
     },
@@ -102,21 +162,75 @@ export function createHud() {
         (slotB ? `<span class="slot ${active === 'B' && !lockB ? 'on' : ''}${lockB ? ' lock' : ''}">B·${nm[slotB] || slotB}${lockB ? '🔒' : ''}</span>` : '');
     },
     minimap(cells, cellKey, W) {
-      const cur = cells.get(cellKey);
-      if (!cur) return;
-      // 以当前房为中心的 5×5 视窗
-      let html = '';
-      for (let dy = -2; dy <= 2; dy++) {
-        for (let dx = -2; dx <= 2; dx++) {
-          const c = cells.get((cur.x + dx) + ',' + (cur.y + dy));
-          if (!c) { html += '<span class="mm off"></span>'; continue; }
-          const icon = { boss: '☠', shop: '$', treasure: '▣', challenge: '⚔', secret: '?', start: '▲' }[c.type] || '';
-          const cls = ['mm', c.x + ',' + c.y === cellKey ? 'cur' : c.visited ? (c.cleared ? 'cleared' : 'seen') : 'unseen',
-            c.type === 'secret' && !(c.doors && Object.values(c.doors).includes('revealed')) && !c.visited ? 'hide' : ''].join(' ');
-          html += `<span class="${cls}">${icon}</span>`;
-        }
-      }
-      minimapEl.innerHTML = html;
+      minimapEl.innerHTML = mapSvg(cells, cellKey, { win: 5, size: 20, gap: 5 });
+    },
+    // 台座详情（靠近时显示）
+    peek(info) {
+      if (!info) { peekEl.classList.add('hidden'); return; }
+      const q = info.quality || 0;
+      const pips = `<span class="pk-q q${q}">${q ? '◆'.repeat(q) : '◇'}</span>`;
+      const price = info.price > 0
+        ? `<span class="pk-p">¥${info.price}</span>`
+        : `<span class="pk-p free">${info.free ? '免费' : '踏上拾取'}</span>`;
+      peekEl.innerHTML = `<div class="pk">${info.icon ? `<img src="assets/items/${info.icon}.png">` : ''}` +
+        `<div><div class="pk-n">${info.name} ${pips}</div><div class="pk-d">${info.desc || ''}</div></div>${price}</div>`;
+      peekEl.classList.remove('hidden');
+    },
+    hidePeek() { peekEl.classList.add('hidden'); },
+    // Tab 长按：以撒式数据页（全层地图 + 面板 + 道具收藏）
+    sheet(show, run, data) {
+      if (!show) { sheetEl.classList.add('hidden'); return; }
+      const p = run.player, s = p.stats, m = p.mods;
+      const row = (label, val) => `<div class="s-row"><span>${label}</span><b>${val}</b></div>`;
+      const chips = [];
+      const pct = (v) => Math.round(v * 100) + '%';
+      if (m.pierce) chips.push(['穿透+' + m.pierce, '#7fd4ff']);
+      if (m.homing) chips.push(['追踪', '#c79fff']);
+      if (m.bounce) chips.push(['反弹×' + m.bounce, '#9fe070']);
+      if (m.split) chips.push(['分裂弹', '#ffd24a']);
+      if (m.crit) chips.push(['暴击 ' + pct(m.crit), '#ff9a4a']);
+      if (m.dodge) chips.push(['闪避 ' + pct(m.dodge), '#9fe070']);
+      if (m.blockChance) chips.push(['格挡 ' + pct(m.blockChance), '#7fd4ff']);
+      if (m.hurtResist) chips.push(['受伤减免', '#9aa7bd']);
+      if (m.killHeal) chips.push(['击杀回血 ' + pct(m.killHeal), '#ff8a97']);
+      if (m.regenRoom) chips.push(['清房回血+' + m.regenRoom, '#ff8a97']);
+      if (m.flinch) chips.push(['畏缩 ' + pct(m.flinch), '#ffd24a']);
+      if (m.magnet > 1) chips.push(['磁力 ' + m.magnet.toFixed(1) + '格', '#ffd24a']);
+      if (m.lethalGuard) chips.push(['气势披带', '#ff8a97']);
+      if (m.superBonus) chips.push(['克制增伤+' + pct(m.superBonus), '#ffd24a']);
+      const TN = { electric: '电', water: '水', fire: '火', grass: '草', ground: '地', rock: '岩', psychic: '超' };
+      for (const [k, v] of Object.entries(m.typeMul)) if (v > 1) chips.push([(TN[k] || k) + '伤×' + v.toFixed(2), '#ff9a4a']);
+      const moveName = (id) => (data.moves[id] && data.moves[id].name) || id;
+      const ids = [...p.inv.passives, ...(p.inv.trinket ? [p.inv.trinket] : []), ...p.inv.badges];
+      const itemHtml = ids.length
+        ? ids.map((id) => {
+          const it = data.items[id];
+          return it ? `<div class="s-item"><img src="assets/items/${it.icon}.png"><span>${it.name}</span></div>` : '';
+        }).join('')
+        : '<span class="s-none">（还没有道具）</span>';
+      const consum = p.inv.consumable ? data.items[p.inv.consumable] : null;
+      const mm = Math.floor(run.t / 60), ss = String(Math.floor(run.t % 60)).padStart(2, '0');
+      sheetEl.innerHTML = `<div class="sh-box">
+        <div class="sh-map">
+          <div class="sh-title">第 ${run.floorNo} 层 · ${data.floors[run.floorNo].name}</div>
+          ${mapSvg(run.map, run.cellKey, { win: 0, size: 24, gap: 6 })}
+        </div>
+        <div class="sh-stats">
+          <div class="sh-title">面板数据</div>
+          ${row('伤害', s.damage.toFixed(1))}
+          ${row('攻速', (1 / s.fireInterval).toFixed(2) + ' 发/秒')}
+          ${row('移速', s.moveSpeed.toFixed(1))}
+          ${row('射程', '×' + m.rangeMul.toFixed(2))}
+          ${row('弹速', '×' + m.shotSpeedMul.toFixed(2))}
+          ${row('弹径', '×' + m.sizeMul.toFixed(2))}
+          <div class="s-moves">A·${moveName(p.moveA)}${p.moveB ? `　B·${moveName(p.moveB)}` : ''}${consum ? `　携带·${consum.name}` : ''}</div>
+          ${chips.length ? '<div class="s-chips">' + chips.map(([t, c]) => `<span style="border-color:${c};color:${c}">${t}</span>`).join('') + '</div>' : ''}
+          <div class="sh-title sh-title2">道具收藏</div>
+          <div class="s-items">${itemHtml}</div>
+          <div class="s-run">用时 ${mm}:${ss} · 击倒 ${run.stats.kills} · 清房 ${run.stats.roomsCleared} · 克制 ${run.stats.superHits}</div>
+        </div>
+      </div>`;
+      sheetEl.classList.remove('hidden');
     },
     price(d, sx, sy) {
       let el = pricesEl.querySelector(`[data-pid="${d.id}"]`);

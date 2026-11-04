@@ -6,10 +6,11 @@
 const T = 1 / 60;
 
 export function spawnBoss(state, data) {
-  const spec = data.enemies.brock;
+  const floorCfg = data.floors[state.floorNo];
+  const spec = data.enemies[floorCfg.boss];
   const cfg = spec.boss;
-  state.enemies.push({
-    id: state.nextId++, eid: 'brock', name: spec.name, types: spec.types,
+  const ent = {
+    id: state.nextId++, eid: floorCfg.boss, name: spec.name, types: spec.types,
     family: 'boss', radius: spec.radius, score: 0,
     hp: spec.hp * data.balance.boss.hpMul, maxHp: spec.hp * data.balance.boss.hpMul,
     touchDmg: spec.touchDmg, speed: spec.speed, spdMod: spec.spdMod,
@@ -23,8 +24,15 @@ export function spawnBoss(state, data) {
       cfg,
       chargeDir: null, burrowAt: null, rainT: 0,
     },
-  });
-  state.events.push({ t: 'boss-intro', name: spec.name });
+  };
+  // 各 Boss 专属运行字段
+  if (ent.eid === 'surge') {
+    ent.b.summonT = 2.5; ent.b.gridT = 4.0; ent.b.volleyT = 6.5;
+  } else if (ent.eid === 'sabrina') {
+    ent.b.mirrorT = 2.5; ent.b.tpT = 3.2;
+  }
+  state.enemies.push(ent);
+  state.events.push({ t: 'boss-intro', name: spec.name, ace: spec.anim });
 }
 
 function warn(state, x, y, r, delay, dmg, kind) {
@@ -33,6 +41,8 @@ function warn(state, x, y, r, delay, dmg, kind) {
 
 export function stepBoss(state, e, data) {
   const b = e.b, cfg = b.cfg, p = state.player;
+  if (e.eid === 'surge') return stepSurge(state, e, data);
+  if (e.eid === 'sabrina') return stepSabrina(state, e, data);
   e.px = e.x; e.py = e.y;
   if (e.flash > 0) e.flash -= T;
 
@@ -157,6 +167,163 @@ export function stepBoss(state, e, data) {
     const dx = e.x - p.x, dy = e.y - p.y;
     if (dx * dx + dy * dy < rr * rr) {
       if (state.hurtPlayer(b.mode === 'charge' ? cfg.charge.damage : e.touchDmg)) e.touchCd = 0.9;
+    }
+  }
+}
+
+// ---------- 马志士：召唤雷电球 + 电网行/列 + 追踪弹幕 ----------
+function stepSurge(state, e, data) {
+  const b = e.b, cfg = b.cfg, p = state.player;
+  e.px = e.x; e.py = e.y;
+  if (e.flash > 0) e.flash -= T;
+  if (!b.phase2Done && e.hp < e.maxHp * cfg.phase2At) {
+    b.phase2Done = true; b.phase = 2;
+    state.events.push({ t: 'boss-phase2', x: e.x, y: e.y });
+  }
+  // 缓慢绕场游走
+  const ang = state.t * 0.35;
+  const tx = state.roomW / 2 + Math.cos(ang) * (state.roomW / 3.2);
+  const ty = state.roomH / 2 + Math.sin(ang) * (state.roomH / 3.4);
+  const dx = tx - e.x, dy = ty - e.y, l = Math.hypot(dx, dy) || 1;
+  if (l > 0.3) { e.x += dx / l * e.speed * T; e.y += dy / l * e.speed * T; }
+  e.anim = 'Walk'; e.moving = true; e.dir = state.dirOf(dx, dy);
+  e.hidden = false;
+
+  // 召唤雷电球
+  b.summonT -= T;
+  const minions = state.enemies.filter((x) => x.eid === cfg.summon.id).length;
+  if (b.summonT <= 0 && minions < cfg.summon.max) {
+    b.summonT = cfg.summon.interval;
+    const spec = data.enemies[cfg.summon.id];
+    const sx = 1.5 + state.rand() * (state.roomW - 3);
+    const sy = 1.5 + state.rand() * (state.roomH - 3);
+    state.enemies.push({
+      id: state.nextId++, eid: cfg.summon.id, name: spec.name, types: spec.types,
+      family: spec.family, radius: spec.radius, score: spec.score,
+      hp: spec.hp * 0.7, maxHp: spec.hp * 0.7, touchDmg: spec.touchDmg,
+      speed: spec.speed, spdMod: spec.spdMod, x: sx, y: sy, px: sx, py: sy, kx: 0, ky: 0,
+      state: 'spawning', spawnT: 0.4, flash: 0, touchCd: 0, stun: 0,
+      anim: 'Idle', dir: 0, moving: false, wanderT: 0, wx: 0, wy: 0,
+      bombRadius: spec.bombRadius, bombDmg: spec.bombDmg, fuse: spec.fuse,
+    });
+    state.events.push({ t: 'spawn', id: state.enemies[state.enemies.length - 1].id, eid: cfg.summon.id, x: sx, y: sy });
+  }
+
+  // 电网：随机 3 行/列预警 → 落雷
+  b.gridT -= T;
+  if (b.gridT <= 0) {
+    b.gridT = b.phase === 2 ? 4.5 : 6.0;
+    const vertical = state.rand() < 0.5;
+    const used = new Set();
+    for (let i = 0; i < cfg.grid.cols; i++) {
+      let c;
+      do { c = 1 + Math.floor(state.rand() * (vertical ? state.roomW - 2 : state.roomH - 2)); } while (used.has(c));
+      used.add(c);
+      for (let k = 1; k < (vertical ? state.roomH : state.roomW) - 1; k += 1.6) {
+        warn(state, vertical ? c : k, vertical ? k : c, 0.85, cfg.grid.warn, cfg.grid.dmg, 'grid');
+      }
+    }
+  }
+
+  // 追踪弹幕：n 发瞄准弹
+  b.volleyT -= T;
+  if (b.volleyT <= 0) {
+    b.volleyT = b.phase === 2 ? 3.5 : 5.0;
+    const base = Math.atan2(p.y - e.y, p.x - e.x);
+    for (let i = 0; i < cfg.volley.n; i++) {
+      const a = base + (i - (cfg.volley.n - 1) / 2) * 0.22;
+      state.projectiles.push({
+        owner: 'enemy', id: state.nextId++, moveId: 'zap-bolt',
+        x: e.x, y: e.y, px: e.x, py: e.y,
+        vx: Math.cos(a) * cfg.volley.speed, vy: Math.sin(a) * cfg.volley.speed,
+        life: 9 / cfg.volley.speed * 0.9, radius: 0.17,
+      });
+    }
+    state.events.push({ t: 'enemy-shoot', x: e.x, y: e.y });
+  }
+
+  bossContact(state, e, 1);
+  bossRain(state, e, cfg, b);
+}
+
+// ---------- 娜姿：镜像弹幕环 + 瞬移 + 操作反转 ----------
+function stepSabrina(state, e, data) {
+  const b = e.b, cfg = b.cfg, p = state.player;
+  e.px = e.x; e.py = e.y;
+  if (e.flash > 0) e.flash -= state.dt;
+  if (!b.phase2Done && e.hp < e.maxHp * cfg.phase2At) {
+    b.phase2Done = true; b.phase = 2;
+    state.events.push({ t: 'boss-phase2', x: e.x, y: e.y });
+  }
+  e.anim = 'Idle'; e.moving = false; e.hidden = false;
+
+  // 镜像弹幕：双环散射（第二环错开半格）
+  b.mirrorT -= T;
+  if (b.mirrorT <= 0) {
+    b.mirrorT = b.phase === 2 ? 3.2 : 4.2;
+    for (let ring = 0; ring < cfg.mirror.rings; ring++) {
+      const off = ring * Math.PI / cfg.mirror.burst;
+      for (let i = 0; i < cfg.mirror.burst; i++) {
+        const a = (i / cfg.mirror.burst) * Math.PI * 2 + off + state.rand() * 0.2;
+        state.projectiles.push({
+          owner: 'enemy', id: state.nextId++, moveId: 'psy-bolt',
+          x: e.x, y: e.y, px: e.x, py: e.y,
+          vx: Math.cos(a) * cfg.mirror.speed, vy: Math.sin(a) * cfg.mirror.speed,
+          life: 8 / cfg.mirror.speed, radius: 0.16,
+        });
+      }
+    }
+    state.events.push({ t: 'enemy-shoot', x: e.x, y: e.y });
+  }
+
+  // 瞬移：随机点（远离玩家≥3）
+  b.tpT -= T;
+  if (b.tpT <= 0) {
+    b.tpT = cfg.teleport.interval * (0.8 + state.rand() * 0.4);
+    for (let tries = 0; tries < 12; tries++) {
+      const nx = 1.5 + state.rand() * (state.roomW - 3);
+      const ny = 1.5 + state.rand() * (state.roomH - 3);
+      if (Math.hypot(nx - p.x, ny - p.y) > 3.2) {
+        state.events.push({ t: 'boss-tp', from: [e.x, e.y], to: [nx, ny] });
+        e.x = nx; e.y = ny; e.px = nx; e.py = ny;
+        break;
+      }
+    }
+  }
+
+  // 二阶段：操作反转（短促、非惩罚性——有 HUD 提示与紫边提示）
+  if (b.phase === 2) {
+    b.revT = (b.revT || 0) - T;
+    if (b.revT <= 0 && state.reverseT <= 0) {
+      b.revT = 7.0;
+      state.reverseT = cfg.reverse.duration;
+      state.events.push({ t: 'reverse-start', duration: cfg.reverse.duration });
+    }
+  }
+
+  bossContact(state, e, 1);
+  bossRain(state, e, cfg, b);
+}
+
+function bossContact(state, e, dmg) {
+  const p = state.player;
+  e.touchCd -= T;
+  if (p.alive && e.touchCd <= 0 && !e.hidden) {
+    const rr = e.radius + 0.45;
+    if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 < rr * rr) {
+      if (state.hurtPlayer(dmg)) e.touchCd = 0.9;
+    }
+  }
+}
+
+function bossRain(state, e, cfg, b) {
+  if (b.phase !== 2 || !cfg.rain) return;
+  b.rainT = (b.rainT || 0) - T;
+  if (b.rainT <= 0) {
+    b.rainT = cfg.rain.interval;
+    for (let i = 0; i < 2; i++) {
+      warn(state, 1.5 + state.rand() * (state.roomW - 3), 1.5 + state.rand() * (state.roomH - 3),
+        cfg.rain.radius, cfg.rain.warn, cfg.rain.dmg, 'rain');
     }
   }
 }

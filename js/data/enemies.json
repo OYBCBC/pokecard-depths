@@ -124,6 +124,551 @@
         },
         "badgeReward": "gray-badge"
       }
+    },
+    "voltorb": {
+      "dex": 100,
+      "name": "雷电球",
+      "types": [
+        "electric"
+      ],
+      "anim": "voltorb",
+      "base": {
+        "hp": 40,
+        "atk": 30,
+        "def": 50,
+        "spa": 55,
+        "spd": 55,
+        "spe": 100
+      },
+      "hp": 7.0,
+      "touchDmg": 1,
+      "speed": 1.5,
+      "spdMod": 1.13,
+      "family": "bomber",
+      "score": 3,
+      "radius": 0.42,
+      "bombRadius": 1.6,
+      "bombDmg": 2,
+      "fuse": 1.1
+    },
+    "magnemite": {
+      "dex": 81,
+      "name": "小磁怪",
+      "types": [
+        "electric",
+        "steel"
+      ],
+      "anim": "magnemite",
+      "base": {
+        "hp": 25,
+        "atk": 35,
+        "def": 70,
+        "spa": 95,
+        "spd": 55,
+        "spe": 45
+      },
+      "hp": 5.12,
+      "touchDmg": 1,
+      "speed": 0.95,
+      "spdMod": 1.13,
+      "family": "shooter",
+      "score": 2,
+      "radius": 0.42,
+      "shoot": {
+        "move": "zap-bolt",
+        "cooldown": 2.6,
+        "spread": 1,
+        "arcDeg": 0,
+        "firstDelay": 1.0
+      }
+    },
+    "grimer": {
+      "dex": 88,
+      "name": "臭泥",
+      "types": [
+        "poison"
+      ],
+      "anim": "grimer",
+      "base": {
+        "hp": 80,
+        "atk": 80,
+        "def": 50,
+        "spa": 40,
+        "spd": 50,
+        "spe": 25
+      },
+      "hp": 12.0,
+      "touchDmg": 1,
+      "speed": 0.75,
+      "spdMod": 1.18,
+      "family": "wanderer",
+      "score": 3,
+      "radius": 0.42,
+      "splitOnDeath": "grimer-small"
+    },
+    "grimer-small": {
+      "dex": 88,
+      "name": "小臭泥",
+      "types": [
+        "poison"
+      ],
+      "anim": "grimer-small",
+      "base": {
+        "hp": 28,
+        "atk": 80,
+        "def": 50,
+        "spa": 40,
+        "spd": 50,
+        "spe": 30
+      },
+      "hp": 5.5,
+      "touchDmg": 1,
+      "speed": 0.8,
+      "spdMod": 1.18,
+      "family": "wanderer",
+      "score": 1,
+      "radius": 0.42
+    },
+    "koffing": {
+      "dex": 109,
+      "name": "瓦斯弹",
+      "types": [
+        "poison"
+      ],
+      "anim": "koffing",
+      "base": {
+        "hp": 40,
+        "atk": 65,
+        "def": 95,
+        "spa": 60,
+        "spd": 45,
+        "spe": 35
+      },
+      "hp": 7.0,
+      "touchDmg": 1,
+      "speed": 0.85,
+      "spdMod": 1.25,
+      "family": "bomber",
+      "score": 3,
+      "radius": 0.42,
+      "bombRadius": 2.0,
+      "bombDmg": 2,
+      "fuse": 1.3
+    },
+    "poliwag": {
+      "dex": 60,
+      "name": "蚊香蝌蚪",
+      "types": [
+        "water"
+      ],
+      "anim": "poliwag",
+      "base": {
+        "hp": 40,
+        "atk": 50,
+        "def": 40,
+        "spa": 40,
+        "spd": 40,
+        "spe": 90
+      },
+      "hp": 7.0,
+      "touchDmg": 1,
+      "speed": 1.4,
+      "spdMod": 1.32,
+      "family": "shooter",
+      "score": 2,
+      "radius": 0.42,
+      "shoot": {
+        "move": "water-bolt",
+        "cooldown": 2.4,
+        "spread": 3,
+        "arcDeg": 40,
+        "firstDelay": 1.2
+      }
+    },
+    "meowth": {
+      "dex": 52,
+      "name": "喵喵",
+      "types": [
+        "normal"
+      ],
+      "anim": "meowth",
+      "base": {
+        "hp": 40,
+        "atk": 45,
+        "def": 35,
+        "spa": 40,
+        "spd": 40,
+        "spe": 90
+      },
+      "hp": 7.0,
+      "touchDmg": 1,
+      "speed": 1.4,
+      "spdMod": 1.32,
+      "family": "thief",
+      "score": 3,
+      "radius": 0.42,
+      "steal": 1
+    },
+    "electrode": {
+      "dex": 101,
+      "name": "顽皮雷弹",
+      "types": [
+        "electric"
+      ],
+      "anim": "electrode",
+      "base": {
+        "hp": 60,
+        "atk": 50,
+        "def": 70,
+        "spa": 80,
+        "spd": 80,
+        "spe": 150
+      },
+      "hp": 9.5,
+      "touchDmg": 1,
+      "speed": 2.0,
+      "spdMod": 0.94,
+      "family": "bomber",
+      "score": 6,
+      "radius": 0.42,
+      "bombRadius": 2.2,
+      "bombDmg": 2,
+      "fuse": 0.9,
+      "elite": true
+    },
+    "magneton": {
+      "dex": 82,
+      "name": "三合一磁怪",
+      "types": [
+        "electric",
+        "steel"
+      ],
+      "anim": "magneton",
+      "base": {
+        "hp": 50,
+        "atk": 60,
+        "def": 95,
+        "spa": 120,
+        "spd": 70,
+        "spe": 70
+      },
+      "hp": 8.25,
+      "touchDmg": 2,
+      "speed": 1.2,
+      "spdMod": 1.0,
+      "family": "shooter",
+      "score": 6,
+      "radius": 0.42,
+      "shoot": {
+        "move": "zap-bolt",
+        "cooldown": 2.0,
+        "spread": 3,
+        "arcDeg": 50,
+        "firstDelay": 0.8
+      },
+      "elite": true
+    },
+    "abra": {
+      "dex": 63,
+      "name": "凯西",
+      "types": [
+        "psychic"
+      ],
+      "anim": "abra",
+      "base": {
+        "hp": 25,
+        "atk": 20,
+        "def": 15,
+        "spa": 105,
+        "spd": 55,
+        "spe": 90
+      },
+      "hp": 5.12,
+      "touchDmg": 2,
+      "speed": 1.4,
+      "spdMod": 1.13,
+      "family": "blinker",
+      "score": 3,
+      "radius": 0.42,
+      "blinkCooldown": 2.2,
+      "shoot": {
+        "move": "psy-bolt",
+        "cooldown": 1.8,
+        "spread": 1,
+        "arcDeg": 0,
+        "firstDelay": 0.6
+      }
+    },
+    "gastly": {
+      "dex": 92,
+      "name": "鬼斯",
+      "types": [
+        "ghost",
+        "poison"
+      ],
+      "anim": "gastly",
+      "base": {
+        "hp": 30,
+        "atk": 35,
+        "def": 30,
+        "spa": 100,
+        "spd": 35,
+        "spe": 80
+      },
+      "hp": 5.75,
+      "touchDmg": 2,
+      "speed": 1.3,
+      "spdMod": 1.4,
+      "family": "wanderer",
+      "score": 3,
+      "radius": 0.42,
+      "passWalls": true
+    },
+    "sandshrew": {
+      "dex": 27,
+      "name": "穿山鼠",
+      "types": [
+        "ground"
+      ],
+      "anim": "sandshrew",
+      "base": {
+        "hp": 50,
+        "atk": 75,
+        "def": 85,
+        "spa": 20,
+        "spd": 30,
+        "spe": 40
+      },
+      "hp": 8.25,
+      "touchDmg": 1,
+      "speed": 0.9,
+      "spdMod": 1.4,
+      "family": "charger",
+      "score": 2,
+      "radius": 0.42
+    },
+    "machop": {
+      "dex": 66,
+      "name": "腕力",
+      "types": [
+        "fighting"
+      ],
+      "anim": "machop",
+      "base": {
+        "hp": 70,
+        "atk": 80,
+        "def": 50,
+        "spa": 35,
+        "spd": 35,
+        "spe": 35
+      },
+      "hp": 10.75,
+      "touchDmg": 1,
+      "speed": 0.85,
+      "spdMod": 1.4,
+      "family": "charger",
+      "score": 3,
+      "radius": 0.42,
+      "lunge": true
+    },
+    "rhyhorn": {
+      "dex": 111,
+      "name": "独角犀牛",
+      "types": [
+        "ground",
+        "rock"
+      ],
+      "anim": "rhyhorn",
+      "base": {
+        "hp": 80,
+        "atk": 85,
+        "def": 95,
+        "spa": 30,
+        "spd": 30,
+        "spe": 25
+      },
+      "hp": 12.0,
+      "touchDmg": 1,
+      "speed": 0.75,
+      "spdMod": 1.4,
+      "family": "charger",
+      "score": 4,
+      "radius": 0.42
+    },
+    "kecleon": {
+      "dex": 352,
+      "name": "变隐龙",
+      "types": [
+        "normal"
+      ],
+      "anim": "kecleon",
+      "base": {
+        "hp": 60,
+        "atk": 90,
+        "def": 70,
+        "spa": 60,
+        "spd": 120,
+        "spe": 40
+      },
+      "hp": 9.5,
+      "touchDmg": 1,
+      "speed": 0.9,
+      "spdMod": 0.76,
+      "family": "thief",
+      "score": 5,
+      "radius": 0.42,
+      "steal": 2,
+      "stealth": true,
+      "elite": true
+    },
+    "sandslash": {
+      "dex": 28,
+      "name": "穿山王",
+      "types": [
+        "ground"
+      ],
+      "anim": "sandslash",
+      "base": {
+        "hp": 75,
+        "atk": 100,
+        "def": 110,
+        "spa": 45,
+        "spd": 55,
+        "spe": 65
+      },
+      "hp": 11.38,
+      "touchDmg": 2,
+      "speed": 1.15,
+      "spdMod": 1.13,
+      "family": "charger",
+      "score": 6,
+      "radius": 0.42
+    },
+    "gengar": {
+      "dex": 94,
+      "name": "耿鬼",
+      "types": [
+        "ghost",
+        "poison"
+      ],
+      "anim": "gengar",
+      "base": {
+        "hp": 60,
+        "atk": 65,
+        "def": 60,
+        "spa": 130,
+        "spd": 75,
+        "spe": 110
+      },
+      "hp": 9.5,
+      "touchDmg": 2,
+      "speed": 1.6,
+      "spdMod": 0.97,
+      "family": "blinker",
+      "score": 7,
+      "radius": 0.42,
+      "blinkCooldown": 2.6,
+      "shoot": {
+        "move": "shadow-bolt",
+        "cooldown": 2.2,
+        "spread": 3,
+        "arcDeg": 60,
+        "firstDelay": 1.0
+      },
+      "elite": true
+    },
+    "surge": {
+      "dex": 0,
+      "name": "马志士",
+      "types": [
+        "electric"
+      ],
+      "anim": "voltorb",
+      "base": {
+        "hp": 260,
+        "atk": 50,
+        "spa": 90,
+        "spd": 80,
+        "spe": 100
+      },
+      "hp": 260,
+      "touchDmg": 1,
+      "speed": 3.4,
+      "spdMod": 1.0,
+      "family": "boss",
+      "score": 0,
+      "radius": 1.0,
+      "boss": {
+        "summon": {
+          "id": "voltorb",
+          "interval": 6.0,
+          "max": 3
+        },
+        "grid": {
+          "warn": 1.0,
+          "dmg": 1,
+          "cols": 3
+        },
+        "volley": {
+          "n": 5,
+          "warn": 0.8,
+          "dmg": 1,
+          "speed": 7
+        },
+        "phase2At": 0.5,
+        "rain": {
+          "interval": 4.0,
+          "warn": 1.0,
+          "dmg": 1,
+          "radius": 1.1
+        },
+        "badgeReward": "orange-badge"
+      }
+    },
+    "sabrina": {
+      "dex": 0,
+      "name": "娜姿",
+      "types": [
+        "psychic"
+      ],
+      "anim": "alakazam",
+      "base": {
+        "hp": 300,
+        "atk": 40,
+        "spa": 135,
+        "spd": 95,
+        "spe": 120
+      },
+      "hp": 300,
+      "touchDmg": 1,
+      "speed": 3.6,
+      "spdMod": 1.0,
+      "family": "boss",
+      "score": 0,
+      "radius": 0.95,
+      "boss": {
+        "mirror": {
+          "burst": 8,
+          "rings": 2,
+          "warn": 0.5,
+          "speed": 6
+        },
+        "teleport": {
+          "interval": 3.2
+        },
+        "reverse": {
+          "duration": 2.0,
+          "onlyPhase2": true
+        },
+        "phase2At": 0.5,
+        "rain": {
+          "interval": 4.0,
+          "warn": 1.0,
+          "dmg": 1,
+          "radius": 1.0
+        },
+        "badgeReward": "gold-badge"
+      }
     }
   },
   "_waves_F1": "层1 波次表（score 预算 6+2×1=8）",

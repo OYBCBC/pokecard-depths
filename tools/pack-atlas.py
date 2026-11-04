@@ -114,7 +114,10 @@ def main():
             'FrameHeight': int(anim_el.findtext('FrameHeight')),
             'Durations': [int(d.text) for d in anim_el.find('Durations')],
         }
-        anim_png = Image.open(os.path.join(src, f'{name}-Anim.png')).convert('RGBA')
+        anim_path = os.path.join(src, f'{name}-Anim.png')
+        if not os.path.exists(anim_path):
+            continue                     # 该物种缺这套动作：跳过（Walk/Idle 必备由名单保证）
+        anim_png = Image.open(anim_path).convert('RGBA')
         offsets_path = os.path.join(src, f'{name}-Offsets.png')
         offsets_png = Image.open(offsets_path).convert('RGBA') if os.path.exists(offsets_path) else None
         packed[name] = pack_anim(anim_png, offsets_png, meta, name)
