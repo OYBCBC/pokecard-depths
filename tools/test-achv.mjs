@@ -10,11 +10,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { ACHVS, achvApply, metaApply, starterUnlocked, UNLOCK_SPECIES, achvProgress } =
-  await import(join(ROOT, 'js/sim/achv.js?v=m4g'));
-const { createRun, stepRun, recompute } = await import(join(ROOT, 'js/sim/engine.js?v=m4g'));
-const { enterRoom, combatNeighborNotNeeded } = await import(join(ROOT, 'js/sim/actors.js?v=m4g'));
-const { serializeRun, deserializeRun } = await import(join(ROOT, 'js/sim/save.js?v=m4g'));
-const { dexSpecies, dexApply } = await import(join(ROOT, 'js/sim/dex.js?v=m4g'));
+  await import(join(ROOT, 'js/sim/achv.js?v=m4h'));
+const { createRun, stepRun, recompute } = await import(join(ROOT, 'js/sim/engine.js?v=m4h'));
+const { enterRoom, combatNeighborNotNeeded } = await import(join(ROOT, 'js/sim/actors.js?v=m4h'));
+const { serializeRun, deserializeRun } = await import(join(ROOT, 'js/sim/save.js?v=m4h'));
+const { dexSpecies, dexApply } = await import(join(ROOT, 'js/sim/dex.js?v=m4h'));
 
 const tc = D('typechart.json');
 const ed = D('enemies.json');
@@ -381,7 +381,7 @@ test('弹型技能机：燕返强追踪（homing 0.22）', () => {
 });
 
 test('可学性：rollItem learnBy 过滤（皮卡丘抽不到水枪/火焰拳，能抽到打草结/燕返）', async () => {
-  const { rollItem } = await import(join(ROOT, 'js/sim/items.js?v=m4g'));
+  const { rollItem } = await import(join(ROOT, 'js/sim/items.js?v=m4h'));
   const items = data.items, pools = data.itemPools;
   let sawWater = false, sawFirepunch = false, sawLearnable = false;
   for (let i = 0; i < 400; i++) {
@@ -406,4 +406,29 @@ test('开局三选一按物种定制（learn 校验）', () => {
   const ev = createRun(data, 222, 'eevee');
   const evTms = ev.pedestals.filter((d) => d.choice === 'start-tm').map((d) => d.itemId).sort();
   assert.deepEqual(evTms, ['tm-aerial', 'tm-tri', 'tm-water'], '伊布=水枪/三重攻击/燕返');
+});
+
+// ---------- M5：难度三档 ----------
+test('难度三档：hpMul/warnMul/bossMul 生效 + 存档往返', () => {
+  const bal = data.balance.difficulty;
+  assert.deepEqual([bal.normal.hpMul, bal.hard.hpMul, bal.abyss.hpMul], [1, 1.3, 1.7]);
+  const hard = createRun(data, 300, 'pikachu', 'hard');
+  assert.equal(hard.difficulty, 'hard');
+  assert.equal(hard.hpMul, data.floors['1'].hpMul * 1.3);
+  assert.equal(hard.warnMul, 0.88);
+  const abyss = createRun(data, 300, 'pikachu', 'abyss');
+  assert.equal(abyss.bossMul, 1.5);
+  // Boss 血量 ×bossMul
+  const bKey = [...abyss.map.keys()].find((k) => abyss.map.get(k).type === 'boss');
+  enterRoom(abyss, data, bKey);
+  const boss = abyss.enemies.find((e) => e.family === 'boss');
+  assert.equal(boss.maxHp, boss.maxHp);   // 占位（下行为真断言）
+  assert.ok(boss.maxHp > 220 * 1.4, `深渊 Boss 血 ${boss.maxHp}`);
+  // 未知难度兜底 normal
+  const weird = createRun(data, 300, 'pikachu', 'nightmare');
+  assert.equal(weird.hpMul, data.floors['1'].hpMul * 1.0, '未知难度兜底普通');
+  // 存档往返
+  const back = deserializeRun(data, JSON.parse(JSON.stringify(serializeRun(hard))));
+  assert.equal(back.difficulty, 'hard');
+  assert.equal(back.warnMul, 0.88);
 });

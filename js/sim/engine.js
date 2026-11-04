@@ -1,10 +1,10 @@
 // 模拟层引擎：多层塔状态机。纯数据变换，无 DOM/three（node 可无头跑）。
 // 坐标：模拟层 (x, y) 平面，y+ = 南；渲染层映射为 (x, 0, y)。
-import { makeRng, rngNext } from './rng.js?v=m4g';
-import { genMap } from './genmap.js?v=m4g';
-import { applyItems, playerStats } from './items.js?v=m4g';
-import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom } from './actors.js?v=m4g';
-import { stepTelegraphs } from './boss.js?v=m4g';
+import { makeRng, rngNext } from './rng.js?v=m4h';
+import { genMap } from './genmap.js?v=m4h';
+import { applyItems, playerStats } from './items.js?v=m4h';
+import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom } from './actors.js?v=m4h';
+import { stepTelegraphs } from './boss.js?v=m4h';
 
 export const STEP = 1 / 60;
 export const ROOM_W = 17;
@@ -24,13 +24,14 @@ export function dirOf(vx, vy) {
   return best;
 }
 
-export const MAX_FLOOR = 3;
+export const MAX_FLOOR = 4;   // F4 晶核之间（梦幻终战）
 
-export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0, speciesId = 'pikachu') {
+export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0, speciesId = 'pikachu', difficulty = 'normal') {
   const rng = makeRng(seed);
   const rand = () => rngNext(rng);
   const floorNo = data.floorNo || 1;
   const floorCfg = data.floors[floorNo];
+  const diff = (data.balance.difficulty && data.balance.difficulty[difficulty]) || data.balance.difficulty.normal;
   // 物种表缺项/旧形状（无物种表）兜底皮卡丘基线
   const spec = (speciesId && data.species[speciesId]) || data.species.pikachu
     || { types: ['electric'], moveA: 'thunder-shock', zmove: 'thunderbolt-z' };
@@ -46,7 +47,8 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
     map: cells, cellKey: map.start.x + ',' + map.start.y,
     room: null, roomW: ROOM_W, roomH: ROOM_H,
     enemies: [], projectiles: [], pickups: [], pedestals: [], telegraphs: [],
-    hpMul: floorCfg.hpMul, waves: floorCfg.waves,
+    hpMul: floorCfg.hpMul * diff.hpMul, waves: floorCfg.waves,
+    difficulty, warnMul: diff.warnMul, bossMul: diff.bossMul,   // 难度三档（《01》§11）
     over: false, win: false,
     player: {
       x: ROOM_W / 2, y: ROOM_H / 2 + 1.5, px: ROOM_W / 2, py: ROOM_H / 2 + 1.5,
@@ -108,7 +110,8 @@ export function goNextFloor(state, data) {
   const map = genMap(state.rand, next);
   state.map = new Map(map.cells.map((c) => [c.x + ',' + c.y, c]));
   state.cellKey = map.start.x + ',' + map.start.y;
-  state.hpMul = floorCfg.hpMul;
+  const diff = (data.balance.difficulty && data.balance.difficulty[state.difficulty]) || { hpMul: 1 };
+  state.hpMul = floorCfg.hpMul * diff.hpMul;
   state.waves = floorCfg.waves;
   state.enemies.length = 0;
   state.projectiles.length = 0;

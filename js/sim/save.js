@@ -1,8 +1,8 @@
 // 存档系统：任意时刻把 run 序列化成纯 JSON（localStorage 友好）。
 // 约定：函数字段（rand/dirOf/hurtPlayer）与数据引用（boss cfg、waves）不序列化，复活时重绑。
-import { makeRng, rngNext } from './rng.js?v=m4g';
-import { STEP, dirOf, recompute } from './engine.js?v=m4g';
-import { hurtPlayer } from './actors.js?v=m4g';
+import { makeRng, rngNext } from './rng.js?v=m4h';
+import { STEP, dirOf, recompute } from './engine.js?v=m4h';
+import { hurtPlayer } from './actors.js?v=m4h';
 
 export const SAVE_KEY = 'depths-save';
 export const SAVE_VERSION = 1;
@@ -14,6 +14,7 @@ export function serializeRun(state) {
     seed: state.seed, t: state.t, floorNo: state.floorNo, reverseT: state.reverseT,
     rngS: state.rng.s >>> 0, nextId: state.nextId,
     cellKey: state.cellKey, room: state.room, roomW: state.roomW, roomH: state.roomH,
+    difficulty: state.difficulty || 'normal',
     hpMul: state.hpMul, over: state.over, win: state.win,
     map: [...state.map.entries()],                       // [[key, cell], ...] cell 全纯数据
     enemies: state.enemies.map((e) => e.family === 'boss' && e.b
@@ -38,6 +39,9 @@ export function deserializeRun(data, saved) {
       enemies: saved.enemies || [], projectiles: saved.projectiles || [],
       pickups: saved.pickups || [], pedestals: saved.pedestals || [], telegraphs: saved.telegraphs || [],
       hpMul: saved.hpMul, waves: data.floors[saved.floorNo].waves,
+      difficulty: saved.difficulty || 'normal',
+      warnMul: (data.balance.difficulty && data.balance.difficulty[saved.difficulty || 'normal'] || {}).warnMul || 1,
+      bossMul: (data.balance.difficulty && data.balance.difficulty[saved.difficulty || 'normal'] || {}).bossMul || 1,
       over: !!saved.over, win: !!saved.win,
         player: saved.player, stats: saved.stats,
       isDaily: !!saved.isDaily,

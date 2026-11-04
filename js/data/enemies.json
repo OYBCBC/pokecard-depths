@@ -124,7 +124,10 @@
         },
         "badgeReward": "gray-badge"
       },
-      "intro": "岩石般坚硬的意志！"
+      "intro": "岩石般坚硬的意志！",
+      "lines": {
+        "phase2": "「岩石，也要认真起来了！」"
+      }
     },
     "voltorb": {
       "dex": 100,
@@ -625,7 +628,10 @@
         },
         "badgeReward": "orange-badge"
       },
-      "intro": "十万伏特的洗礼！"
+      "intro": "十万伏特的洗礼！",
+      "lines": {
+        "phase2": "「闪电风暴！！」"
+      }
     },
     "sabrina": {
       "dex": 0,
@@ -671,7 +677,69 @@
         },
         "badgeReward": "gold-badge"
       },
-      "intro": "预知未来的少女！"
+      "intro": "预知未来的少女！",
+      "lines": {
+        "phase2": "「你的想法，我全都看得到。」"
+      }
+    },
+    "mew": {
+      "dex": 151,
+      "name": "梦幻",
+      "types": [
+        "psychic"
+      ],
+      "anim": "mew",
+      "family": "boss",
+      "hp": 480,
+      "touchDmg": 1,
+      "speed": 2.6,
+      "spdMod": 0.9,
+      "radius": 0.9,
+      "score": 0,
+      "boss": {
+        "phase2At": 0.66,
+        "phase3At": 0.33,
+        "tp": {
+          "interval": 1.15
+        },
+        "ring": {
+          "burst": 10,
+          "speed": 5.0
+        },
+        "volley": {
+          "n": 5,
+          "speed": 6.5
+        },
+        "summon": {
+          "id": "gastly",
+          "max": 2,
+          "interval": 6.0
+        },
+        "nova": {
+          "rings": 2,
+          "burst": 14,
+          "speed": 4.2
+        },
+        "spikes": {
+          "n": 5,
+          "radius": 1.15,
+          "warn": 1.0,
+          "damage": 1,
+          "interval": 2.6
+        },
+        "chaseSpeed": 2.3,
+        "rain": {
+          "radius": 1.05,
+          "warn": 1.05,
+          "damage": 1,
+          "interval": 3.4
+        }
+      },
+      "intro": "……你想看看，晶穴最深处的东西吗？",
+      "lines": {
+        "phase2": "「……有点意思。」",
+        "phase3": "「那么——认真的来吧。」"
+      }
     }
   },
   "_waves_F1": "层1 波次表（score 预算 6+2×1=8）",

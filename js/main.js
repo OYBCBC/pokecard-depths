@@ -1,21 +1,22 @@
 // 启动入口 M3：楼层/多房间/道具/Boss 全链路。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m4g';
-import { createLights } from './gfx/lights.js?v=m4g';
-import { createCamera } from './gfx/camera.js?v=m4g';
-import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m4g';
-import { createBillboard } from './gfx/sprites.js?v=m4g';
-import { createEffects } from './gfx/effects.js?v=m4g';
-import { createPostfx } from './gfx/postfx.js?v=m4g';
-import { createHud } from './ui/hud.js?v=m4g';
-import { createCries } from './audio/cries.js?v=m4g';
-import { createBgm } from './audio/bgm.js?v=m4g';
-import { createInput } from './core/input.js?v=m4g';
-import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m4g';
-import { enterRoom } from './sim/actors.js?v=m4g';
-import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m4g';
-import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m4g';
-import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m4g';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m4h';
+import { createLights } from './gfx/lights.js?v=m4h';
+import { createCamera } from './gfx/camera.js?v=m4h';
+import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m4h';
+import { createBillboard } from './gfx/sprites.js?v=m4h';
+import { createEffects } from './gfx/effects.js?v=m4h';
+import { createPostfx } from './gfx/postfx.js?v=m4h';
+import { createHud } from './ui/hud.js?v=m4h';
+import { createCries } from './audio/cries.js?v=m4h';
+import { createBgm } from './audio/bgm.js?v=m4h';
+import { createSfx } from './audio/sfx.js?v=m4h';
+import { createInput } from './core/input.js?v=m4h';
+import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m4h';
+import { enterRoom } from './sim/actors.js?v=m4h';
+import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m4h';
+import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m4h';
+import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m4h';
 
 const hud = createHud();
 const tier = detectTier();
@@ -201,10 +202,13 @@ async function boot() {
   const criesOn = !(manifest && manifest.cries === false);   // 换皮包关闭叫声
   if (criesOn) {
     cries.load(25, 'assets/cries/25.ogg');
-    for (const c of [133, 104, 61]) cries.load(c, `assets/cries/${c}.ogg`);   // 解锁搭档预载
+    for (const c of [133, 104, 61, 151]) cries.load(c, `assets/cries/${c}.ogg`);   // 解锁搭档+梦幻预载
   }
   const cry = (id, opts) => { if (criesOn) cries.play(id, opts); };
   const bgm = createBgm({ ensureCtx: () => cries.ensureCtx(), onLog: (m) => console.info(m) });
+  const sfx = createSfx({ ensureCtx: () => cries.ensureCtx() });
+  const sfxOn = !(manifest && manifest.cries === false);      // 换皮推演关叫声时静音
+  const splay = (n) => { if (sfxOn && !selfcheckOn) sfx.play(n); };
   const input = createInput();
   input.onFirstInteraction(() => { cries.ensureCtx(); if (!selfcheckOn) bgm.start(); });
   input.onPadConnect((id) => hud.toast('手柄已连接', (id || '').slice(0, 30)));
@@ -309,7 +313,8 @@ async function boot() {
     try {
       const list = JSON.parse(localStorage.getItem(BOARD_KEY) || '[]');
       list.push({
-        seed: run.seed >>> 0, daily: !!run.isDaily, floor: run.floorNo, win: !!run.win,
+        seed: run.seed >>> 0, daily: !!run.isDaily, difficulty: run.difficulty || 'normal',
+        floor: run.floorNo, win: !!run.win,
         time: Math.round(run.stats.tRun || run.t), kills: run.stats.kills, items: run.stats.items, date: Date.now(),
       });
       list.sort((a, b) => (b.win - a.win) || (b.floor - a.floor) || (a.time - b.time));
@@ -342,6 +347,7 @@ async function boot() {
       if (!selfcheckOn) achvStore.write(achvSet);
       for (const a of r.unlocked) {
         const sp = a.unlock && data.species[a.unlock];
+        splay('achv');
         hud.toast(`🏅 成就解锁：${a.name}`, sp ? `新搭档「${sp.name}」可选！` : a.desc);
       }
       if (hud.achvOpen) refreshAchv();
@@ -372,18 +378,27 @@ async function boot() {
       id, name: s.name, role: s.role || '', desc: s.desc || '', anim: s.anim, unlock: s.unlock || null,
       lockName: s.unlock ? `解锁：${(ACHVS.find((a) => a.id === s.unlock) || {}).name || s.unlock}` : null,
     }));
+  let selectedDiff = 'normal';
+  const diffList = Object.entries(data.balance.difficulty || {})
+    .filter(([k]) => !k.startsWith('_'))
+    .map(([id, d]) => ({ id, label: d.label, desc: d.desc }));
   function pickStarter(daily) {
     hud.starterPick({
       list: starterList, thumbs: dexThumbs,
       isUnlocked: (s) => starterUnlocked(s, achvSet),
       title: daily ? '每日挑战 · 选择搭档' : '选择搭档',
+      difficulties: diffList, difficulty: selectedDiff,
+      hideDifficulty: daily,
+      onDifficulty: (did) => { selectedDiff = did; pickStarter(daily); },   // 重绘选中态
       onPick: (sid) => {
         saveStore.clear();
-        const r = daily ? createRun(data, dailySeed(), sid) : createRun(data, undefined, sid);
+        const diff = daily ? 'normal' : selectedDiff;          // 每日挑战全服同图：固定普通
+        const r = daily ? createRun(data, dailySeed(), sid, 'normal') : createRun(data, undefined, sid, diff);
         if (daily) r.isDaily = true;
         beginRun(r);
+        const dn = (data.balance.difficulty[diff] || {}).label || '';
         if (daily) hud.banner('每日挑战', '今日全服同图 · 种子 ' + (dailySeed() >>> 0) + ' · ' + data.species[sid].name, 2600);
-        else hud.banner('宝可梦 · 晶穴深处', `${data.species[sid].name}，就决定是你了！`, 2600);
+        else hud.banner('宝可梦 · 晶穴深处', `${data.species[sid].name}，就决定是你了！${dn !== '普通' ? '（' + dn + '）' : ''}`, 2600);
       },
     });
   }
@@ -486,7 +501,9 @@ async function boot() {
           else if (ev.type === 'camp') hud.banner('救援营地', '受困的宝可梦在等你（免费结伴）', 2200);
           break;
         }
-        case 'room-transition': hud.flash(); break;
+        case 'room-transition': hud.flash(); splay('door'); break;
+        case 'dash': splay('dash'); break;
+        case 'shot': splay('shot'); break;
         case 'spawn': {
           const spec = data.enemies[ev.eid];
           const anim = (spec && spec.anim) || ev.eid;
@@ -503,6 +520,7 @@ async function boot() {
           const bb = enemyViews.get(ev.id);
           if (bb) bb.flash(0.12);
           const color = ev.kind === 'super' ? 0xffd24a : ev.kind === 'weak' ? 0x9aa7bd : 0xffe9a0;
+          splay(ev.t === 'enemy-hurt' ? (ev.kind === 'super' ? 'superhit' : 'hit') : 'kill');
           fx.burst(ev.x, ev.y, ev.t === 'enemy-die' ? 14 : 6, color);
           if (ev.t === 'enemy-die') {
             hitStopT = Math.max(hitStopT, feel.hitStopKill);
@@ -514,30 +532,55 @@ async function boot() {
           }
           break;
         }
-        case 'boss-intro': break;
-        case 'boss-phase2':
-          hud.banner('小刚', '「岩石，也要认真起来了！」', 2200);
+        case 'boss-intro': {
+          splay('bossIntro');
+          // 馆主搭档登场叫声：ace anim（onix/alakazam/mew…）→ 图鉴号
+          const dexNo = (DEX_EXTRA[ev.ace] || {}).dex;
+          if (dexNo) cry(dexNo, { volume: 0.5 });
+          break;
+        }
+        case 'boss-phase2': case 'boss-phase3': {
+          splay('bossIntro');
+          const bSpec = data.enemies[data.floors[run.floorNo].boss];
+          const line = bSpec && bSpec.lines && bSpec.lines[ev.t.slice(5)];
+          if (line) hud.banner(bSpec.name, line, 2200);
           camCtl.shake(0.4, 0.5);
           break;
+        }
+        case 'mew-purify': {
+          // 净化结局：白光长闪 + 梦幻叫声 + 演出横幅
+          hud.flash();
+          setTimeout(() => hud.flash(), 350);
+          camCtl.shake(0.6, 0.9);
+          cry(151, { volume: 0.9, rateJitter: false });
+          splay('win');
+          fx.burst(ev.x, ev.y, 40, 0xffffff);
+          hud.banner('梦幻被净化了……', '柔和的光芒充满晶穴，一切躁动归于宁静', 3600);
+          break;
+        }
         case 'boss-slam': camCtl.shake(0.3, 0.25); break;
         case 'telegraph-hit': fx.burst(ev.x, ev.y, 10, 0xc88a70); break;
         case 'player-hurt':
+          splay('hurt');
           hitStopT = Math.max(hitStopT, feel.hitStopHurt);
           camCtl.shake(feel.shakeHurt, 0.3);
           player.flash(0.1);
           break;
-        case 'player-dodge': damageNum(ev.x, ev.y, '闪避', 'immune'); break;
+        case 'player-dodge': splay('dodge'); damageNum(ev.x, ev.y, '闪避', 'immune'); break;
         case 'player-block': damageNum(ev.x, ev.y, '格挡', 'super'); break;
         case 'lethal-guard': hud.banner('气势披带！', '保住了一命', 1400); break;
         case 'player-die':
           saveStore.clear();
           recordBoard();
+          splay('death');
           camCtl.shake(0.5, 0.5);
           cry((data.species[run.player.species] || {}).cry ?? 25, { volume: 0.7, rateJitter: false });
           run.stats.tRun = run.t;
+          run.stats.floorNo = run.floorNo;
           hud.showDeath(run.stats, run.seed, (data.species[run.player.species] || {}).name || '搭档');
           break;
         case 'item-take':
+          splay(ev.kind === 'passive' && ev.id && ev.id.startsWith('tm-') ? 'tm' : 'item');
           props && props.removePedestal(run.pedestals.find((d) => d.itemId === ev.id)?.id ?? -1);
           hud.itemCard(ev.name, ev.desc, ev.quality, ev.icon);
           hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB);
@@ -546,7 +589,9 @@ async function boot() {
           props && props.removePedestal(ev.id);
           break;
         case 'pickup':
-          if (ev.kind === 'heart') damageNum(ev.x, ev.y, '+1', 'super');
+          if (ev.kind === 'coin' || ev.kind === 'coin2') splay('coin');
+          else if (ev.kind === 'heart') { splay('heart'); damageNum(ev.x, ev.y, '+1', 'super'); }
+          else if (ev.kind === 'consumable') splay('item');
           break;
         case 'secret-reveal':
           roomView && roomView.revealSecret();
@@ -562,6 +607,7 @@ async function boot() {
           camCtl.shake(0.35, 0.4);
           break;
         case 'evolve':
+          splay('evolve');
           setPlayerSprite(ev.to);
           hud.banner(`进化！${ev.from || '搭档'} → ${ev.name}`, '面板成长 + Z 招式升级', 3600);
           camCtl.shake(0.4, 0.6);
@@ -569,6 +615,7 @@ async function boot() {
           fx.burst(run.player.x, run.player.y, 20, 0xffffff);
           break;
         case 'zmove':
+          splay('zmove');
           hud.flash();
           camCtl.shake(0.5, 0.5);
           hitStopT = Math.max(hitStopT, 0.18);
@@ -603,8 +650,20 @@ async function boot() {
           saveStore.clear();
           recordBoard();
           hud.hideBossBar();
+          if (run.floorNo >= 4) {
+            hud.banner('传说之物，化作了光……', '《晶穴深处》通关！', 4000);
+            run.stats.floorNo = run.floorNo;
+            const dl = ((data.balance.difficulty || {})[run.difficulty] || {}).label;
+            setTimeout(() => hud.showVictory(run.stats, run.seed, {
+              title: '晶穴的传说，落下帷幕',
+              sub: '被净化的梦幻，在光中对你眨了眨眼——下次冒险再见。',
+              difficultyLabel: dl,
+            }), 2000);
+          } else {
+            splay('win');
           hud.banner('灰色徽章 GET！', '《晶穴深处·第一章》完', 4000);
-          setTimeout(() => hud.showVictory(run.stats, run.seed), 1800);
+            setTimeout(() => hud.showVictory(run.stats, run.seed), 1800);
+          }
           break;
         case 'clear': hud.minimap(run.map, run.cellKey); saveNow(); break;
         case 'use-blocked':
@@ -646,7 +705,11 @@ async function boot() {
 
     input.poll();                                             // 手柄：帧首统一轮询
     if (input.consumePress('KeyC')) cry((data.species[run.player.species] || {}).cry ?? 25);
-    if (input.consumePress('KeyM')) hud.toast('BGM ' + (bgm.toggleMute() ? '已静音（M 恢复）' : '开启'), '以撒式分层配乐 · 探索/战斗/Boss');
+    if (input.consumePress('KeyM')) {
+      const m = bgm.toggleMute();
+      sfx.setMuted(m);
+      hud.toast('声音 ' + (m ? '已静音（M 恢复）' : '开启'), 'BGM 与音效一起切换');
+    }
     if (input.consumePress('KeyB') || input.consumePress('Escape')) {
       if (hud.dexOpen) hud.hideDex();
       else if (hud.achvOpen) hud.hideAchv();
@@ -754,7 +817,7 @@ async function boot() {
     if (boss) {
       const aceAnim = (data.enemies[boss.eid] || {}).anim;
       const aceName = (aceAnim && ((DEX_EXTRA[aceAnim] || {}).name || (data.enemies[aceAnim] || {}).name)) || '';
-      hud.bossBar(aceName ? `${boss.name} · ${aceName}` : boss.name, boss.hp / boss.maxHp);
+      hud.bossBar(aceName && aceName !== boss.name ? `${boss.name} · ${aceName}` : boss.name, boss.hp / boss.maxHp);   // 梦幻自身即搭档：不重复
     }
     else if (!run.over) hud.hideBossBar();
 

@@ -72,5 +72,29 @@
     ],
     "heartPrice": 4,
     "perRoomInflation": 1.0
+  },
+  "difficulty": {
+    "_comment": "难度三档（《01》§11）：困难=敌血×1.3/预警×0.88；深渊=敌血×1.7/馆主血×1.5/预警×0.78",
+    "normal": {
+      "label": "普通",
+      "hpMul": 1.0,
+      "bossMul": 1.0,
+      "warnMul": 1.0,
+      "desc": "标准晶穴探险"
+    },
+    "hard": {
+      "label": "困难",
+      "hpMul": 1.3,
+      "bossMul": 1.25,
+      "warnMul": 0.88,
+      "desc": "敌人更强 · 预警更短"
+    },
+    "abyss": {
+      "label": "深渊",
+      "hpMul": 1.7,
+      "bossMul": 1.5,
+      "warnMul": 0.78,
+      "desc": "只为最深的行者"
+    }
   }
 }

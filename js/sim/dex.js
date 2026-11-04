@@ -11,6 +11,7 @@ export const DEX_EXTRA = {
   eevee: { dex: 133, name: '伊布', anim: 'eevee', tag: '解锁伙伴' },
   cubone: { dex: 104, name: '卡拉卡拉', anim: 'cubone', tag: '解锁伙伴' },
   poliwhirl: { dex: 61, name: '蚊香君', anim: 'poliwhirl', tag: '解锁伙伴' },
+  mew: { dex: 151, name: '梦幻', anim: 'mew', tag: '传说' },
 };
 // 分裂子种 → 本体（小臭泥并入臭泥）
 export const DEX_ALIAS = { 'grimer-small': 'grimer' };

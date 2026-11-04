@@ -1,4 +1,70 @@
 // HUD / 加载页 / debug 面板 / 战斗 UI（血量、PP、波次、伤害飘字、死亡页）
+
+// 分享图（Canvas 合成 → PNG 下载）：胜负页共用
+function shareImage({ title, stats, seed, difficultyLabel, dead }) {
+  const c = document.createElement('canvas');
+  c.width = 800; c.height = 1000;
+  const g = c.getContext('2d');
+  // 背景：深夜渐变 + 晶簇装饰
+  const bg = g.createLinearGradient(0, 0, 0, 1000);
+  bg.addColorStop(0, '#0b0e18'); bg.addColorStop(1, '#141024');
+  g.fillStyle = bg; g.fillRect(0, 0, 800, 1000);
+  g.save();
+  for (let i = 0; i < 46; i++) {
+    const x = (i * 137.5) % 800, y = (i * 289.7) % 1000, r = 1.5 + (i % 4);
+    g.globalAlpha = 0.10 + (i % 5) * 0.05;
+    g.fillStyle = ['#7fd4ff', '#c79fff', '#ffd24a'][i % 3];
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  g.restore();
+  // 边框
+  g.strokeStyle = '#3a4a6c'; g.lineWidth = 3;
+  g.strokeRect(24, 24, 752, 952);
+  g.strokeStyle = 'rgba(127,212,255,.35)'; g.lineWidth = 1;
+  g.strokeRect(34, 34, 732, 932);
+  const F = (sz, w) => `${w || ''} ${sz}px "Fusion Pixel","PingFang SC",monospace`;
+  g.textAlign = 'center';
+  // 标题块
+  g.fillStyle = '#5d6a85'; g.font = F(24);
+  g.fillText('宝可梦 · 晶穴深处', 400, 120);
+  g.fillStyle = dead ? '#ff8a97' : '#ffe9a0'; g.font = F(52, 'bold');
+  g.fillText(title || (dead ? '体力不支……' : '通关！'), 400, 190);
+  // 分隔晶线
+  g.strokeStyle = 'rgba(255,210,74,.5)'; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(180, 230); g.lineTo(620, 230); g.stroke();
+  g.fillStyle = '#ffd24a'; g.beginPath(); g.arc(400, 230, 5, 0, Math.PI * 2); g.fill();
+  // 战绩
+  const rows = [
+    ['用时', `${Math.round(stats.tRun || 0)} 秒`],
+    ['抵达', `第 ${stats.floorNo ?? '?'} 层`],
+    ['击倒', `${stats.kills} 只`],
+    ['清房', `${stats.roomsCleared} 间`],
+    ['道具', `${stats.items} 件`],
+    ['克制命中', `${stats.superHits} 次`],
+    ['赚钱', `¥${stats.coins}`],
+  ];
+  if (difficultyLabel && difficultyLabel !== '普通') rows.push(['难度', difficultyLabel]);
+  g.font = F(30);
+  rows.forEach(([k, v], i) => {
+    const y = 310 + i * 66;
+    g.textAlign = 'right'; g.fillStyle = '#93a4c0'; g.fillText(k, 350, y);
+    g.textAlign = 'left'; g.fillStyle = '#eef3fb'; g.font = F(34, 'bold'); g.fillText(v, 420, y);
+    g.font = F(30);
+  });
+  // 种子与日期
+  g.textAlign = 'center'; g.fillStyle = '#7fd4ff'; g.font = F(28);
+  g.fillText(`种子 ${seed >>> 0}`, 400, 830);
+  g.fillStyle = '#5d6a85'; g.font = F(20);
+  g.fillText(new Date().toLocaleDateString('zh-CN'), 400, 872);
+  g.fillStyle = '#4a5570'; g.font = F(18);
+  g.fillText('免费同人游戏 · 每日挑战同图 · 用种子复现这一局', 400, 936);
+  // 下载
+  const a = document.createElement('a');
+  a.href = c.toDataURL('image/png');
+  a.download = `crystal-depths-${seed >>> 0}${dead ? '-death' : ''}.png`;
+  a.click();
+}
+
 export function createHud() {
   const $ = (id) => document.getElementById(id);
   const loading = $('loading');
@@ -208,7 +274,7 @@ export function createHud() {
       ].join('');
       const boardHtml = board.length
         ? '<div class="st-title">本机榜</div><div class="st-board">' + board.map((b, i) =>
-          `<div>${i + 1}. ${b.win ? '🏆 通关' : '第 ' + b.floor + ' 层'} · ${fmt(b.time)} · 击倒 ${b.kills} · 道具 ${b.items} · 种子 ${b.seed}${b.daily ? ' ·每日' : ''}</div>`).join('') + '</div>'
+          `<div>${i + 1}. ${b.win ? '🏆 通关' : '第 ' + b.floor + ' 层'} · ${fmt(b.time)} · 击倒 ${b.kills} · 道具 ${b.items} · 种子 ${b.seed}${b.difficulty && b.difficulty !== 'normal' ? ' ·' + (b.difficulty === 'abyss' ? '深渊' : '困难') : ''}${b.daily ? ' ·每日' : ''}</div>`).join('') + '</div>'
         : '';
       startEl.innerHTML = `<div class="st-box">
           <div class="st-logo">宝可梦 · 晶穴深处</div>
@@ -242,8 +308,13 @@ export function createHud() {
       primary.focus();
       startEl.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); primary.click(); } };
     },
-    // 搭档选择（新的探险/每日挑战之后）：4 张卡，未解锁的显示条件
-    starterPick({ list, thumbs, isUnlocked, onPick, title }) {
+    // 搭档选择（新的探险/每日挑战之后）：4 张卡 + 难度三档选择
+    starterPick({ list, thumbs, isUnlocked, onPick, title, difficulties, difficulty, onDifficulty, hideDifficulty }) {
+      const diffHtml = (difficulties && !hideDifficulty)
+        ? `<div class="sp-diffs">${difficulties.map((d) =>
+            `<button class="sp-diff ${d.id === difficulty ? 'on' : ''}" data-did="${d.id}" title="${d.desc}">
+              <b>${d.label}</b><span>${d.desc}</span>
+            </button>`).join('')}</div>` : '';
       const cards = list.map((s) => {
         const ok = isUnlocked(s);
         return `<div class="sp-card ${ok ? '' : 'locked'}" data-sid="${s.id}" tabindex="0">
@@ -255,10 +326,14 @@ export function createHud() {
       }).join('');
       startEl.innerHTML = `<div class="st-box sp-box">
           <div class="st-logo sp-title">${title || '选择搭档'}</div>
+          ${diffHtml}
           <div class="sp-grid">${cards}</div>
-          <div class="st-hint">点击选择</div>
+          <div class="st-hint">点击选择${hideDifficulty ? '' : ' · 上方选择难度（每日挑战固定普通）'}</div>
         </div>`;
       startEl.classList.remove('hidden');
+      if (diffHtml) startEl.querySelectorAll('.sp-diff').forEach((el) => {
+        el.onclick = () => { onDifficulty && onDifficulty(el.dataset.did); };
+      });
       startEl.querySelectorAll('.sp-card').forEach((el) => {
         const pick = () => {
           const s = list.find((x) => x.id === el.dataset.sid);
@@ -423,12 +498,21 @@ export function createHud() {
       flashEl.classList.add('on');
       setTimeout(() => flashEl.classList.remove('on'), 240);
     },
-    showVictory(stats, seed) {
+    showVictory(stats, seed, opts = {}) {
+      if (opts.title) victoryEl.querySelector('.v-title').textContent = opts.title;
+      if (opts.sub) victoryEl.querySelector('.d-sub').textContent = opts.sub;
+      const dn = stats.difficultyLabel ? ` · ${stats.difficultyLabel}` : '';
       victoryStats.innerHTML =
-        `用时 ${Math.round(stats.tRun)} 秒 · 清房 ${stats.roomsCleared} · 击倒 ${stats.kills}<br>` +
+        `用时 ${Math.round(stats.tRun)} 秒 · 清房 ${stats.roomsCleared} · 击倒 ${stats.kills}${dn}<br>` +
         `道具 ${stats.items} 件 · 克制命中 ${stats.superHits} · 赚钱 ¥${stats.coins}<br>` +
-        `<span class="d-seed">种子 ${seed >>> 0}</span>`;
+        `<span class="d-seed">种子 ${seed >>> 0}</span>` +
+        `<div class="d-share"><button id="v-share">生成分享图</button></div>`;
       victoryEl.classList.remove('hidden');
+      const btn = victoryEl.querySelector('#v-share');
+      if (btn) btn.onclick = () => shareImage({
+        title: victoryEl.querySelector('.v-title').textContent,
+        stats, seed, difficultyLabel: opts.difficultyLabel,
+      });
     },
     hideVictory() { victoryEl.classList.add('hidden'); },
     damageNum(sx, sy, txt, kind) {
@@ -447,8 +531,14 @@ export function createHud() {
       deathStats.innerHTML =
         `击倒 ${stats.kills} 只 · 总伤害 ${Math.round(stats.dmgDealt)}<br>` +
         `克制命中 ${stats.superHits} 次 · 发射 ${stats.shots} 发<br>` +
-        `<span class="d-seed">种子 ${seed >>> 0}</span>`;
+        `<span class="d-seed">种子 ${seed >>> 0}</span>` +
+        `<div class="d-share"><button id="d-share">生成分享图</button></div>`;
       deathEl.classList.remove('hidden');
+      const btn = deathEl.querySelector('#d-share');
+      if (btn) btn.onclick = () => shareImage({
+        title: `${name}的探险`, stats: { ...stats, floorNo: window.__depths && window.__depths.run ? window.__depths.run.floorNo : '?' },
+        seed, dead: true,
+      });
     },
     frame(dt, stats) {
       fpsFrames++; fpsTime += dt; frameMs = dt * 1000;

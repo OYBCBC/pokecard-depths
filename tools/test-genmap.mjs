@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { genMap } from '../js/sim/genmap.js?v=m4g';
+import { genMap } from '../js/sim/genmap.js?v=m4h';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 void ROOT;
@@ -104,4 +104,13 @@ test('层2/层3：房数随层增长（11-12 / 15-16 附近）', () => {
   const avg = (a) => a.reduce((s, v) => s + v, 0) / a.length;
   assert.ok(avg(sizes[2]) > 9 && avg(sizes[2]) < 14, '层2 均值 ' + avg(sizes[2]).toFixed(1));
   assert.ok(avg(sizes[3]) > 13 && avg(sizes[3]) < 18, '层3 均值 ' + avg(sizes[3]).toFixed(1));
+});
+
+test('F4 晶核之间：迷你层（4-6 房）且必有 Boss', () => {
+  for (let seed = 1; seed <= 100; seed++) {
+    const m = genMap(makeRng(seed), 4);
+    assert.ok(m.cells.length >= 4 && m.cells.length <= 6, `seed ${seed} F4 房数 ${m.cells.length}`);
+    assert.equal(m.cells.filter((c) => c.type === 'boss').length, 1, 'Boss 必有');
+    assert.equal(m.cells.filter((c) => c.type === 'start').length, 1);
+  }
 });

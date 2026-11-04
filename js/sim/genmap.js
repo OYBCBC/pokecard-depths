@@ -22,7 +22,13 @@ export function genMap(rand, floorNo = 1) {
 function key(x, y) { return x + ',' + y; }
 
 function tryGen(rand, floorNo) {
+  // F4 晶核之间：迷你层（直奔梦幻终战），死端下限放宽、房数容差收紧（必须够 4 房）
+  if (floorNo >= 4) return tryGenCore(rand, 4, 1, 0);
   const target = Math.min(20, 5 + Math.floor(10 * floorNo / 3) + (rand() < 0.5 ? 0 : 1));
+  return tryGenCore(rand, target, 5, 2);
+}
+
+function tryGenCore(rand, target, minDead, tol) {
   const cells = new Map();          // key -> { x, y, type, }
   const put = (x, y, type) => cells.set(key(x, y), { x, y, type });
 
@@ -52,7 +58,7 @@ function tryGen(rand, floorNo) {
       count++;
     }
   }
-  if (count < target - 2) return null;
+  if (count < target - tol) return null;
 
   // 死端 = 恰有 1 个邻居的房（不含出生房）
   const neighborsOf = (x, y) => N.filter(([dx, dy]) => cells.has(key(x + dx, y + dy)));
@@ -60,7 +66,7 @@ function tryGen(rand, floorNo) {
     .filter((c) => !(c.x === cx && c.y === cy) && neighborsOf(c.x, c.y).length === 1)
     .map((c) => ({ ...c, d: Math.abs(c.x - cx) + Math.abs(c.y - cy) }))
     .sort((a, b) => b.d - a.d);
-  if (deadEnds.length < 5) return null;
+  if (deadEnds.length < minDead) return null;
 
   // Boss=最远死端（且不与出生房相邻）
   const boss = deadEnds[0];

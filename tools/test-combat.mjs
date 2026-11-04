@@ -11,11 +11,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { damageStat, fireInterval, typeMultiplier, stabMultiplier, computeHit, enemyPanel } =
-  await import(join(ROOT, 'js/sim/combat.js?v=m4g'));
-const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m4g'));
-const { enterRoom } = await import(join(ROOT, 'js/sim/actors.js?v=m4g'));
-const _save = await import(join(ROOT, 'js/sim/save.js?v=m4g'));
-const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m4g'));
+  await import(join(ROOT, 'js/sim/combat.js?v=m4h'));
+const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m4h'));
+const { enterRoom } = await import(join(ROOT, 'js/sim/actors.js?v=m4h'));
+const _save = await import(join(ROOT, 'js/sim/save.js?v=m4h'));
+const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m4h'));
 function combatNeighbor(run, d) {
   const cell = run.map.get(run.cellKey);
   for (const [dk] of Object.entries(cell.doors)) {
@@ -178,7 +178,7 @@ test('引擎：冲刺给无敌与位移', () => {
 
 
 // ---------- M4：多层塔 / Z 招式 / 进化 / 替补 ----------
-const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m4g'));
+const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m4h'));
 
 function idleInput() {
   return { move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false, slotEdge: false, useEdge: false, zEdge: false, swapEdge: false };
@@ -254,7 +254,7 @@ test('M4 替补：结伴→F 切换→伤害由替补承受→濒死自动回主
   assert.equal(run.player.alive, true, '主力无损');
 });
 
-test('M4 层 3 Boss（娜姿）死亡 → 通关 win', () => {
+test('M5 层 3 Boss（娜姿）死亡 → 楼梯去 F4；梦幻死 → 净化通关', () => {
   const run = createRun(data, 88);
   goNextFloor(run, data); goNextFloor(run, data);
   assert.equal(run.floorNo, 3);
@@ -265,8 +265,35 @@ test('M4 层 3 Boss（娜姿）死亡 → 通关 win', () => {
   boss.state = 'active';
   boss.hp = 0;
   for (let i = 0; i < 8; i++) stepRun(run, idleInput(), data);
-  assert.equal(run.win, true, '第三层 Boss 死=通关');
+  assert.equal(run.win, false, 'F3 不再是终点');
+  assert.ok(run.pickups.some((k) => k.kind === 'stairs'), 'F3 Boss 死出楼梯');
+  // 上 F4 → 晶核之间
+  goNextFloor(run, data);
+  assert.equal(run.floorNo, 4);
+  assert.equal(data.floors['4'].name, '晶核之间');
+  const mewRoom = [...run.map.values()].find((c) => c.type === 'boss');
+  enterRoom(run, data, mewRoom.x + ',' + mewRoom.y);
+  const mew = run.enemies.find((e) => e.family === 'boss');
+  assert.equal(mew.name, '梦幻');
+  // 三段推进：打到 66%/33% 触发 phase2/3，再打死 → 净化通关
+  mew.state = 'active';
+  mew.hp = mew.maxHp * 0.5;
+  stepRun(run, idleInput(), data);
+  assert.equal(mew.b.phase, 2, '50% 血 → P2');
+  mew.hp = mew.maxHp * 0.2;
+  stepRun(run, idleInput(), data);
+  assert.equal(mew.b.phase, 3, '20% 血 → P3');
+  mew.hp = 0;
+  let sawPurify = false, sawClear = false;
+  for (let i = 0; i < 8; i++) {
+    stepRun(run, idleInput(), data);
+    if (run.events.some((e) => e.t === 'mew-purify')) sawPurify = true;
+    if (run.events.some((e) => e.t === 'floor-clear')) sawClear = true;
+  }
+  assert.equal(run.win, true, '梦幻死=通关');
   assert.equal(run.over, true);
+  assert.ok(sawPurify, '净化演出事件');
+  assert.ok(sawClear, 'floor-clear 事件');
 });
 
 // ---------- 房间暂存回归（用户 2026-11-04 报的 bug） ----------

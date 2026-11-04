@@ -1,9 +1,9 @@
 // 战斗与房间行为系统：玩家/弹体/敌人三族/波次/多房间楼层/拾取经济/台座。
 // 全部纯数据变换；事件写进 state.events 供表现层消费。
-import { computeHit } from './combat.js?v=m4g';
-import { fireInterval } from './combat.js?v=m4g';
-import { rollItem } from './items.js?v=m4g';
-import { spawnBoss, stepBoss } from './boss.js?v=m4g';
+import { computeHit } from './combat.js?v=m4h';
+import { fireInterval } from './combat.js?v=m4h';
+import { rollItem } from './items.js?v=m4h';
+import { spawnBoss, stepBoss } from './boss.js?v=m4h';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -80,7 +80,7 @@ export function enterRoom(state, data, cellKey) {
 
   if (cell.cleared) {
     // 保底：已击败的 Boss 房必有楼梯（非顶层）——防暂存缺失时卡死进度
-    if (cell.type === 'boss' && state.floorNo < 3 && !state.over
+    if (cell.type === 'boss' && state.floorNo < 4 && !state.over
       && !state.pickups.some((k) => k.kind === 'stairs')) {
       state.pickups.push(mkPickup(state, 'stairs', w / 2, h / 2));
     }
@@ -584,8 +584,10 @@ export function stepEnemies(state, input, data) {
         state.room.cleared = true;
         state.map.get(state.cellKey).cleared = true;
         state.stats.tRun = state.t - state.stats.t0;
-        if (state.floorNo >= 3) {
+        if (state.floorNo >= 4) {
+          // 梦幻终战胜利：净化结局演出（不倒下，被净化）
           state.over = true; state.win = true;
+          state.events.push({ t: 'mew-purify', x: e.x, y: e.y, name: e.name });
           state.events.push({ t: 'floor-clear', x: e.x, y: e.y });
         } else {
           state.events.push({ t: 'boss-clear', floor: state.floorNo, x: e.x, y: e.y });
@@ -999,4 +1001,4 @@ function takePedestal(state, data, d) {
 }
 
 // 规避循环 import：engine.recompute 通过事件总线由调用方重算——这里直接内联等价逻辑
-import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m4g';
+import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m4h';
