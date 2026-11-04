@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { genMap } from '../js/sim/genmap.js?v=m4e';
+import { genMap } from '../js/sim/genmap.js?v=m4f';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 void ROOT;
@@ -82,6 +82,16 @@ test('确定性：同种子同图（含 fallback 路径）', () => {
     const a = JSON.stringify(genMap(makeRng(seed), 1));
     const b = JSON.stringify(genMap(makeRng(seed), 1));
     assert.equal(a, b, `seed ${seed} 不同种子流`);
+  }
+});
+
+test('营地每层保底（替补=免疫/克制的战略出口）', () => {
+  for (let seed = 1; seed <= 300; seed++) {
+    for (const floorNo of [1, 2, 3]) {
+      const m = genMap(makeRng(seed + floorNo * 1000), floorNo);
+      const camps = m.cells.filter((c) => c.type === 'camp').length;
+      assert.equal(camps, 1, `seed ${seed} F${floorNo} 营地数 ${camps}`);
+    }
   }
 });
 

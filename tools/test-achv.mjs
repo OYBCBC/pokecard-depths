@@ -10,11 +10,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { ACHVS, achvApply, metaApply, starterUnlocked, UNLOCK_SPECIES, achvProgress } =
-  await import(join(ROOT, 'js/sim/achv.js?v=m4e'));
-const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m4e'));
-const { enterRoom, combatNeighborNotNeeded } = await import(join(ROOT, 'js/sim/actors.js?v=m4e'));
-const { serializeRun, deserializeRun } = await import(join(ROOT, 'js/sim/save.js?v=m4e'));
-const { dexSpecies, dexApply } = await import(join(ROOT, 'js/sim/dex.js?v=m4e'));
+  await import(join(ROOT, 'js/sim/achv.js?v=m4f'));
+const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m4f'));
+const { enterRoom, combatNeighborNotNeeded } = await import(join(ROOT, 'js/sim/actors.js?v=m4f'));
+const { serializeRun, deserializeRun } = await import(join(ROOT, 'js/sim/save.js?v=m4f'));
+const { dexSpecies, dexApply } = await import(join(ROOT, 'js/sim/dex.js?v=m4f'));
 
 const tc = D('typechart.json');
 const ed = D('enemies.json');
@@ -273,3 +273,76 @@ function combatKeyOf(run) {
   }
   return run.cellKey;
 }
+
+// ---------- M4.5：免疫防卡关 / 出生房三选一 / 替补换 Build ----------
+test('免疫防卡关：电打地面（穿山鼠）按 ×0.5 结算不再为 0', () => {
+  const run = createRun(data, 210, 'pikachu');
+  enterRoom(run, data, combatKeyOf(run));
+  const spec = data.enemies.sandshrew;
+  run.enemies.length = 0;
+  run.enemies.push({
+    id: 910, eid: 'sandshrew', name: spec.name, types: spec.types, family: spec.family,
+    radius: spec.radius, score: spec.score, hp: 30, maxHp: 30, touchDmg: 1,
+    speed: spec.speed, spdMod: spec.spdMod, x: run.player.x + 1.2, y: run.player.y,
+    px: run.player.x + 1.2, py: run.player.y, kx: 0, ky: 0, state: 'active', spawnT: 0,
+    flash: 0, touchCd: 0, stun: 0, anim: 'Idle', dir: 0, moving: false, wanderT: 0, wx: 0, wy: 0, shoot: null, shootCd: 9,
+  });
+  const hp0 = run.enemies[0].hp;
+  const fire = { ...idle, fire: true, aim: { x: 1, y: 0 } };
+  for (let i = 0; i < 180 && run.enemies[0].hp === hp0; i++) stepRun(run, fire, data);
+  assert.ok(run.enemies[0].hp < hp0, '电打地面造成伤害（×0.5 地板）');
+});
+
+test('出生房技能机三选一：3 台免费；拿一台其余消失', () => {
+  const run = createRun(data, 211, 'pikachu');
+  assert.equal(run.cellKey, run.map.get(run.cellKey) ? run.cellKey : run.cellKey);
+  const startCell = [...run.map.values()].find((c) => c.type === 'start');
+  assert.equal(run.cellKey, startCell.x + ',' + startCell.y, '出生房开局');
+  const tms = run.pedestals.filter((d) => d.choice === 'start-tm');
+  assert.equal(tms.length, 3, '三台技能机');
+  assert.ok(tms.every((d) => d.price === 0), '免费');
+  assert.ok(tms.every((d) => Math.hypot(d.x - run.player.x, d.y - run.player.y) > 1.2), '不在出生点上');
+  // 玩家走到中台拿取
+  const mid = tms.find((d) => Math.abs(d.x - 17 / 2) < 0.01) || tms[0];
+  run.player.x = mid.x; run.player.y = mid.y;
+  stepRun(run, idle, data);
+  assert.equal(mid.taken, true, '中台被拿');
+  assert.ok(run.pedestals.filter((d) => d.choice === 'start-tm' && d.taken).length === 3, '其余两台同步消失');
+  assert.equal(run.player.moveB, data.items[mid.itemId].effect.tm, 'B 槽装填');
+  assert.ok(run.events.some((e) => e.t === 'choice-vanish'), '消失事件');
+  // 已拿技能机后重开新局才会再生成（防重复白嫖）
+  const run2 = createRun(data, 211, 'pikachu');
+  assert.equal(run2.pedestals.filter((d) => d.choice === 'start-tm').length, 3, '新局照常有');
+});
+
+test('替补上场=换 Build：A 槽换成替补招式、STAB 用替补属性', () => {
+  const run = createRun(data, 212, 'pikachu');
+  // 模拟营地结伴：蚊香蝌蚪（水系）→ 上场放泡沫
+  run.player.companion = { eid: 'poliwag', name: '蚊香蝌蚪', types: ['water'], hp: 4, maxHp: 4, moveA: 'bubble' };
+  run.player.activeSide = 'companion';
+  stepRun(run, { ...idle, fire: true, aim: { x: -1, y: 0 } }, data);
+  assert.equal(run.projectiles.length > 0, true, '有弹体');
+  assert.equal(run.projectiles[0].moveId, 'bubble', 'A 槽=泡沫（替补招式）');
+  assert.ok(Math.abs(run.projectiles[0].radius - 0.3) < 1e-9, '泡沫弹径 0.3');
+  // 切回主力：恢复电击
+  run.player.activeSide = 'main';
+  run.player.fireCd = 0;
+  stepRun(run, { ...idle, fire: true, aim: { x: -1, y: 0 } }, data);
+  const last = run.projectiles[run.projectiles.length - 1];
+  assert.equal(last.moveId, 'thunder-shock', '主力回归=电击');
+});
+
+test('营地结伴：COMPANION_MOVES 按主属性给可用招式（敌版招式威力 0 不可用）', () => {
+  const run = createRun(data, 213);
+  const campKey = [...run.map.keys()].find((k) => run.map.get(k).type === 'camp');
+  assert.ok(campKey, '地图有营地房');
+  enterRoom(run, data, campKey);
+  const peds = run.pedestals.filter((d) => d.itemId.startsWith('companion:'));
+  assert.equal(peds.length, 3, '营地三台座');
+  const ped = peds[0];
+  run.player.x = ped.x; run.player.y = ped.y;
+  stepRun(run, idle, data);
+  assert.ok(run.player.companion, '结伴成功');
+  const mv = run.player.companion.moveA;
+  assert.ok(data.moves[mv] && data.moves[mv].power > 0, `替补招式 ${mv} 威力 >0`);
+});

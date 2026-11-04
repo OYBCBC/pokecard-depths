@@ -11,7 +11,7 @@
         "S",
         "O"
       ],
-      "desc": "B 槽装填水枪（弹速快射程长）",
+      "desc": "装填 B 槽：水枪（弹速快射程长）· 按 Q 切换 A/B",
       "effect": {
         "tm": "water-gun"
       }
@@ -25,7 +25,7 @@
         "T",
         "S"
       ],
-      "desc": "B 槽装填火焰弹，15% 灼烧",
+      "desc": "装填 B 槽：火焰弹（15% 灼烧）· 按 Q 切换 A/B",
       "effect": {
         "tm": "fire-spin",
         "typeMul": {
@@ -42,7 +42,7 @@
       "pools": [
         "O"
       ],
-      "desc": "B 槽装填草弹，对重型敌 ×2",
+      "desc": "装填 B 槽：打草结（对重型敌 ×2）· 按 Q 切换 A/B",
       "effect": {
         "tm": "grass-knot"
       }

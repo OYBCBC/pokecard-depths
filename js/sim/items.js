@@ -1,5 +1,5 @@
 // 道具效果系统（纯函数）：背包 → 数值修饰 mods。引擎与测试共用。
-import { damageStat, fireInterval } from './combat.js?v=m4e';
+import { damageStat, fireInterval } from './combat.js?v=m4f';
 
 export const BASE_MODS = () => ({
   dmgUps: 0, dmgFlat: 0, dmgMul: 1,

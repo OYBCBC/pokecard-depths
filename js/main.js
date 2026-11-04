@@ -1,20 +1,21 @@
 // 启动入口 M3：楼层/多房间/道具/Boss 全链路。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m4e';
-import { createLights } from './gfx/lights.js?v=m4e';
-import { createCamera } from './gfx/camera.js?v=m4e';
-import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m4e';
-import { createBillboard } from './gfx/sprites.js?v=m4e';
-import { createEffects } from './gfx/effects.js?v=m4e';
-import { createPostfx } from './gfx/postfx.js?v=m4e';
-import { createHud } from './ui/hud.js?v=m4e';
-import { createCries } from './audio/cries.js?v=m4e';
-import { createInput } from './core/input.js?v=m4e';
-import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m4e';
-import { enterRoom } from './sim/actors.js?v=m4e';
-import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m4e';
-import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m4e';
-import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m4e';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m4f';
+import { createLights } from './gfx/lights.js?v=m4f';
+import { createCamera } from './gfx/camera.js?v=m4f';
+import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m4f';
+import { createBillboard } from './gfx/sprites.js?v=m4f';
+import { createEffects } from './gfx/effects.js?v=m4f';
+import { createPostfx } from './gfx/postfx.js?v=m4f';
+import { createHud } from './ui/hud.js?v=m4f';
+import { createCries } from './audio/cries.js?v=m4f';
+import { createBgm } from './audio/bgm.js?v=m4f';
+import { createInput } from './core/input.js?v=m4f';
+import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m4f';
+import { enterRoom } from './sim/actors.js?v=m4f';
+import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m4f';
+import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m4f';
+import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m4f';
 
 const hud = createHud();
 const tier = detectTier();
@@ -203,8 +204,9 @@ async function boot() {
     for (const c of [133, 104, 61]) cries.load(c, `assets/cries/${c}.ogg`);   // 解锁搭档预载
   }
   const cry = (id, opts) => { if (criesOn) cries.play(id, opts); };
+  const bgm = createBgm({ ensureCtx: () => cries.ensureCtx(), onLog: (m) => console.info(m) });
   const input = createInput();
-  input.onFirstInteraction(() => cries.ensureCtx());
+  input.onFirstInteraction(() => { cries.ensureCtx(); if (!selfcheckOn) bgm.start(); });
   input.onPadConnect((id) => hud.toast('手柄已连接', (id || '').slice(0, 30)));
 
   // ---- 局与视图 ----
@@ -296,7 +298,7 @@ async function boot() {
     get dexState() { return dexState; },
     restart: () => { saveStore.clear(); run = createRun(data); window.__depths.run = run; hud.hideVictory(); hud.hideDeath(); rebuildRoom(); },
     goRoom: (key) => { enterRoom(run, data, key); window.__depths.run = run; rebuildRoom(); },   // ?debug 传送
-    give: (id) => { run.player.inv.passives.push(id); recompute(run, data); hud.slots(run.player.moveA, run.player.moveB, run.player.slot, run.player.mods.lockB); } };
+    give: (id) => { run.player.inv.passives.push(id); recompute(run, data); hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB); } };
 
   // ---- 存档与本机榜 ----
   const BOARD_KEY = 'depths-board';
@@ -353,10 +355,14 @@ async function boot() {
     playerSlug = '';
     setPlayerSprite(run.player.species);
     rebuildRoom();
-    hud.slots(run.player.moveA, run.player.moveB, run.player.slot, run.player.mods.lockB);
+    hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB);
     // 图鉴点亮所选搭档
     const dr0 = dexApply(dexState, [{ t: 'dex-seen', eid: run.player.species }]);
     if (dr0.changed) { dexState = dr0.dex; dexStore.write(dexState); }
+    // 出生房 room-enter 在开始界面期间已被消费——补一发让引导横幅（三选一）能出现
+    if (run.room && run.room.type === 'start') {
+      run.events.push({ t: 'room-enter', cell: run.cellKey, type: 'start', cleared: true });
+    }
     started = true;
   }
   const starterList = Object.entries(data.species)
@@ -421,6 +427,10 @@ async function boot() {
   }
   showStart();
 
+  // A 槽显示：替补上场时显示替补招式
+  const effMoveA = (r) => (r.player.activeSide === 'companion' && r.player.companion)
+    ? r.player.companion.moveA : r.player.moveA;
+
   function aimVector() {
     const ta = input.touchAim();
     if (ta) return { x: ta.x, y: ta.y };            // 触屏右摇杆：朝推动方向射击
@@ -465,6 +475,9 @@ async function boot() {
           if (ev.type === 'boss') {
             const bSpec = data.enemies[data.floors[run.floorNo].boss];
             hud.banner(`${data.floors[run.floorNo].name} · ${bSpec.name}`, bSpec.intro || '馆主的试炼！', 3000);
+          }
+          else if (ev.type === 'start' && run.pedestals.some((d) => d.choice === 'start-tm' && !d.taken)) {
+            hud.banner('免费技能机 · 三选一', '踏上台座装填 B 槽 · 按 Q 随时切换招式', 3400);
           }
           else if (ev.type === 'shop') hud.banner('友好商店', '踩上商品即可购买', 1800);
           else if (ev.type === 'treasure') hud.banner('宝箱房', '免费的强化在等你', 1600);
@@ -526,7 +539,10 @@ async function boot() {
         case 'item-take':
           props && props.removePedestal(run.pedestals.find((d) => d.itemId === ev.id)?.id ?? -1);
           hud.itemCard(ev.name, ev.desc, ev.quality, ev.icon);
-          hud.slots(run.player.moveA, run.player.moveB, run.player.slot, run.player.mods.lockB);
+          hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB);
+          break;
+        case 'choice-vanish':   // 三选一台座联动消失
+          props && props.removePedestal(ev.id);
           break;
         case 'pickup':
           if (ev.kind === 'heart') damageNum(ev.x, ev.y, '+1', 'super');
@@ -629,6 +645,7 @@ async function boot() {
 
     input.poll();                                             // 手柄：帧首统一轮询
     if (input.consumePress('KeyC')) cry((data.species[run.player.species] || {}).cry ?? 25);
+    if (input.consumePress('KeyM')) hud.toast('BGM ' + (bgm.toggleMute() ? '已静音（M 恢复）' : '开启'), '以撒式分层配乐 · 探索/战斗/Boss');
     if (input.consumePress('KeyB') || input.consumePress('Escape')) {
       if (hud.dexOpen) hud.hideDex();
       else if (hud.achvOpen) hud.hideAchv();
@@ -658,7 +675,7 @@ async function boot() {
       playerSlug = '';
       setPlayerSprite(run.player.species);
       rebuildRoom();
-      hud.slots(run.player.moveA, run.player.moveB, run.player.slot, run.player.mods.lockB);
+      hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB);
     }
 
     const gameInput = {
@@ -686,6 +703,12 @@ async function boot() {
     input.endFrame();
     consumeEvents();
     stepFading(dt);
+    // BGM 场景驱动：探索（默认）/战斗（房内有敌）/Boss（馆主在场）
+    bgm.setScene({
+      floorNo: run.floorNo,
+      combat: started && !hud.dexOpen && !hud.achvOpen && run.player.alive && !run.over && run.enemies.length > 0,
+      boss: started && !run.over && run.player.alive && run.enemies.some((e) => e.family === 'boss'),
+    });
 
     const alpha = acc / STEP;
     const p = run.player;
@@ -815,7 +838,7 @@ async function boot() {
       `第${run.floorNo}层·${data.floors[run.floorNo].name}｜${roomLabel}`, p.money,
       p.companion ? (p.activeSide === 'companion' ? `${p.companion.name} ${p.companion.hp}❤` : `替补:${p.companion.name}`) : '',
       p.pp >= 100 * p.mods.ppCost);
-    hud.slots(p.moveA, p.moveB, p.slot, p.mods.lockB);
+    hud.slots(effMoveA(run), p.moveB, p.slot, p.mods.lockB);
 
     const info = renderer.info.render;
     hud.frame(dt, {

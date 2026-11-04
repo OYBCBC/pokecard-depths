@@ -5,7 +5,7 @@
 //   13×13 网格，中心 (6,6) 出生房；BFS 扩张：邻居已占/防环规则/50% 随机放弃
 //   目标房数 = min(20, 5 + floor(10×层号/3) + rand(0,1))
 //   重 roll：房数 < target-2，或死端 < 5，或 Boss 与出生房相邻
-//   死端（按距离降序）：Boss → 商店 → 宝箱 → 剩余（挑战/隐藏房候选）
+//   死端（按距离降序）：Boss → 商店 → 宝箱 → 挑战 → 营地 → 剩余（隐藏房候选）
 //   隐藏房：与 ≥3 房相邻、不邻 Boss/其他特殊房的空格；进图不显示，冲刺撞裂缝进入
 
 export const GRID = 13;
@@ -74,9 +74,11 @@ function tryGen(rand, floorNo) {
   const shop = takeDeadEnd();   if (shop) shop.type = 'shop';
   const treasure = takeDeadEnd(); if (treasure) treasure.type = 'treasure';
   const challenge = takeDeadEnd(); if (challenge) challenge.type = 'challenge';
+  // 救援营地每层保底（替补=换 Build 载体，是免疫/克制的战略出口，必须拿得到）
+  const camp = takeDeadEnd();   if (camp) camp.type = 'camp';
 
   // 隐藏房：与 ≥3 个普通/出生房相邻的空格（不邻 Boss/特殊房），邻居越多权重越高
-  const special = new Set(['boss', 'shop', 'treasure', 'challenge', 'secret']);
+  const special = new Set(['boss', 'shop', 'treasure', 'challenge', 'camp', 'secret']);
   let best = null, bestScore = -1;
   for (let y = 0; y < GRID; y++) {
     for (let x = 0; x < GRID; x++) {
@@ -129,6 +131,7 @@ function fallbackGen(rand, floorNo) {
   put(6, 5, 'combat'); put(6, 4, 'combat'); put(6, 3, 'shop');
   put(5, 6, 'combat'); put(4, 6, 'treasure'); put(3, 6, 'combat');
   put(7, 6, 'combat'); put(8, 6, 'combat'); put(6, 2, 'boss');
+  put(5, 5, 'camp'); put(7, 5, 'challenge');      // 营地保底（替补=克制出口），兜底图同样要有
   for (const c of cells.values()) {
     c.cleared = c.type === 'start';
     c.visited = c.type === 'start';

@@ -11,11 +11,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { damageStat, fireInterval, typeMultiplier, stabMultiplier, computeHit, enemyPanel } =
-  await import(join(ROOT, 'js/sim/combat.js?v=m4e'));
-const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m4e'));
-const { enterRoom } = await import(join(ROOT, 'js/sim/actors.js?v=m4e'));
-const _save = await import(join(ROOT, 'js/sim/save.js?v=m4e'));
-const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m4e'));
+  await import(join(ROOT, 'js/sim/combat.js?v=m4f'));
+const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m4f'));
+const { enterRoom } = await import(join(ROOT, 'js/sim/actors.js?v=m4f'));
+const _save = await import(join(ROOT, 'js/sim/save.js?v=m4f'));
+const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m4f'));
 function combatNeighbor(run, d) {
   const cell = run.map.get(run.cellKey);
   for (const [dk] of Object.entries(cell.doors)) {
@@ -178,7 +178,7 @@ test('引擎：冲刺给无敌与位移', () => {
 
 
 // ---------- M4：多层塔 / Z 招式 / 进化 / 替补 ----------
-const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m4e'));
+const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m4f'));
 
 function idleInput() {
   return { move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false, slotEdge: false, useEdge: false, zEdge: false, swapEdge: false };

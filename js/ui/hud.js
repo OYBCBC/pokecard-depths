@@ -214,7 +214,7 @@ export function createHud() {
           <div class="st-sub">Pokémon: Crystal Depths</div>
           ${btns}
           ${boardHtml}
-          <div class="st-hint">WASD 移动 · 鼠标射击 · 空格冲刺 · 长按 Tab 面板/地图 · 手柄直插即用</div>
+          <div class="st-hint">WASD 移动 · 鼠标射击 · 空格冲刺 · Q 切招式 · 长按 Tab 面板 · M 静音 · 手柄直插即用</div>
           <input type="file" id="st-file" accept=".json,application/json" style="display:none">
         </div>`;
       startEl.classList.remove('hidden');
@@ -333,6 +333,7 @@ export function createHud() {
     sheet(show, run, data) {
       if (!show) { sheetEl.classList.add('hidden'); return; }
       const p = run.player, s = p.stats, m = p.mods;
+      const moveA_eff = (p.activeSide === 'companion' && p.companion) ? p.companion.moveA : p.moveA;
       const row = (label, val) => `<div class="s-row"><span>${label}</span><b>${val}</b></div>`;
       const chips = [];
       const pct = (v) => Math.round(v * 100) + '%';
@@ -375,7 +376,7 @@ export function createHud() {
           ${row('射程', '×' + m.rangeMul.toFixed(2))}
           ${row('弹速', '×' + m.shotSpeedMul.toFixed(2))}
           ${row('弹径', '×' + m.sizeMul.toFixed(2))}
-          <div class="s-moves">A·${moveName(p.moveA)}${p.moveB ? `　B·${moveName(p.moveB)}` : ''}${consum ? `　携带·${consum.name}` : ''}</div>
+          <div class="s-moves">A·${moveName(moveA_eff)}${p.moveB ? `　B·${moveName(p.moveB)}` : ''}${consum ? `　携带·${consum.name}` : ''}</div>
           ${chips.length ? '<div class="s-chips">' + chips.map(([t, c]) => `<span style="border-color:${c};color:${c}">${t}</span>`).join('') + '</div>' : ''}
           <div class="sh-title sh-title2">道具收藏</div>
           <div class="s-items">${itemHtml}</div>

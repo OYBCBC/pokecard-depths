@@ -1,9 +1,9 @@
 // 战斗与房间行为系统：玩家/弹体/敌人三族/波次/多房间楼层/拾取经济/台座。
 // 全部纯数据变换；事件写进 state.events 供表现层消费。
-import { computeHit } from './combat.js?v=m4e';
-import { fireInterval } from './combat.js?v=m4e';
-import { rollItem } from './items.js?v=m4e';
-import { spawnBoss, stepBoss } from './boss.js?v=m4e';
+import { computeHit } from './combat.js?v=m4f';
+import { fireInterval } from './combat.js?v=m4f';
+import { rollItem } from './items.js?v=m4f';
+import { spawnBoss, stepBoss } from './boss.js?v=m4f';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -59,6 +59,20 @@ export function enterRoom(state, data, cellKey) {
     if (cell.type === 'camp') state.stats.camps = (state.stats.camps || 0) + 1;
   }
 
+  // 出生房（cleared=true 走早退，故在此生成）：免费技能机三选一——
+  // 保底 B 槽（Q 切换）是免疫属性的构筑出口，每局必有
+  if (cell.type === 'start' && !stash && !state.player.moveB
+      && (state.player.inv.passives || []).length === 0) {
+    const tms = ['tm-water', 'tm-fire', 'tm-grass'];
+    for (let i = 0; i < tms.length; i++) {
+      if (!data.items[tms[i]]) continue;
+      state.pedestals.push({
+        id: state.nextId++, itemId: tms[i], price: 0,
+        x: w / 2 + (i - 1) * 2.6, y: h / 2 - 2, taken: false, choice: 'start-tm',
+      });
+    }
+  }
+
   if (cell.cleared) {
     // 保底：已击败的 Boss 房必有楼梯（非顶层）——防暂存缺失时卡死进度
     if (cell.type === 'boss' && state.floorNo < 3 && !state.over
@@ -104,6 +118,13 @@ export function enterRoom(state, data, cellKey) {
   }
   state.events.push({ t: 'room-enter', cell: cellKey, type: cell.type, cleared: false });
 }
+
+// 替补上场用的 A 槽招式（按主属性映射到玩家可用招式；无对应属性用高速星星）
+const COMPANION_MOVES = {
+  electric: 'thunder-shock', water: 'bubble', fire: 'fire-spin', grass: 'grass-knot',
+  normal: 'swift', ground: 'bone-club', rock: 'bone-club', fighting: 'bone-club',
+  poison: 'swift', psychic: 'swift', ghost: 'swift', bug: 'swift', steel: 'thunder-shock',
+};
 
 function addCampPedestal(state, data, slotIdx) {
   // 从当层敌群抽物种（排除 boss/bomber 自爆型），做成结伴台座
@@ -186,7 +207,7 @@ export function stepPlayer(state, input, data) {
     const zid = p.evolved ? (p.zmoveEvolved || 'thunder-z') : (p.zmove || 'thunderbolt-z');
     const zm = data.moves[zid];
     p.pp = 0;
-    // 全场/近场 AoE：以玩家为圆心，走属性克制（Boss 免疫按 ×0.5 防卡关）
+    // 全场/近场 AoE：以玩家为圆心，走属性克制（免疫按 ×0.5 防卡关）
     let hits = 0;
     for (const e of state.enemies) {
       if (e.state === 'spawning' || e.state === 'dead') continue;
@@ -196,7 +217,7 @@ export function stepPlayer(state, input, data) {
           D: p.stats.damage, power: zm.power * 0.5, moveType: zm.type,   // AoE 打 5 折换覆盖面
           atkTypes: p.types || ['electric'], defTypes: e.types, spdMod: e.spdMod,
           critChance: 0, rng01: 0.5, stabMul: 1.5, chart: data.typechart,
-          immuneFloor: e.family === 'boss' ? 0.5 : 0,
+          immuneFloor: 0.5,
         });
         e.hp -= hit.dmg;
         e.flash = 0.2;
@@ -264,7 +285,9 @@ export function stepPlayer(state, input, data) {
   // 射击
   p.fireCd -= state.dt;
   if (input.fire && p.fireCd <= 0) {
-    const moveId = p.slot === 'B' && p.moveB && !p.mods.lockB ? p.moveB : p.moveA;
+    // 替补上场时 A 槽换成替补的招式（换宠=换 Build 载体）；B 槽技能机照常可用
+    const moveA_eff = (p.activeSide === 'companion' && p.companion) ? p.companion.moveA : p.moveA;
+    const moveId = p.slot === 'B' && p.moveB && !p.mods.lockB ? p.moveB : moveA_eff;
     const mv = data.moves[moveId];
     const aim = input.aim;
     const l = Math.hypot(aim.x, aim.y) || 1;
@@ -443,11 +466,11 @@ function applyHit(state, e, b, data) {
   let spdMod = e.spdMod;
   const hit = computeHit({
     D: p.stats.damage, power: mv.power, moveType: mv.type,
-    atkTypes: p.types || (data.species.player && data.species.player.types) || ['electric'],
+    atkTypes: (p.activeSide === 'companion' && p.companion) ? p.companion.types : (p.types || ['electric']),
     defTypes: e.types, spdMod,
     critChance: m.crit, rng01: state.rand(),
     stabMul: 1.5, chart: data.typechart,
-    immuneFloor: e.family === 'boss' ? 0.5 : 0,      // 防卡关：Boss 免疫按 ×0.5
+    immuneFloor: 0.5,      // 防卡关（GDD §5.2）：×0 免疫一律按 ×0.5 结算——克制差距仍在，但永不锁死
   });
   let dmg = hit.dmg;
   // 属性增伤道具（木炭/磁铁/神秘水滴）
@@ -901,7 +924,8 @@ function takePedestal(state, data, d) {
       p.companion = {
         eid, name: spec.name, types: spec.types,
         hp: 4 + Math.floor(spec.score), maxHp: 4 + Math.floor(spec.score),
-        moveA: spec.shoot ? spec.shoot.move : 'quick-attack',
+        // 上场 A 槽招式：主属性映射（敌版招式威力为 0，不能用）
+        moveA: COMPANION_MOVES[spec.types[0]] || 'swift',
       };
       state.events.push({ t: 'companion-join', name: spec.name, eid });
     }
@@ -910,6 +934,16 @@ function takePedestal(state, data, d) {
   }
   const it = data.items[d.itemId];
   d.taken = true;
+  // 出生房三选一：拿走一台，其余两台消失（避免回头白捡）
+  if (d.choice === 'start-tm') {
+    for (let i = state.pedestals.length - 1; i >= 0; i--) {
+      const o = state.pedestals[i];
+      if (o !== d && o.choice === 'start-tm' && !o.taken) {
+        o.taken = true;
+        state.events.push({ t: 'choice-vanish', id: o.id, itemId: o.itemId });
+      }
+    }
+  }
   switch (it.kind) {
     case 'passive':
       if (it.effect.tm) {
@@ -949,4 +983,4 @@ function takePedestal(state, data, d) {
 }
 
 // 规避循环 import：engine.recompute 通过事件总线由调用方重算——这里直接内联等价逻辑
-import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m4e';
+import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m4f';
