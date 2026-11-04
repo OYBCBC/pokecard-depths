@@ -135,7 +135,8 @@ def main():
 
     total_h = cur_y + row_h + 2
     assert total_h <= MAX_ATLAS, f'图集超高 {total_h}'
-    atlas = Image.new('RGBA', (MAX_ATLAS, min(1024, (total_h + 63) // 64 * 64)), (0, 0, 0, 0))
+    # 高度按需取 64 倍数（上限 2048）。曾因误钳 1024 导致大精灵（onix）141 帧越界→面片隐形。
+    atlas = Image.new('RGBA', (MAX_ATLAS, min(MAX_ATLAS, (total_h + 63) // 64 * 64)), (0, 0, 0, 0))
     for (name, row, fi, x, y) in placements:
         a = packed[name]
         f = a['frames'][row][fi]

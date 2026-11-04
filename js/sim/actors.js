@@ -1,9 +1,9 @@
 // 战斗与房间行为系统：玩家/弹体/敌人三族/波次/多房间楼层/拾取经济/台座。
 // 全部纯数据变换；事件写进 state.events 供表现层消费。
-import { computeHit } from './combat.js?v=m4f';
-import { fireInterval } from './combat.js?v=m4f';
-import { rollItem } from './items.js?v=m4f';
-import { spawnBoss, stepBoss } from './boss.js?v=m4f';
+import { computeHit } from './combat.js?v=m4g';
+import { fireInterval } from './combat.js?v=m4g';
+import { rollItem } from './items.js?v=m4g';
+import { spawnBoss, stepBoss } from './boss.js?v=m4g';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -59,13 +59,18 @@ export function enterRoom(state, data, cellKey) {
     if (cell.type === 'camp') state.stats.camps = (state.stats.camps || 0) + 1;
   }
 
-  // 出生房（cleared=true 走早退，故在此生成）：免费技能机三选一——
-  // 保底 B 槽（Q 切换）是免疫属性的构筑出口，每局必有
+  // 出生房（cleared=true 走早退，故在此生成）：免费技能机三选一——按物种定制开局包
+  // （species.startTMs，可学性 learn 校验兜底）。保底 B 槽（Q 切换）是免疫属性的构筑出口。
   if (cell.type === 'start' && !stash && !state.player.moveB
       && (state.player.inv.passives || []).length === 0) {
-    const tms = ['tm-water', 'tm-fire', 'tm-grass'];
+    const spec = (data.species && data.species[state.player.species]) || {};
+    const tms = (spec.startTMs || ['tm-water', 'tm-fire', 'tm-grass'])
+      .filter((id) => {
+        const it = data.items[id];
+        return it && it.effect && it.effect.tm && (!it.learn || it.learn.includes(state.player.species));
+      })
+      .slice(0, 3);
     for (let i = 0; i < tms.length; i++) {
-      if (!data.items[tms[i]]) continue;
       state.pedestals.push({
         id: state.nextId++, itemId: tms[i], price: 0,
         x: w / 2 + (i - 1) * 2.6, y: h / 2 - 2, taken: false, choice: 'start-tm',
@@ -152,7 +157,8 @@ function addPedestal(state, data, poolName, slotIdx) {
     // 商店第三格保底消耗品（治疗树果）
     itemId = state.rand() < 0.5 ? 'sitrus-berry' : 'cheri-berry';
   } else {
-    itemId = rollItem(data.items, data.itemPools, poolName, state.rand, { owned: state.player.inv.passives });
+    itemId = rollItem(data.items, data.itemPools, poolName, state.rand,
+      { owned: state.player.inv.passives, learnBy: state.player.species });   // 技能机按物种可学性过滤
   }
   if (!itemId) return;
   const it = data.items[itemId];
@@ -292,17 +298,27 @@ export function stepPlayer(state, input, data) {
     const aim = input.aim;
     const l = Math.hypot(aim.x, aim.y) || 1;
     const m = p.mods;
-    state.projectiles.push({
-      owner: 'player', id: state.nextId++, moveId,
-      x: p.x, y: p.y, px: p.x, py: p.y,
-      vx: aim.x / l * mv.speed * m.shotSpeedMul,
-      vy: aim.y / l * mv.speed * m.shotSpeedMul,
-      life: (mv.range * m.rangeMul) / mv.speed,
-      radius: mv.radius * m.sizeMul,
-      pierceLeft: m.pierce, hitIds: [],
-    });
-    p.fireCd = p.stats.fireInterval;
-    state.stats.shots += 1;
+    // 以撒式弹型参数（per-move）：spread/arcDeg=扇形散射（三重攻击），pierce=自带贯通
+    // （破坏光线），intervalMul=攻速倍率（破坏光线 2.6 慢炮），sizeMul=弹径倍率
+    const spread = mv.spread || 1;
+    const arcRad = ((mv.arcDeg || 24) * Math.PI) / 180;
+    const baseA = Math.atan2(aim.y, aim.x);
+    const speed = mv.speed * m.shotSpeedMul;
+    for (let s = 0; s < spread; s++) {
+      const a = baseA + (spread > 1 ? (s / (spread - 1) - 0.5) * arcRad : 0);
+      state.projectiles.push({
+        owner: 'player', id: state.nextId++, moveId,
+        x: p.x, y: p.y, px: p.x, py: p.y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        life: (mv.range * m.rangeMul) / speed,
+        radius: mv.radius * m.sizeMul * (mv.sizeMul || 1),
+        pierceLeft: Math.max(mv.pierce || 0, m.pierce),
+        hitIds: [],
+      });
+    }
+    p.fireCd = p.stats.fireInterval * (mv.intervalMul || 1);
+    state.stats.shots += spread;
     state.events.push({ t: 'shot', x: p.x, y: p.y, moveId });
   }
 }
@@ -983,4 +999,4 @@ function takePedestal(state, data, d) {
 }
 
 // 规避循环 import：engine.recompute 通过事件总线由调用方重算——这里直接内联等价逻辑
-import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m4f';
+import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m4g';

@@ -1,21 +1,21 @@
 // 启动入口 M3：楼层/多房间/道具/Boss 全链路。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m4f';
-import { createLights } from './gfx/lights.js?v=m4f';
-import { createCamera } from './gfx/camera.js?v=m4f';
-import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m4f';
-import { createBillboard } from './gfx/sprites.js?v=m4f';
-import { createEffects } from './gfx/effects.js?v=m4f';
-import { createPostfx } from './gfx/postfx.js?v=m4f';
-import { createHud } from './ui/hud.js?v=m4f';
-import { createCries } from './audio/cries.js?v=m4f';
-import { createBgm } from './audio/bgm.js?v=m4f';
-import { createInput } from './core/input.js?v=m4f';
-import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m4f';
-import { enterRoom } from './sim/actors.js?v=m4f';
-import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m4f';
-import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m4f';
-import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m4f';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m4g';
+import { createLights } from './gfx/lights.js?v=m4g';
+import { createCamera } from './gfx/camera.js?v=m4g';
+import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m4g';
+import { createBillboard } from './gfx/sprites.js?v=m4g';
+import { createEffects } from './gfx/effects.js?v=m4g';
+import { createPostfx } from './gfx/postfx.js?v=m4g';
+import { createHud } from './ui/hud.js?v=m4g';
+import { createCries } from './audio/cries.js?v=m4g';
+import { createBgm } from './audio/bgm.js?v=m4g';
+import { createInput } from './core/input.js?v=m4g';
+import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m4g';
+import { enterRoom } from './sim/actors.js?v=m4g';
+import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m4g';
+import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m4g';
+import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m4g';
 
 const hud = createHud();
 const tier = detectTier();
@@ -128,7 +128,7 @@ async function boot() {
   const iconSlugs = Object.values(itemsD.items).map((it) => it.icon);
   const themes = ['cave', 'plant', 'ruins'];
   const [texList, themeTexList, flameTex, shadowTex, orbBolt, orbAcid, doorTex, crackTex, coinTex, heartTex, ringTex, iconTexList] = await Promise.all([
-    Promise.all(slugs.map((s) => loadTexture(`assets/atlas/${s}.png`, { pixel: true }).catch(() => null))),
+    Promise.all(slugs.map((s) => loadTexture(`${atlasDir}/${s}.png`, { pixel: true }).catch(() => null))),
     Promise.all(themes.flatMap((th) => [
       loadTexture(`assets/tiles/${th}-floor.png`, { pixel: true, mip: true }),
       loadTexture(`assets/tiles/${th}-floor-boss.png`, { pixel: true, mip: true }),
@@ -294,9 +294,10 @@ async function boot() {
 
   window.__depths = { run, renderer, scene, camera: camCtl.camera, cries, tier, postfx, input, lightOk, data,
     get roomView() { return roomView; },
+    get views() { return enemyViews; },          // selfcheck 按 id 精确取面片
     get player() { return player; }, pump: null,
     get dexState() { return dexState; },
-    restart: () => { saveStore.clear(); run = createRun(data); window.__depths.run = run; hud.hideVictory(); hud.hideDeath(); rebuildRoom(); },
+    restart: () => { saveStore.clear(); hud.hideVictory(); hud.hideDeath(); beginRun(createRun(data, undefined, run.player.species)); },   // 走 beginRun：started/精灵/横幅齐全
     goRoom: (key) => { enterRoom(run, data, key); window.__depths.run = run; rebuildRoom(); },   // ?debug 传送
     give: (id) => { run.player.inv.passives.push(id); recompute(run, data); hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB); } };
 
@@ -878,6 +879,7 @@ async function boot() {
       window.__depths.goRoom(keyOf('combat'));
       window.__depths.pump(90);
       out.enemiesCombat = run.enemies.length;
+      out.viewsCombat = run.enemies.filter((e) => enemyViews.has(e.id)).length;   // 精灵视图必须在（orig 包纹理路径漏参数化时全空）
       for (let w = 0; w < 6 && !run.room.cleared; w++) {   // 逐波清空（F1 共 3 波）
         for (const e of run.enemies) e.hp = 0;             // debug 击杀路径
         window.__depths.pump(75);
@@ -888,9 +890,23 @@ async function boot() {
       window.__depths.pump(200);
       out.bossSpawned = run.enemies.some((e) => e.family === 'boss');
       out.playerAlive2 = run.player.alive;
+      // Boss 面片可见性（onix 图集越界→UV 负值隐形的回归断言）：按 id 取视图，不受 Boss 移动影响
+      const bossE = run.enemies.find((e) => e.family === 'boss');
+      out.bossMeshOk = false;
+      if (bossE) {
+        const bb = enemyViews.get(bossE.id);
+        if (bb && bb.mesh && bb.mesh.geometry.attributes.uv && bb.mesh.scale.x > 0.05) {
+          const uv = bb.mesh.geometry.attributes.uv;
+          out.bossMeshOk = true;
+          for (let i = 0; i < uv.count; i++) {
+            const u = uv.getX(i), v = uv.getY(i);
+            if (u < -0.001 || u > 1.001 || v < -0.001 || v > 1.001) out.bossMeshOk = false;
+          }
+        }
+      }
       out.calls = renderer.info.render.calls;
       out.tris = renderer.info.render.triangles;
-      out.ok = out.enemiesCombat > 0 && out.combatCleared && out.playerAlive && out.playerAlive2 && out.bossSpawned && out.calls > 0;
+      out.ok = out.enemiesCombat > 0 && out.viewsCombat > 0 && out.combatCleared && out.playerAlive && out.playerAlive2 && out.bossSpawned && out.bossMeshOk && out.calls > 0;
     } catch (e) {
       out.ok = false;
       out.errors.push(String((e && e.stack) || e));

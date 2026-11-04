@@ -14,7 +14,11 @@
       "desc": "装填 B 槽：水枪（弹速快射程长）· 按 Q 切换 A/B",
       "effect": {
         "tm": "water-gun"
-      }
+      },
+      "learn": [
+        "eevee",
+        "poliwhirl"
+      ]
     },
     "tm-fire": {
       "name": "技能机·火焰漩涡",
@@ -32,7 +36,10 @@
           "fire": 1.1
         },
         "burnChance": 0.15
-      }
+      },
+      "learn": [
+        "eevee"
+      ]
     },
     "tm-grass": {
       "name": "技能机·打草结",
@@ -45,7 +52,11 @@
       "desc": "装填 B 槽：打草结（对重型敌 ×2）· 按 Q 切换 A/B",
       "effect": {
         "tm": "grass-knot"
-      }
+      },
+      "learn": [
+        "pikachu",
+        "poliwhirl"
+      ]
     },
     "charcoal": {
       "name": "木炭",
@@ -468,6 +479,84 @@
       "desc": "第 2 层起使用即进化（雷丘）",
       "effect": {
         "evolve": "raichu"
+      }
+    },
+    "tm-tri": {
+      "name": "技能机·三重攻击",
+      "icon": "tm-tri",
+      "kind": "passive",
+      "quality": 2,
+      "pools": [
+        "S",
+        "T",
+        "O"
+      ],
+      "learn": [
+        "pikachu",
+        "eevee",
+        "cubone",
+        "poliwhirl"
+      ],
+      "desc": "装填 B 槽：一次射出 3 发扇形弹 · 按 Q 切换 A/B",
+      "effect": {
+        "tm": "tri-attack"
+      }
+    },
+    "tm-aerial": {
+      "name": "技能机·燕返",
+      "icon": "tm-aerial",
+      "kind": "passive",
+      "quality": 1,
+      "pools": [
+        "S",
+        "O"
+      ],
+      "learn": [
+        "pikachu",
+        "eevee",
+        "cubone",
+        "poliwhirl"
+      ],
+      "desc": "装填 B 槽：必定命中的追踪燕斩 · 按 Q 切换 A/B",
+      "effect": {
+        "tm": "aerial-ace"
+      }
+    },
+    "tm-hyper": {
+      "name": "技能机·破坏光线",
+      "icon": "tm-hyper",
+      "kind": "passive",
+      "quality": 3,
+      "pools": [
+        "S",
+        "T"
+      ],
+      "learn": [
+        "pikachu",
+        "eevee",
+        "cubone",
+        "poliwhirl"
+      ],
+      "desc": "装填 B 槽：贯穿一切的巨型光炮（攻速 ×2.6 慢）· 按 Q 切换 A/B",
+      "effect": {
+        "tm": "hyper-beam"
+      }
+    },
+    "tm-firepunch": {
+      "name": "技能机·火焰拳",
+      "icon": "tm-firepunch",
+      "kind": "passive",
+      "quality": 1,
+      "pools": [
+        "S",
+        "O"
+      ],
+      "learn": [
+        "cubone"
+      ],
+      "desc": "装填 B 槽：中距灼热的铁拳 · 按 Q 切换 A/B",
+      "effect": {
+        "tm": "fire-punch"
       }
     }
   },

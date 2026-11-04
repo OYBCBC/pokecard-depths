@@ -185,6 +185,55 @@
       "power": 170,
       "kind": "zmove",
       "radius": 7.0
+    },
+    "tri-attack": {
+      "name": "三重攻击",
+      "type": "normal",
+      "power": 24,
+      "kind": "projectile",
+      "speed": 10.5,
+      "range": 6.5,
+      "radius": 0.16,
+      "sprite": "orb-bolt",
+      "tint": "#ffd24a",
+      "spread": 3,
+      "arcDeg": 26
+    },
+    "aerial-ace": {
+      "name": "燕返",
+      "type": "flying",
+      "power": 35,
+      "kind": "projectile",
+      "speed": 10,
+      "range": 7.0,
+      "radius": 0.18,
+      "sprite": "orb-bolt",
+      "tint": "#b8f0ff",
+      "homing": 0.22
+    },
+    "hyper-beam": {
+      "name": "破坏光线",
+      "type": "normal",
+      "power": 110,
+      "kind": "projectile",
+      "speed": 15,
+      "range": 8.0,
+      "radius": 0.34,
+      "sprite": "orb-bolt",
+      "tint": "#ff9a4a",
+      "pierce": 99,
+      "intervalMul": 2.6
+    },
+    "fire-punch": {
+      "name": "火焰拳",
+      "type": "fire",
+      "power": 45,
+      "kind": "projectile",
+      "speed": 9,
+      "range": 5.5,
+      "radius": 0.24,
+      "sprite": "orb-bolt",
+      "tint": "#ff6a5e"
     }
   }
 }

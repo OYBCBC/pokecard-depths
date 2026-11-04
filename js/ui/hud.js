@@ -170,6 +170,7 @@ export function createHud() {
       const nm = {
         'thunder-shock': '电击', 'water-gun': '水枪', 'fire-spin': '火焰漩涡', 'grass-knot': '打草结',
         'swift': '高速星星', 'bone-club': '骨棒', 'bubble': '泡沫',
+        'tri-attack': '三重攻击', 'aerial-ace': '燕返', 'hyper-beam': '破坏光线', 'fire-punch': '火焰拳',
       };
       slotsEl.innerHTML =
         `<span class="slot ${active === 'A' ? 'on' : ''}">A·${nm[slotA] || slotA}</span>` +

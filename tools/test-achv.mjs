@@ -10,11 +10,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { ACHVS, achvApply, metaApply, starterUnlocked, UNLOCK_SPECIES, achvProgress } =
-  await import(join(ROOT, 'js/sim/achv.js?v=m4f'));
-const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m4f'));
-const { enterRoom, combatNeighborNotNeeded } = await import(join(ROOT, 'js/sim/actors.js?v=m4f'));
-const { serializeRun, deserializeRun } = await import(join(ROOT, 'js/sim/save.js?v=m4f'));
-const { dexSpecies, dexApply } = await import(join(ROOT, 'js/sim/dex.js?v=m4f'));
+  await import(join(ROOT, 'js/sim/achv.js?v=m4g'));
+const { createRun, stepRun, recompute } = await import(join(ROOT, 'js/sim/engine.js?v=m4g'));
+const { enterRoom, combatNeighborNotNeeded } = await import(join(ROOT, 'js/sim/actors.js?v=m4g'));
+const { serializeRun, deserializeRun } = await import(join(ROOT, 'js/sim/save.js?v=m4g'));
+const { dexSpecies, dexApply } = await import(join(ROOT, 'js/sim/dex.js?v=m4g'));
 
 const tc = D('typechart.json');
 const ed = D('enemies.json');
@@ -345,4 +345,65 @@ test('营地结伴：COMPANION_MOVES 按主属性给可用招式（敌版招式�
   assert.ok(run.player.companion, '结伴成功');
   const mv = run.player.companion.moveA;
   assert.ok(data.moves[mv] && data.moves[mv].power > 0, `替补招式 ${mv} 威力 >0`);
+});
+
+// ---------- M4.6：以撒式技能机 + 可学性 ----------
+test('弹型技能机：三重攻击一次 3 发扇形', () => {
+  const run = createRun(data, 220, 'pikachu');
+  run.player.inv.passives.push('tm-tri');
+  recompute(run, data);
+  assert.equal(run.player.moveB, 'tri-attack', 'B 槽装填');
+  run.player.slot = 'B';
+  const n0 = run.projectiles.length;
+  stepRun(run, { ...idle, fire: true, aim: { x: 1, y: 0 } }, data);
+  assert.equal(run.projectiles.length - n0, 3, '3 发扇形');
+  const angs = run.projectiles.slice(n0).map((b) => Math.atan2(b.vy, b.vx));
+  assert.ok(Math.abs(angs[0] - angs[2]) > 0.3, `外侧两发张角 >0.3rad（实际 ${(angs[0] - angs[2]).toFixed(2)}）`);
+  assert.ok(Math.abs(angs[1]) < 0.05, '中间弹朝瞄准方向');
+});
+
+test('弹型技能机：破坏光线自带贯通 + 攻速 ×2.6', () => {
+  const run = createRun(data, 221, 'pikachu');
+  run.player.inv.passives.push('tm-hyper');
+  recompute(run, data);
+  run.player.slot = 'B';
+  const fi = run.player.stats.fireInterval;
+  stepRun(run, { ...idle, fire: true, aim: { x: 0, y: -1 } }, data);
+  assert.equal(run.player.fireCd, fi * 2.6, 1e-9, '攻速倍率');
+  assert.equal(run.projectiles[0].pierceLeft, 99, '贯通');
+  assert.ok(run.projectiles[0].radius > 0.3, '大弹径');
+});
+
+test('弹型技能机：燕返强追踪（homing 0.22）', () => {
+  const mvDef = data.moves['aerial-ace'];
+  assert.equal(mvDef.homing, 0.22);
+  assert.equal(mvDef.type, 'flying');
+});
+
+test('可学性：rollItem learnBy 过滤（皮卡丘抽不到水枪/火焰拳，能抽到打草结/燕返）', async () => {
+  const { rollItem } = await import(join(ROOT, 'js/sim/items.js?v=m4g'));
+  const items = data.items, pools = data.itemPools;
+  let sawWater = false, sawFirepunch = false, sawLearnable = false;
+  for (let i = 0; i < 400; i++) {
+    let s99 = 12345 + i * 7919;   // 全区间确定性伪随机（mulberry32 单步）
+    const rnd = () => { s99 = (s99 + 0x6D2B79F5) | 0; let t = s99; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const id = rollItem(items, pools, 'shop', rnd, { owned: [], learnBy: 'pikachu' });
+    if (!id) continue;
+    if (id === 'tm-water' || id === 'tm-fire' || id === 'tm-firepunch') { sawWater = true; break; }
+    if (id === 'tm-grass' || id === 'tm-aerial' || id === 'tm-tri' || id === 'tm-hyper') sawLearnable = true;
+  }
+  assert.equal(sawWater || sawFirepunch, false, '不可学的不出现');
+  assert.equal(sawLearnable, true, '可学的正常出现');
+});
+
+test('开局三选一按物种定制（learn 校验）', () => {
+  const pk = createRun(data, 222, 'pikachu');
+  const pkTms = pk.pedestals.filter((d) => d.choice === 'start-tm').map((d) => d.itemId).sort();
+  assert.deepEqual(pkTms, ['tm-aerial', 'tm-grass', 'tm-tri'], '皮卡丘=打草结/燕返/三重攻击');
+  const cb = createRun(data, 222, 'cubone');
+  const cbTms = cb.pedestals.filter((d) => d.choice === 'start-tm').map((d) => d.itemId).sort();
+  assert.deepEqual(cbTms, ['tm-aerial', 'tm-firepunch', 'tm-tri'], '卡拉卡拉=火焰拳/燕返/三重攻击');
+  const ev = createRun(data, 222, 'eevee');
+  const evTms = ev.pedestals.filter((d) => d.choice === 'start-tm').map((d) => d.itemId).sort();
+  assert.deepEqual(evTms, ['tm-aerial', 'tm-tri', 'tm-water'], '伊布=水枪/三重攻击/燕返');
 });

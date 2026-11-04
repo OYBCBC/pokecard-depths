@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 
 const ROOT = dirname(fileURLToPath(import.meta.url)) + '/..';
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
-const { createRun, stepRun, STEP } = await import(join(ROOT, 'js/sim/engine.js?v=m4f'));
+const { createRun, stepRun, STEP } = await import(join(ROOT, 'js/sim/engine.js?v=m4g'));
 
 const tc = D('typechart.json'), ed = D('enemies.json'), mv = D('moves.json'), bal = D('balance.json'), itemsDoc = D('items.json');
 const fl = D('floors.json');

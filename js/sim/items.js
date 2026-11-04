@@ -1,5 +1,5 @@
 // 道具效果系统（纯函数）：背包 → 数值修饰 mods。引擎与测试共用。
-import { damageStat, fireInterval } from './combat.js?v=m4f';
+import { damageStat, fireInterval } from './combat.js?v=m4g';
 
 export const BASE_MODS = () => ({
   dmgUps: 0, dmgFlat: 0, dmgMul: 1,
@@ -64,7 +64,8 @@ export function playerStats(mods, base = {}) {
   };
 }
 
-/** 抽池：按 poolConfig 权重选一件未拥有的（kind 过滤可选） */
+/** 抽池：按 poolConfig 权重选一件未拥有的。
+ *  opts.learnBy=物种 id → 技能机只出该物种可学的（learn 表，贴正作可学性）。 */
 export function rollItem(items, poolConfig, poolName, rand, opts = {}) {
   const weights = poolConfig[poolName] || poolConfig.drop;
   const total = Object.values(weights).reduce((a, b) => a + b, 0);
@@ -75,8 +76,10 @@ export function rollItem(items, poolConfig, poolName, rand, opts = {}) {
     if (r <= 0) { chosenPool = k; break; }
   }
   const owned = new Set(opts.owned || []);
+  const learnable = (it) => !it.effect || !it.effect.tm || !it.learn
+    || !opts.learnBy || it.learn.includes(opts.learnBy);
   const cands = Object.entries(items).filter(([id, it]) =>
-    it.pools.includes(chosenPool) && !owned.has(id)
+    it.pools.includes(chosenPool) && !owned.has(id) && learnable(it)
     && (!opts.kinds || opts.kinds.includes(it.kind)));
   if (!cands.length) {
     // 池空：从全部未拥有里兜底

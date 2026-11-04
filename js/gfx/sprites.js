@@ -5,7 +5,7 @@
 //   4) 法线朝天倾斜 60°（被环境光打亮）
 //   5) 脚下椭圆假阴影 + 真实投影并存
 // M2 增补：受击闪白（emissive 脉冲）、出生缩放、单例 dispose。
-import { DIRS } from '../sim/engine.js?v=m4f';
+import { DIRS } from '../sim/engine.js?v=m4g';
 
 const TEXEL = 16;                     // 16 texel = 1 世界单位
 const NORMAL_TILT = 0.866;            // 法线 y 分量（60° 朝天倾斜）
@@ -13,6 +13,18 @@ const NORMAL_TILT = 0.866;            // 法线 y 分量（60° 朝天倾斜）
 export function createBillboard(THREE, atlasTex, atlasData, shadowTex, opts = {}) {
   const anims = atlasData.anims;
   const [atlasW, atlasH] = atlasData.atlas;
+  // 帧越界防御（pack-atlas 曾因高度钳制手误让 onix 141 帧越界→面片隐形）：每图集只警告一次
+  if (!atlasData.__boundsOk) {
+    atlasData.__boundsOk = true;
+    for (const a of Object.values(anims)) {
+      for (const dir of a.frames) for (const f of dir) {
+        if (f.x + a.frameW > atlasW || f.y + a.frameH > atlasH) {
+          console.warn('[sprite] 帧越界（图集偏小，重跑 pack-atlas.py）', atlasData.source,
+            { x: f.x, y: f.y, frameW: a.frameW, frameH: a.frameH, atlasW, atlasH });
+        }
+      }
+    }
+  }
 
   const geometry = new THREE.PlaneGeometry(1, 1);
   {

@@ -2,32 +2,112 @@
   "_comment": "可选宝可梦表（M4）：3 初始位首发皮卡丘（其余两只初始留 M5）+ 3 成就解锁。unlock=成就 id（null=默认解锁）。",
   "species": {
     "pikachu": {
-      "dex": 25, "name": "皮卡丘", "types": ["electric"], "anim": "pikachu", "cry": 25,
-      "moveA": "thunder-shock", "zmove": "thunderbolt-z", "zmoveEvolved": "thunder-z",
-      "evolveTo": "raichu", "maxHp": 6, "moveSpeed": 4.2, "luck": 0,
-      "unlock": null, "role": "均衡 · 电", "desc": "熟悉的搭档。电击直射，进化后 Z 升级为「打雷」。"
+      "dex": 25,
+      "name": "皮卡丘",
+      "types": [
+        "electric"
+      ],
+      "anim": "pikachu",
+      "cry": 25,
+      "moveA": "thunder-shock",
+      "zmove": "thunderbolt-z",
+      "zmoveEvolved": "thunder-z",
+      "evolveTo": "raichu",
+      "maxHp": 6,
+      "moveSpeed": 4.2,
+      "luck": 0,
+      "unlock": null,
+      "role": "均衡 · 电",
+      "desc": "熟悉的搭档。电击直射，进化后 Z 升级为「打雷」。",
+      "startTMs": [
+        "tm-grass",
+        "tm-aerial",
+        "tm-tri"
+      ]
     },
     "eevee": {
-      "dex": 133, "name": "伊布", "types": ["normal"], "anim": "eevee", "cry": 133,
-      "moveA": "swift", "zmove": "evolve-light-z", "zmoveEvolved": null,
-      "evolveTo": null, "maxHp": 6, "moveSpeed": 4.4, "luck": 0.12,
-      "unlock": "dex-12", "role": "运气流 · 一般", "desc": "高速星星轻微追踪；掉落率更高。注意：幽灵免疫一般招式，记得换 B 槽。"
+      "dex": 133,
+      "name": "伊布",
+      "types": [
+        "normal"
+      ],
+      "anim": "eevee",
+      "cry": 133,
+      "moveA": "swift",
+      "zmove": "evolve-light-z",
+      "zmoveEvolved": null,
+      "evolveTo": null,
+      "maxHp": 6,
+      "moveSpeed": 4.4,
+      "luck": 0.12,
+      "unlock": "dex-12",
+      "role": "运气流 · 一般",
+      "desc": "高速星星轻微追踪；掉落率更高。注意：幽灵免疫一般招式，记得换 B 槽。",
+      "startTMs": [
+        "tm-water",
+        "tm-tri",
+        "tm-aerial"
+      ]
     },
     "cubone": {
-      "dex": 104, "name": "卡拉卡拉", "types": ["ground"], "anim": "cubone", "cry": 104,
-      "moveA": "bone-club", "zmove": "earthquake-z", "zmoveEvolved": null,
-      "evolveTo": null, "maxHp": 8, "moveSpeed": 3.9, "luck": 0,
-      "unlock": "no-hurt-floor", "role": "近战防反 · 地面", "desc": "骨棒近身横扫，血厚手短；地震 Z 全屏清场。"
+      "dex": 104,
+      "name": "卡拉卡拉",
+      "types": [
+        "ground"
+      ],
+      "anim": "cubone",
+      "cry": 104,
+      "moveA": "bone-club",
+      "zmove": "earthquake-z",
+      "zmoveEvolved": null,
+      "evolveTo": null,
+      "maxHp": 8,
+      "moveSpeed": 3.9,
+      "luck": 0,
+      "unlock": "no-hurt-floor",
+      "role": "近战防反 · 地面",
+      "desc": "骨棒近身横扫，血厚手短；地震 Z 全屏清场。",
+      "startTMs": [
+        "tm-firepunch",
+        "tm-tri",
+        "tm-aerial"
+      ]
     },
     "poliwhirl": {
-      "dex": 61, "name": "蚊香君", "types": ["water"], "anim": "poliwhirl", "cry": 61,
-      "moveA": "bubble", "zmove": "surf-z", "zmoveEvolved": null,
-      "evolveTo": null, "maxHp": 7, "moveSpeed": 4.0, "luck": 0,
-      "unlock": "camp-5", "role": "近战脉冲 · 水", "desc": "大泡沫慢而重；冲浪 Z 大范围压制。"
+      "dex": 61,
+      "name": "蚊香君",
+      "types": [
+        "water"
+      ],
+      "anim": "poliwhirl",
+      "cry": 61,
+      "moveA": "bubble",
+      "zmove": "surf-z",
+      "zmoveEvolved": null,
+      "evolveTo": null,
+      "maxHp": 7,
+      "moveSpeed": 4.0,
+      "luck": 0,
+      "unlock": "camp-5",
+      "role": "近战脉冲 · 水",
+      "desc": "大泡沫慢而重；冲浪 Z 大范围压制。",
+      "startTMs": [
+        "tm-grass",
+        "tm-water",
+        "tm-tri"
+      ]
     },
     "raichu": {
-      "dex": 26, "name": "雷丘", "types": ["electric"], "anim": "raichu", "cry": 26,
-      "evolved": true, "maxHp": 6, "moveSpeed": 4.2
+      "dex": 26,
+      "name": "雷丘",
+      "types": [
+        "electric"
+      ],
+      "anim": "raichu",
+      "cry": 26,
+      "evolved": true,
+      "maxHp": 6,
+      "moveSpeed": 4.2
     }
   }
 }
