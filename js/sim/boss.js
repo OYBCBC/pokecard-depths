@@ -60,7 +60,7 @@ export function stepBoss(state, e, data) {
     if (b.rainT <= 0 && b.mode !== 'burrow') {
       b.rainT = cfg.rain.interval;
       for (let i = 0; i < 2; i++) {
-        warn(state, 1.5 + state.rand() * (state.roomW - 3), 1.5 + state.rand() * (state.roomH - 3),
+        warn(state, 2.2 + state.rand() * (state.roomW - 4.4), 2.2 + state.rand() * (state.roomH - 4.4),
           cfg.rain.radius, cfg.rain.warn, cfg.rain.damage, 'rain');
       }
     }
@@ -87,10 +87,11 @@ export function stepBoss(state, e, data) {
     case 'burrow-warn': {
       e.anim = 'Hurt';   // 蜷身预告
       if (b.modeT <= 0) {
-        b.mode = 'burrow'; b.modeT = 0.7;
+        // 出土瞬间 == 预警圈结算瞬间（此前差 0.5s，惩罚空档反而吃延迟伤害）
+        b.mode = 'burrow'; b.modeT = cfg.burrow.windup;
         e.anim = 'Idle'; e.hidden = true;
         b.burrowAt = { x: p.x, y: p.y };
-        warn(state, p.x, p.y, cfg.burrow.radius, cfg.burrow.windup + 0.7, cfg.burrow.damage, 'burrow');
+        warn(state, p.x, p.y, cfg.burrow.radius, cfg.burrow.windup, cfg.burrow.damage, 'burrow');
       }
       break;
     }
@@ -105,6 +106,7 @@ export function stepBoss(state, e, data) {
         e.x = b.burrowAt.x; e.y = Math.max(1.4, Math.min(state.roomH - 1.4, b.burrowAt.y));
         e.anim = 'Attack';
         b.mode = 'idle'; b.modeT = 1.8;
+        e.touchCd = Math.max(e.touchCd, 0.6);   // 出土硬直：落石演出期不判身体接触（防落地秒撞）
         state.events.push({ t: 'boss-erupt', x: e.x, y: e.y });
       }
       break;
@@ -148,9 +150,10 @@ export function stepBoss(state, e, data) {
         for (let i = 0; i < cfg.toss.rocks; i++) {
           const tx = p.x + (state.rand() - 0.5) * 3.5;
           const ty = p.y + (state.rand() - 0.5) * 3.5;
+          // 离墙 ≥2.2 留逃生走廊（贴墙生成会封死贴墙玩家的躲避路线）
           warn(state,
-            Math.max(1, Math.min(state.roomW - 1, tx)),
-            Math.max(1, Math.min(state.roomH - 1, ty)),
+            Math.max(2.2, Math.min(state.roomW - 2.2, tx)),
+            Math.max(2.2, Math.min(state.roomH - 2.2, ty)),
             cfg.toss.radius, cfg.toss.warn, cfg.toss.damage, 'rock');
         }
         b.mode = 'idle'; b.modeT = 2.0;
@@ -322,7 +325,7 @@ function bossRain(state, e, cfg, b) {
   if (b.rainT <= 0) {
     b.rainT = cfg.rain.interval;
     for (let i = 0; i < 2; i++) {
-      warn(state, 1.5 + state.rand() * (state.roomW - 3), 1.5 + state.rand() * (state.roomH - 3),
+      warn(state, 2.2 + state.rand() * (state.roomW - 4.4), 2.2 + state.rand() * (state.roomH - 4.4),
         cfg.rain.radius, cfg.rain.warn, cfg.rain.dmg, 'rain');
     }
   }

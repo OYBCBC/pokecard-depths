@@ -12,6 +12,7 @@ import { createCries } from './audio/cries.js?v=m4c';
 import { createInput } from './core/input.js?v=m4c';
 import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m4c';
 import { enterRoom } from './sim/actors.js?v=m4c';
+import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m4c';
 
 const hud = createHud();
 const tier = detectTier();
@@ -228,25 +229,52 @@ async function boot() {
   window.__depths = { run, renderer, scene, camera: camCtl.camera, cries, tier, postfx, input, lightOk, data,
     get roomView() { return roomView; },
     get player() { return player; }, pump: null,
-    restart: () => { run = createRun(data); window.__depths.run = run; hud.hideVictory(); hud.hideDeath(); rebuildRoom(); },
+    restart: () => { saveStore.clear(); run = createRun(data); window.__depths.run = run; hud.hideVictory(); hud.hideDeath(); rebuildRoom(); },
     goRoom: (key) => { enterRoom(run, data, key); window.__depths.run = run; rebuildRoom(); },   // ?debug 传送
     give: (id) => { run.player.inv.passives.push(id); recompute(run, data); hud.slots(run.player.moveA, run.player.moveB, run.player.slot, run.player.mods.lockB); } };
 
-  function saveRun() {
+  // ---- 存档与本机榜 ----
+  const BOARD_KEY = 'depths-board';
+  function saveNow() { if (started && !run.over && run.player.alive) saveStore.write(run); }
+  function recordBoard() {
     try {
-      const p = run.player;
-      localStorage.setItem('depths-save', JSON.stringify({
-        v: 1, seed: run.seed, floorNo: run.floorNo,
-        hp: p.hp, money: p.money, pp: p.pp, evolved: p.evolved,
-        passives: p.inv.passives, trinket: p.inv.trinket, consumable: p.inv.consumable,
-        stats: run.stats, time: run.t,
-      }));
-    } catch (e) { /* localStorage 不可用时静默 */ }
+      const list = JSON.parse(localStorage.getItem(BOARD_KEY) || '[]');
+      list.push({
+        seed: run.seed >>> 0, daily: !!run.isDaily, floor: run.floorNo, win: !!run.win,
+        time: Math.round(run.stats.tRun || run.t), kills: run.stats.kills, items: run.stats.items, date: Date.now(),
+      });
+      list.sort((a, b) => (b.win - a.win) || (b.floor - a.floor) || (a.time - b.time));
+      localStorage.setItem(BOARD_KEY, JSON.stringify(list.slice(0, 8)));
+    } catch (e) { /* ignore */ }
+  }
+  function readBoard() {
+    try { return JSON.parse(localStorage.getItem(BOARD_KEY) || '[]'); } catch (e) { return []; }
   }
 
   hud.progress(1, '出发！');
   hud.ready();
-  hud.banner('宝可梦 · 晶穴深处', '洞窟层 · 找到小刚的道馆', 2600);
+
+  // ---- 开始界面：继续 / 新开 / 每日 ----
+  let started = false;
+  function beginRun(freshRun) {
+    run = freshRun;
+    window.__depths.run = run;
+    playerSlug = '';
+    setPlayerSprite(run.player.species);
+    rebuildRoom();
+    hud.slots(run.player.moveA, run.player.moveB, run.player.slot, run.player.mods.lockB);
+    started = true;
+  }
+  const savedRaw = saveStore.read();
+  const savedOk = (savedRaw && deserializeRun(data, savedRaw)) || null;   // 顺便校验
+  if (savedRaw && !savedOk) saveStore.clear();                    // 损坏/旧版存档清掉
+  hud.startScreen({
+    save: savedOk ? { floorNo: savedOk.floorNo, name: data.floors[savedOk.floorNo].name } : null,
+    board: readBoard(),
+    onContinue: () => beginRun(savedOk),
+    onNew: () => { saveStore.clear(); beginRun(createRun(data)); hud.banner('宝可梦 · 晶穴深处', '洞窟层 · 找到小刚的道馆', 2600); },
+    onDaily: () => { saveStore.clear(); const r = createRun(data, dailySeed()); r.isDaily = true; beginRun(r); hud.banner('每日挑战', '今日全服同图 · 种子 ' + (dailySeed() >>> 0), 2600); },
+  });
 
   function aimVector() {
     raycaster.setFromCamera(input.mouse, camCtl.camera);
@@ -284,6 +312,7 @@ async function boot() {
         case 'room-enter': {
           if (ev.cell !== run.cellKey) break;
           rebuildRoom();
+          saveNow();
           const nm = ROOM_NAMES[ev.type] || '';
           if (ev.type === 'boss') hud.banner('尼比道馆 · 小刚', '岩石般坚硬的意志！', 3000);
           else if (ev.type === 'shop') hud.banner('友好商店', '踩上商品即可购买', 1800);
@@ -334,6 +363,8 @@ async function boot() {
         case 'player-block': damageNum(ev.x, ev.y, '格挡', 'super'); break;
         case 'lethal-guard': hud.banner('气势披带！', '保住了一命', 1400); break;
         case 'player-die':
+          saveStore.clear();
+          recordBoard();
           camCtl.shake(0.5, 0.5);
           cries.play(25, { volume: 0.7, rateJitter: false });
           run.stats.tRun = run.t;
@@ -356,7 +387,7 @@ async function boot() {
           hud.hideBossBar();
           break;
         case 'floor-next':
-          saveRun();
+          saveNow();
           hud.banner(ev.name, '回 2 格亲密度 · 敌人更强了', 3200);
           camCtl.shake(0.35, 0.4);
           break;
@@ -399,11 +430,13 @@ async function boot() {
           break;
         case 'floor-clear':
           run.stats.tRun = run.t;
+          saveStore.clear();
+          recordBoard();
           hud.hideBossBar();
           hud.banner('灰色徽章 GET！', '《晶穴深处·第一章》完', 4000);
           setTimeout(() => hud.showVictory(run.stats, run.seed), 1800);
           break;
-        case 'clear': hud.minimap(run.map, run.cellKey); break;
+        case 'clear': hud.minimap(run.map, run.cellKey); saveNow(); break;
         default: break;
       }
     }
@@ -446,6 +479,7 @@ async function boot() {
     }
     const rPressed = input.consumePress('KeyR');
     if (rPressed && (!run.player.alive || run.over)) {
+      saveStore.clear();
       run = createRun(data);
       window.__depths.run = run;
       hud.hideVictory(); hud.hideDeath();
@@ -466,14 +500,17 @@ async function boot() {
       swapEdge: input.consumePress('KeyF'),
     };
 
-    acc += dt;
-    steps = 0;
-    while (acc >= STEP && steps < 4) {
-      stepRun(run, gameInput, data);
-      acc -= STEP;
-      steps++;
+    if (!started) { acc = 0; steps = 0; }
+    else {
+      acc += dt;
+      steps = 0;
+      while (acc >= STEP && steps < 4) {
+        stepRun(run, gameInput, data);
+        acc -= STEP;
+        steps++;
+      }
+      if (steps === 4) acc = 0;
     }
-    if (steps === 4) acc = 0;
     input.endFrame();
     consumeEvents();
     stepFading(dt);
@@ -602,6 +639,8 @@ async function boot() {
     resize(THREE, renderer, camCtl.camera);
     if (postfx) postfx.setSize(...viewportSize());
   });
+  window.addEventListener('beforeunload', saveNow);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
   window.__depths.pump = (n = 1, dtMs = 1000 / 60) => {
     let t = performance.now();
     for (let i = 0; i < n; i++) { t += dtMs; frame(t, dtMs / 1000); input.endFrame(); }

@@ -15,7 +15,7 @@ const DIR_VEC = [
   [0, -1], [-Math.SQRT1_2, -Math.SQRT1_2], [-1, 0], [-Math.SQRT1_2, Math.SQRT1_2],
 ];
 
-function dirOf(vx, vy) {
+export function dirOf(vx, vy) {
   let best = 0, bestDot = -2;
   for (let i = 0; i < 8; i++) {
     const d = vx * DIR_VEC[i][0] + vy * DIR_VEC[i][1];
@@ -37,6 +37,7 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
 
   const state = {
     v: 4, seed, dt: STEP, t: 0, floorNo, reverseT: 0,
+    rng,                                        // 序列化用（rand 闭包引用它）
     rand, dirOf, events: [], nextId: 1,
     map: cells, cellKey: map.start.x + ',' + map.start.y,
     room: null, roomW: ROOM_W, roomH: ROOM_H,

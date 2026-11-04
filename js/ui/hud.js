@@ -23,6 +23,7 @@ export function createHud() {
     <div id="itemcard" class="hidden"></div>
     <div id="peek" class="hidden"></div>
     <div id="sheet" class="hidden"></div>
+    <div id="start" class="hidden"></div>
     <div id="bossbar" class="hidden"><div id="boss-fill"></div><span id="boss-name"></span></div>
     <div id="banner" class="hidden"></div>
     <div id="flashmask"></div>
@@ -48,6 +49,7 @@ export function createHud() {
   const moneyEl = $('money'), slotsEl = $('slots'), minimapEl = $('minimap');
   const pricesEl = $('prices'), itemcardEl = $('itemcard');
   const peekEl = $('peek'), sheetEl = $('sheet');
+  const startEl = $('start');
   const bossbarEl = $('bossbar'), bossFill = $('boss-fill'), bossName = $('boss-name');
   const bannerEl = $('banner'), flashEl = $('flashmask');
   const deathEl = $('death'), deathStats = $('d-stats');
@@ -177,6 +179,35 @@ export function createHud() {
       peekEl.classList.remove('hidden');
     },
     hidePeek() { peekEl.classList.add('hidden'); },
+    // 开始界面：继续存档 / 新开 / 每日挑战 + 本机榜
+    startScreen({ save, board, onContinue, onNew, onDaily }) {
+      const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+      const btns = [
+        save ? `<button class="st-btn primary" id="st-continue">继续探险 · 第 ${save.floorNo} 层 ${save.name}</button>` : '',
+        `<button class="st-btn" id="st-new">${save ? '新的探险' : '开始探险'}</button>`,
+        '<button class="st-btn" id="st-daily">每日挑战 · 今日同图</button>',
+      ].join('');
+      const boardHtml = board.length
+        ? '<div class="st-title">本机榜</div><div class="st-board">' + board.map((b, i) =>
+          `<div>${i + 1}. ${b.win ? '🏆 通关' : '第 ' + b.floor + ' 层'} · ${fmt(b.time)} · 击倒 ${b.kills} · 道具 ${b.items} · 种子 ${b.seed}${b.daily ? ' ·每日' : ''}</div>`).join('') + '</div>'
+        : '';
+      startEl.innerHTML = `<div class="st-box">
+          <div class="st-logo">宝可梦 · 晶穴深处</div>
+          <div class="st-sub">Pokémon: Crystal Depths</div>
+          ${btns}
+          ${boardHtml}
+          <div class="st-hint">WASD 移动 · 鼠标射击 · 空格冲刺 · 长按 Tab 面板/地图</div>
+        </div>`;
+      startEl.classList.remove('hidden');
+      const hide = () => startEl.classList.add('hidden');
+      const q = (id) => startEl.querySelector('#' + id);
+      const primary = (save && q('st-continue')) || q('st-new');
+      if (save && q('st-continue')) q('st-continue').onclick = () => { hide(); onContinue(); };
+      q('st-new').onclick = () => { hide(); onNew(); };
+      q('st-daily').onclick = () => { hide(); onDaily(); };
+      primary.focus();
+      startEl.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); primary.click(); } };
+    },
     // Tab 长按：以撒式数据页（全层地图 + 面板 + 道具收藏）
     sheet(show, run, data) {
       if (!show) { sheetEl.classList.add('hidden'); return; }

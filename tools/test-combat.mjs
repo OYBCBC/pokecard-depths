@@ -14,6 +14,7 @@ const { damageStat, fireInterval, typeMultiplier, stabMultiplier, computeHit, en
   await import(join(ROOT, 'js/sim/combat.js?v=m4c'));
 const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m4c'));
 const { enterRoom } = await import(join(ROOT, 'js/sim/actors.js?v=m4c'));
+const _save = await import(join(ROOT, 'js/sim/save.js?v=m4c'));
 function combatNeighbor(run, d) {
   const cell = run.map.get(run.cellKey);
   for (const [dk] of Object.entries(cell.doors)) {
@@ -319,4 +320,84 @@ test('回归：宝箱房道具重进不重 roll（防刷道具）', () => {
   enterRoom(run, data, trKey);
   assert.equal(run.pedestals.length, 1, '仍是一个台座');
   assert.equal(run.pedestals[0].itemId, first, '同一件道具（未被重 roll）');
+});
+
+// ---------- 存档系统（M4） ----------
+
+test('存档：序列化→JSON 往返→复活，同输入演算 300 帧逐位一致', () => {
+  const { serializeRun, deserializeRun } = await0_import_save();
+  const runA = createRun(data, 20261107);
+  // 推进一段有内容的局面：清两间 + 拿一件道具 + 进 Boss 房打 3 秒
+  const cc = [...runA.map.values()].filter((c) => c.type === 'combat').slice(0, 2);
+  for (const c of cc) {
+    enterRoom(runA, data, c.x + ',' + c.y);
+    for (const e of runA.enemies) e.hp = 0;
+    for (let i = 0; i < 10; i++) stepRun(runA, idleInput(), data);
+  }
+  const tr = [...runA.map.values()].find((c) => c.type === 'treasure');
+  enterRoom(runA, data, tr.x + ',' + tr.y);
+  const ped = runA.pedestals[0];
+  runA.player.x = ped.x; runA.player.y = ped.y;
+  for (let i = 0; i < 3; i++) stepRun(runA, idleInput(), data);
+  const bossC = [...runA.map.values()].find((c) => c.type === 'boss');
+  enterRoom(runA, data, bossC.x + ',' + bossC.y);
+  for (let i = 0; i < 180; i++) stepRun(runA, idleInput(), data);
+
+  // 序列化 → 真实 localStorage 路径（stringify/parse）
+  const saved = JSON.parse(JSON.stringify(serializeRun(runA)));
+  const runB = deserializeRun(data, saved);
+  assert.ok(runB, '复活成功');
+  assert.equal(runB.floorNo, runA.floorNo);
+  assert.equal(runB.cellKey, runA.cellKey);
+  assert.ok(runB.enemies.some((e) => e.family === 'boss' && e.b.cfg), 'Boss cfg 已重绑');
+
+  // 同输入演算 300 帧（含射击随机骰点）
+  const shotInput = () => ({ move: { x: Math.sin(runA.t * 3) * 0.7, y: Math.cos(runA.t * 2) * 0.5 }, aim: { x: 0.6, y: -0.8 }, fire: true });
+  for (let i = 0; i < 300; i++) {
+    const inp = shotInput();
+    stepRun(runA, inp, data);
+    stepRun(runB, JSON.parse(JSON.stringify(inp)), data);
+  }
+  const pa = runA.player, pb = runB.player;
+  near(pa.x, pb.x, 1e-9); near(pa.y, pb.y, 1e-9);
+  assert.equal(pa.hp, pb.hp, 'hp 一致');
+  assert.equal(runA.enemies.length, runB.enemies.length, '敌数一致');
+  const ba = runA.enemies.find((e) => e.family === 'boss'), bb = runB.enemies.find((e) => e.family === 'boss');
+  if (ba && bb) near(ba.hp, bb.hp, 1e-9);
+  near(runA.stats.dmgDealt, runB.stats.dmgDealt, 1e-6, '总伤害一致（rng 路径一致）');
+});
+
+test('存档：复活后可正常下层（楼梯→层2）与重进暂存', () => {
+  const { serializeRun, deserializeRun } = await0_import_save();
+  const runA = createRun(data, 20261108);
+  const bossC = [...runA.map.values()].find((c) => c.type === 'boss');
+  enterRoom(runA, data, bossC.x + ',' + bossC.y);
+  runA.enemies.find((e) => e.family === 'boss').hp = 0;
+  for (let i = 0; i < 10; i++) stepRun(runA, idleInput(), data);
+  const runB = deserializeRun(data, JSON.parse(JSON.stringify(serializeRun(runA))));
+  const st = runB.pickups.find((k) => k.kind === 'stairs');
+  assert.ok(st, '复活后楼梯在');
+  runB.player.x = st.x; runB.player.y = st.y;
+  for (let i = 0; i < 5; i++) stepRun(runB, idleInput(), data);
+  assert.equal(runB.floorNo, 2, '复活档可下层');
+});
+// 顶层 await import（test 回调是同步的，用文件头注入的 _save 单例）
+function await0_import_save() {
+  if (!_save) throw new Error('save 模块需在文件顶部 import');
+  return _save;
+}
+
+test('每日种子：同日确定、跨日不同', () => {
+  const { dailySeed } = _save;
+  assert.equal(dailySeed(new Date(2026, 10, 4)), dailySeed(new Date(2026, 10, 4, 23, 59)), '同日同时区一致');
+  assert.notEqual(dailySeed(new Date(2026, 10, 4)), dailySeed(new Date(2026, 10, 5)), '跨日不同');
+  assert.ok(dailySeed(new Date()) <= 4294967295, 'uint32');
+});
+
+test('存档：isDaily 标记随档保留', () => {
+  const { serializeRun, deserializeRun } = _save;
+  const runA = createRun(data, 42);
+  runA.isDaily = true;
+  const runB = deserializeRun(data, JSON.parse(JSON.stringify(serializeRun(runA))));
+  assert.equal(runB.isDaily, true);
 });

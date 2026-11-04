@@ -37,13 +37,22 @@ function botInput(run, mode) {
   if (tgt) {
     const dx = tgt.x - p.x, dy = tgt.y - p.y, l = Math.hypot(dx, dy) || 1;
     if (boss) {
+      // 钻地期改绕“出土点”保持 3+ 距离（绕地下位置会被吸回吃出土接触）
+      const anchor = boss.hidden && boss.b.burrowAt ? boss.b.burrowAt : boss;
+      const adx = anchor.x - p.x, ady = anchor.y - p.y, al = Math.hypot(adx, ady) || 1;
       // Boss 战：近身 2.5 格内纯径向逃离（防墙角贴脸），否则 5~6.5 格环绕
-      if (l < 2.5) { move = { x: -dx / l, y: -dy / l }; }
+      if (al < (boss.hidden ? 3.0 : 2.5)) { move = { x: -adx / al, y: -ady / al }; }
       else {
+      // 常驻离墙：贴墙时向房心混 35%（防被逼进角落吃接触）
       const tang = ((p.x * 0.7 + p.y * 1.3) % 2 + 2) % 2 < 1 ? 1 : -1;
       const ideal = 5.8;
       const radial = l < ideal - 0.8 ? 1 : l > ideal + 0.8 ? -1 : 0;
       move = { x: (-dx / l) * radial + (-dy / l) * tang, y: (-dy / l) * radial + (dx / l) * tang };
+      const wallMix = (p.x < 2.2 || p.x > w - 2.2 || p.y < 2.2 || p.y > h - 2.2) ? 0.35 : 0;
+      if (wallMix) {
+        const cx = w / 2 - p.x, cy = h / 2 - p.y, cl = Math.hypot(cx, cy) || 1;
+        move = { x: move.x * (1 - wallMix) + (cx / cl) * wallMix, y: move.y * (1 - wallMix) + (cy / cl) * wallMix };
+      }
       // 冲锋进行中：垂直于冲锋方向规避
       if (boss.b.mode === 'charge' && boss.b.chargeDir) {
         const cd = boss.b.chargeDir;
@@ -55,27 +64,30 @@ function botInput(run, mode) {
       if (l < 2.6) move = { x: -dx / l, y: -dy / l };
       else if (l > 4.5) move = { x: dx / l, y: dy / l };
     } else if (l > 5.2) move = { x: dx / l, y: dy / l };
-    // 强躲预警圈 / 敌弹（覆盖其它意图；预警圈半径外圈即全力逃离）
+    // 强躲预警圈 / 敌弹（覆盖其它意图；伤害圈优先于纯预警的冲锋线）
     let fled = false;
-    for (const t of run.telegraphs) {
+    const sorted = [...run.telegraphs].sort((a, c) => (c.dmg > 0) - (a.dmg > 0));
+    for (const t of sorted) {
       const tx = t.x - p.x, ty = t.y - p.y, tl = Math.hypot(tx, ty);
       if (t.kind === 'charge-line' && tl < t.r + 1.6) {
-        // 冲锋线：垂直方向逃离
+        // 冲锋线：垂直方向逃离（若同帧还有伤害圈则交给下一轮）
+        if (sorted.some((o) => o.dmg > 0 && Math.hypot(o.x - p.x, o.y - p.y) < o.r + 1.4)) continue;
         const px = -ty / (tl || 1), py = tx / (tl || 1);
         const side = (p.x * 0.3 + p.y * 0.7) % 1 < 0.5 ? 1 : -1;
         move = { x: px * side, y: py * side };
         fled = true; break;
       }
-      if (tl < t.r + 1.4) {
+      if (t.dmg > 0 && tl < t.r + 1.4) {
         let ex = tx / (tl || 1), ey = ty / (tl || 1);
-        // 贴墙时混入朝房心分量，防死角
+        // 贴墙时混入朝房心分量（0.5），并归一化保满速
         const cxw = w / 2 - p.x, cyw = h / 2 - p.y;
         if (p.x < 2.5 || p.x > w - 2.5 || p.y < 2.5 || p.y > h - 2.5) {
           const cl2 = Math.hypot(cxw, cyw) || 1;
-          ex = ex * 0.6 + (cxw / cl2) * 0.4;
-          ey = ey * 0.6 + (cyw / cl2) * 0.4;
+          ex = ex * 0.5 + (cxw / cl2) * 0.5;
+          ey = ey * 0.5 + (cyw / cl2) * 0.5;
         }
-        move = { x: ex, y: ey }; fled = true; break;
+        const el = Math.hypot(ex, ey) || 1;
+        move = { x: ex / el, y: ey / el }; fled = true; break;
       }
     }
     if (fled) void move;
@@ -100,18 +112,23 @@ function botInput(run, mode) {
     if (!goal) {
       // 图 BFS：当前房 → 最近的目标房（未清非 Boss 优先，其次未清 Boss）
       const startKey = run.cellKey;
+      const needHeal = p.hp < 4;
       const targetOf = (c) => {
         if (!c.cleared && c.type !== 'boss') return 1;
-        if (!c.cleared && c.type === 'boss') return 2;
+        if (!c.cleared && c.type === 'boss') return needHeal ? 0.5 : 2;   // 血少时降权，绕路清房
         return 0;
       };
       const prev = new Map([[startKey, null]]);
       const q = [startKey];
-      let found = null;
+      let found = null, foundBoss = null;
       while (q.length && !found) {
         const ck = q.shift();
         const c = run.map.get(ck);
-        if (ck !== startKey && targetOf(c)) { found = ck; break; }
+        if (ck !== startKey) {
+          const tv = targetOf(c);
+          if (tv >= 1) { found = ck; break; }
+          if (tv > 0 && !foundBoss) foundBoss = ck;
+        }
         for (const dkey of Object.keys(c.doors)) {
           if (c.doors[dkey] === 'secret') continue;
           const [dx, dy] = dkey.split(',').map(Number);
@@ -121,6 +138,7 @@ function botInput(run, mode) {
           q.push(nk);
         }
       }
+      if (!found && foundBoss && !needHeal) found = foundBoss;
       if (found) {
         // 回溯到第一步
         let step = found;
@@ -149,13 +167,15 @@ function botInput(run, mode) {
   if (p.y > h - 1.4 && move.y >= 0) move.y = -0.6;
   }
   const aim = tgt ? { x: tgt.x - p.x, y: tgt.y - p.y } : { x: move.x || 0, y: move.y || -1 };
-  // 保命冲刺：最近敌人 <1.6 且有充能
+  // 保命冲刺：最近敌人 <1.6，或 Boss 出土/冲锋贴身 <2.4（冲刺有无敌帧，主动躲招）
   let dash = false;
   if (tgt && p.dashCharges >= 1) {
     const dd = Math.hypot(tgt.x - p.x, tgt.y - p.y);
     if (dd < 1.6) dash = true;
+    else if (boss && !boss.hidden && dd < 2.4 && (boss.b.mode === 'charge' || (boss.b.mode === 'idle' && boss.b.modeT > 1.5))) dash = true;
   }
-  return { move, aim, fire: !!tgt, dashEdge: dash, slotEdge: false, useEdge: p.hp <= 2 && !!p.inv.consumable };
+  const z = tgt && p.pp >= 100 * p.mods.ppCost;
+  return { move, aim, fire: !!tgt, dashEdge: dash, slotEdge: false, useEdge: p.hp <= 2 && !!p.inv.consumable, zEdge: z };
 }
 
 const TRACE = process.argv.includes('--trace');
@@ -171,7 +191,10 @@ function playGame(seed, mode, maxSeconds = 420) {
       for (const ev of run.events) {
         if (ev.t === 'player-hurt') {
           const bs = run.enemies.find((e) => e.family === 'boss');
-          console.log(`    [受击] t=${t.toFixed(1)} ${ev.dmg}格 hp→${run.player.hp} boss模式=${bs ? bs.b.mode : '-'} 隐=${bs ? !!bs.hidden : '-'}`);
+          const pb = run.player;
+          const inTele = run.telegraphs.filter((tt) => Math.hypot(tt.x - pb.x, tt.y - pb.y) < tt.r + 0.6).map((tt) => tt.kind + 'd' + tt.dmg + '剩' + tt.t.toFixed(2));
+          const justHit = run.events.filter((ev) => ev.t === 'telegraph-hit' && Math.hypot(ev.x - pb.x, ev.y - pb.y) < ev.r + 0.15).map((ev) => '★' + ev.kind);
+          console.log(`    [受击] t=${t.toFixed(1)} ${ev.dmg}格 hp→${run.player.hp} @(${pb.x.toFixed(1)},${pb.y.toFixed(1)}) boss=${bs ? bs.b.mode + '/hp' + Math.round(bs.hp) + '@(' + bs.x.toFixed(1) + ',' + bs.y.toFixed(1) + ')' + (bs.hidden ? '/钻地' : '') : '-'} 圈内=[${inTele.join(' ')}] 同帧结算=[${justHit.join(' ')}]`);
         }
       }
     }
@@ -184,11 +207,11 @@ function playGame(seed, mode, maxSeconds = 420) {
     const ck = run.cellKey;
     if (!roomTimes.has(ck)) roomTimes.set(ck, t);
   }
-  if (TRACE) {
-    const boss = run.enemies.find((e) => e.family === 'boss');
-    if (boss && run.map.get(run.cellKey)?.type === 'boss') {
-      // 在 playGame 之外无法拿到逐帧——这里退化为结束时汇总：把 hurt 记录在 roomTimes 里不可行，改在主循环记录
-    }
+  // 死因统计：最后一次受击时的 boss 模式
+  const bs = run.enemies.find((e) => e.family === 'boss');
+  if (!run.player.alive) {
+    const inBoss = run.map.get(run.cellKey)?.type === 'boss';
+    deathCauses.push({ seed, t: Math.round(t), inBoss, bossMode: bs ? bs.b.mode : (inBoss ? '已死' : '-'), hidden: bs ? !!bs.hidden : false, hpLeft: bs ? Math.round(bs.hp) + '/' + bs.maxHp : '-' });
   }
   if (TRACE && !run.player.alive) {
     const hurt = run.events.filter((e) => e.t === 'player-hurt');
@@ -199,10 +222,11 @@ function playGame(seed, mode, maxSeconds = 420) {
     rooms: run.stats.roomsCleared, kills: run.stats.kills, items: run.stats.items,
     money: run.player.money, hp: run.player.hp, maxHp: run.player.maxHp,
     passives: run.player.inv.passives.length,
-    bossTime: (() => { const b = [...roomTimes.entries()].find(([k]) => run.map.get(k).type === 'boss'); return b ? run.t - b[1] : null; })(),
+    bossTime: (() => { const b = [...roomTimes.entries()].find(([k]) => run.map.get(k)?.type === 'boss'); return b ? run.t - b[1] : null; })(),
   };
 }
 
+const deathCauses = [];
 for (const mode of ['aim', 'kite']) {
   const rs = [];
   for (let g = 0; g < GAMES; g++) rs.push(playGame((SEED0 + g * 7919) >>> 0, mode));
@@ -213,5 +237,13 @@ for (const mode of ['aim', 'kite']) {
     `均时长 ${avg(r => r.t).toFixed(0)}s  清房 ${avg(r => r.rooms).toFixed(1)}  击杀 ${avg(r => r.kills).toFixed(1)}  ` +
     `道具 ${avg(r => r.items).toFixed(1)}  余钱 ${avg(r => r.money).toFixed(0)}`);
   if (bossTimes.length) console.log(`        Boss 战时长 ${avg0(bossTimes).toFixed(0)}s（目标 45-90s）区间 ${Math.min(...bossTimes).toFixed(0)}~${Math.max(...bossTimes).toFixed(0)}s`);
+  if (deathCauses.length) {
+    const inBossDeaths = deathCauses.filter(d => d.inBoss);
+    console.log(`        死因（Boss 房内 ${inBossDeaths.length}/${deathCauses.length}）：` +
+      Object.entries(inBossDeaths.reduce((m, d) => { const k = d.bossMode + (d.hidden ? '(钻地)' : ''); m[k] = (m[k] || 0) + 1; return m; }, {}))
+        .map(([k, v]) => k + '×' + v).join(' ') +
+      (inBossDeaths.length ? ' | Boss 剩血中位 ' + med(inBossDeaths.map(d => typeof d.hpLeft === 'string' ? parseInt(d.hpLeft) : 0)) : ''));
+  }
 }
 function avg0(a) { return a.reduce((s, v) => s + v, 0) / a.length; }
+function med(a) { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : 0; }
