@@ -11,10 +11,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { damageStat, fireInterval, typeMultiplier, stabMultiplier, computeHit, enemyPanel } =
-  await import(join(ROOT, 'js/sim/combat.js?v=m4c'));
-const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m4c'));
-const { enterRoom } = await import(join(ROOT, 'js/sim/actors.js?v=m4c'));
-const _save = await import(join(ROOT, 'js/sim/save.js?v=m4c'));
+  await import(join(ROOT, 'js/sim/combat.js?v=m4d'));
+const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m4d'));
+const { enterRoom } = await import(join(ROOT, 'js/sim/actors.js?v=m4d'));
+const _save = await import(join(ROOT, 'js/sim/save.js?v=m4d'));
+const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m4d'));
 function combatNeighbor(run, d) {
   const cell = run.map.get(run.cellKey);
   for (const [dk] of Object.entries(cell.doors)) {
@@ -177,7 +178,7 @@ test('引擎：冲刺给无敌与位移', () => {
 
 
 // ---------- M4：多层塔 / Z 招式 / 进化 / 替补 ----------
-const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m4c'));
+const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m4d'));
 
 function idleInput() {
   return { move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false, slotEdge: false, useEdge: false, zEdge: false, swapEdge: false };
@@ -400,4 +401,37 @@ test('存档：isDaily 标记随档保留', () => {
   runA.isDaily = true;
   const runB = deserializeRun(data, JSON.parse(JSON.stringify(serializeRun(runA))));
   assert.equal(runB.isDaily, true);
+});
+
+// ---------- 图鉴（M4） ----------
+
+test('图鉴：物种表构建（野生+伙伴+馆主搭档，别名合并，按图鉴号排序）', () => {
+  const { dexSpecies } = _dex;
+  const list = dexSpecies(data);
+  assert.ok(list.length >= 23, '至少 23 条（实际 ' + list.length + '）');
+  assert.ok(list.every((c, i) => i === 0 || list[i - 1].dex <= c.dex), '按图鉴号排序');
+  assert.ok(!list.some((c) => c.eid === 'grimer-small'), '小臭泥并入臭泥');
+  assert.ok(!list.some((c) => c.eid === 'brock'), '训练家不进图鉴');
+  for (const eid of ['pikachu', 'raichu', 'onix', 'alakazam', 'kecleon']) {
+    assert.ok(list.some((c) => c.eid === eid), eid + ' 在表');
+  }
+});
+
+test('图鉴：事件点亮（遭遇/击杀/馆主搭档/进化/结伴/别名）', () => {
+  const { dexApply } = _dex;
+  let dex = {};
+  ({ dex } = dexApply(dex, [{ t: 'spawn', eid: 'rattata', x: 1, y: 1 }]));
+  assert.equal(dex.rattata.seen, 1);
+  ({ dex } = dexApply(dex, [{ t: 'enemy-die', eid: 'rattata', x: 1, y: 1 }]));
+  assert.equal(dex.rattata.kills, 1);
+  assert.equal(dex.rattata.seen, 1, '重复遭遇不叠加');
+  ({ dex } = dexApply(dex, [{ t: 'enemy-die', eid: 'grimer-small', x: 1, y: 1 }]));
+  assert.ok(dex.grimer && dex.grimer.kills === 1, '小臭泥击杀并入臭泥');
+  assert.ok(!dex['grimer-small'], '无独立条目');
+  ({ dex } = dexApply(dex, [{ t: 'boss-intro', name: '小刚', ace: 'onix' }]));
+  assert.equal(dex.onix.seen, 1, '馆主搭档点亮');
+  ({ dex } = dexApply(dex, [{ t: 'evolve', to: 'raichu', name: '雷丘' }]));
+  assert.equal(dex.raichu.seen, 1, '进化点亮');
+  ({ dex } = dexApply(dex, [{ t: 'companion-join', name: '蚊香蝌蚪', eid: 'poliwag' }]));
+  assert.equal(dex.poliwag.seen, 1, '结伴点亮');
 });

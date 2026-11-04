@@ -221,3 +221,40 @@ body.reversed::after { content: ''; position: fixed; inset: 0; pointer-events: n
 .st-title { font-size: 12px; color: #7fd4ff; letter-spacing: 2px; margin-top: 22px; }
 .st-board { font-size: 11px; color: #93a4c0; line-height: 1.9; margin-top: 6px; }
 .st-hint { margin-top: 20px; font-size: 10px; color: #5d6a85; letter-spacing: 1px; }
+
+/* ---------- 图鉴 ---------- */
+#dex { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(8, 10, 18, .85); pointer-events: auto; z-index: 12; }
+.dx-box { width: min(760px, 94vw); max-height: 88vh; overflow: auto; background: rgba(13, 17, 28, .96);
+  border: 2px solid #3a4a6c; border-radius: 6px; padding: 18px 22px; }
+.dx-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 16px;
+  color: #ffe9a0; letter-spacing: 3px; margin-bottom: 12px; }
+.dx-count { font-size: 12px; color: #7fd4ff; letter-spacing: 1px; }
+.dx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; }
+.dx-cell { position: relative; text-align: center; background: #141b2c; border: 1px solid #2c3958;
+  border-radius: 4px; padding: 8px 4px 6px; cursor: pointer; }
+.dx-cell:hover { border-color: #7fd4ff; }
+.dx-cell.locked { cursor: default; }
+.dx-cell img { width: 40px; height: 48px; image-rendering: pixelated; object-fit: contain; display: block; margin: 0 auto; }
+.dx-cell.locked img.sil { filter: brightness(0) invert(.3); }
+.dx-no { font-size: 9px; color: #5d6a85; margin-top: 3px; }
+.dx-name { font-size: 11px; color: #dfe8f5; margin-top: 2px; }
+.dx-cell.locked .dx-name { color: #4a5570; }
+.dx-kills { font-size: 9px; color: #ffd24a; margin-top: 1px; }
+.dx-tag { position: absolute; top: 3px; right: 3px; font-size: 8px; color: #c79fff;
+  background: rgba(20, 14, 30, .85); padding: 0 3px; border-radius: 2px; }
+.dx-cell.picked { border-color: #ffd24a; box-shadow: 0 0 10px rgba(255, 210, 74, .4); }
+.dx-hint { margin-top: 12px; font-size: 10px; color: #5d6a85; text-align: center; }
+.st-sub-btn { padding: 8px 0 !important; font-size: 13px !important; }
+
+/* ---------- 触屏虚拟双摇杆 ---------- */
+.stick { position: absolute; width: 104px; height: 104px; margin: -52px 0 0 -52px; border-radius: 50%;
+  border: 2px solid rgba(127, 212, 255, .35); background: rgba(20, 28, 44, .35);
+  pointer-events: none; display: none; }
+.stick .knob { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px;
+  border-radius: 50%; background: rgba(127, 212, 255, .5); border: 2px solid rgba(127, 212, 255, .7); }
+.tbtn { position: absolute; width: 64px; height: 64px; border-radius: 50%; border: 2px solid #3a4a6c;
+  background: rgba(16, 22, 36, .75); color: #dfe8f5; font-family: inherit; font-size: 12px;
+  letter-spacing: 1px; pointer-events: auto; display: none; }
+.tbtn:active { border-color: #7fd4ff; color: #7fd4ff; }
+body.touchmode .tbtn { display: block; }

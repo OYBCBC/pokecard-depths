@@ -1,9 +1,9 @@
 // 战斗与房间行为系统：玩家/弹体/敌人三族/波次/多房间楼层/拾取经济/台座。
 // 全部纯数据变换；事件写进 state.events 供表现层消费。
-import { computeHit } from './combat.js?v=m4c';
-import { fireInterval } from './combat.js?v=m4c';
-import { rollItem } from './items.js?v=m4c';
-import { spawnBoss, stepBoss } from './boss.js?v=m4c';
+import { computeHit } from './combat.js?v=m4d';
+import { fireInterval } from './combat.js?v=m4d';
+import { rollItem } from './items.js?v=m4d';
+import { spawnBoss, stepBoss } from './boss.js?v=m4d';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -500,7 +500,7 @@ function killEnemy(state, e, kind = 'normal') {
   }
   e.state = 'dead';
   state.stats.kills += 1;
-  state.events.push({ t: 'enemy-die', id: e.id, x: e.x, y: e.y, kind, name: e.name });
+  state.events.push({ t: 'enemy-die', id: e.id, eid: e.eid, x: e.x, y: e.y, kind, name: e.name });
 }
 
 // ---------- 敌人 ----------
@@ -920,4 +920,4 @@ function takePedestal(state, data, d) {
 }
 
 // 规避循环 import：engine.recompute 通过事件总线由调用方重算——这里直接内联等价逻辑
-import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m4c';
+import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m4d';

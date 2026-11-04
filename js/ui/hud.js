@@ -24,6 +24,12 @@ export function createHud() {
     <div id="peek" class="hidden"></div>
     <div id="sheet" class="hidden"></div>
     <div id="start" class="hidden"></div>
+    <div id="dex" class="hidden"></div>
+    <div id="stick-l" class="stick"><div class="knob"></div></div>
+    <div id="stick-r" class="stick"><div class="knob"></div></div>
+    <button id="btn-dash" class="tbtn" style="right: 132px; bottom: 34px;">冲刺</button>
+    <button id="btn-dex" class="tbtn" style="right: 30px; bottom: 96px;">图鉴</button>
+    <button id="btn-sheet" class="tbtn" style="right: 30px; bottom: 176px;">面板</button>
     <div id="bossbar" class="hidden"><div id="boss-fill"></div><span id="boss-name"></span></div>
     <div id="banner" class="hidden"></div>
     <div id="flashmask"></div>
@@ -49,7 +55,7 @@ export function createHud() {
   const moneyEl = $('money'), slotsEl = $('slots'), minimapEl = $('minimap');
   const pricesEl = $('prices'), itemcardEl = $('itemcard');
   const peekEl = $('peek'), sheetEl = $('sheet');
-  const startEl = $('start');
+  const startEl = $('start'), dexEl = $('dex');
   const bossbarEl = $('bossbar'), bossFill = $('boss-fill'), bossName = $('boss-name');
   const bannerEl = $('banner'), flashEl = $('flashmask');
   const deathEl = $('death'), deathStats = $('d-stats');
@@ -179,13 +185,14 @@ export function createHud() {
       peekEl.classList.remove('hidden');
     },
     hidePeek() { peekEl.classList.add('hidden'); },
-    // 开始界面：继续存档 / 新开 / 每日挑战 + 本机榜
-    startScreen({ save, board, onContinue, onNew, onDaily }) {
+    // 开始界面：继续存档 / 新开 / 每日挑战 / 图鉴 + 本机榜
+    startScreen({ save, board, onContinue, onNew, onDaily, onDex }) {
       const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
       const btns = [
         save ? `<button class="st-btn primary" id="st-continue">继续探险 · 第 ${save.floorNo} 层 ${save.name}</button>` : '',
         `<button class="st-btn" id="st-new">${save ? '新的探险' : '开始探险'}</button>`,
         '<button class="st-btn" id="st-daily">每日挑战 · 今日同图</button>',
+        onDex ? '<button class="st-btn st-sub-btn" id="st-dex">图鉴</button>' : '',
       ].join('');
       const boardHtml = board.length
         ? '<div class="st-title">本机榜</div><div class="st-board">' + board.map((b, i) =>
@@ -205,9 +212,41 @@ export function createHud() {
       if (save && q('st-continue')) q('st-continue').onclick = () => { hide(); onContinue(); };
       q('st-new').onclick = () => { hide(); onNew(); };
       q('st-daily').onclick = () => { hide(); onDaily(); };
+      if (q('st-dex')) q('st-dex').onclick = () => { onDex(); };
       primary.focus();
       startEl.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); primary.click(); } };
     },
+    // 图鉴：物种网格（未点亮=剪影+？？？），点击试听叫声
+    dex(species, dexState, thumbs, opts = {}) {
+      const unlocked = species.filter((c) => dexState[c.eid] && dexState[c.eid].seen).length;
+      const cells = species.map((c) => {
+        const st = dexState[c.eid] || {};
+        const seen = !!st.seen;
+        return `<div class="dx-cell ${seen ? '' : 'locked'}" data-eid="${c.eid}">
+          <img src="${thumbs[c.anim] || ''}" ${seen ? '' : 'class="sil"'} draggable="false" alt="">
+          <div class="dx-no">#${String(c.dex).padStart(3, '0')}</div>
+          <div class="dx-name">${seen ? c.name : '？？？'}</div>
+          ${seen && st.kills ? `<div class="dx-kills">击倒 ${st.kills}</div>` : ''}
+          ${c.tag ? `<div class="dx-tag">${c.tag}</div>` : ''}
+        </div>`;
+      }).join('');
+      dexEl.innerHTML = `<div class="dx-box">
+        <div class="dx-head"><span>宝可梦图鉴</span><span class="dx-count">${unlocked} / ${species.length} 已点亮</span></div>
+        <div class="dx-grid">${cells}</div>
+        <div class="dx-hint">点击已点亮的条目试听叫声 · B / Esc 关闭</div>
+      </div>`;
+      dexEl.classList.remove('hidden');
+      dexEl.querySelectorAll('.dx-cell:not(.locked)').forEach((el) => {
+        el.onclick = () => {
+          dexEl.querySelectorAll('.dx-cell').forEach((x) => x.classList.remove('picked'));
+          el.classList.add('picked');
+          const c = species.find((s) => s.eid === el.dataset.eid);
+          if (opts.onCry && c) opts.onCry(c);
+        };
+      });
+    },
+    hideDex() { dexEl.classList.add('hidden'); },
+    get dexOpen() { return !dexEl.classList.contains('hidden'); },
     // Tab 长按：以撒式数据页（全层地图 + 面板 + 道具收藏）
     sheet(show, run, data) {
       if (!show) { sheetEl.classList.add('hidden'); return; }

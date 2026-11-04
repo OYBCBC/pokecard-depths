@@ -1,18 +1,19 @@
 // 启动入口 M3：楼层/多房间/道具/Boss 全链路。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m4c';
-import { createLights } from './gfx/lights.js?v=m4c';
-import { createCamera } from './gfx/camera.js?v=m4c';
-import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m4c';
-import { createBillboard } from './gfx/sprites.js?v=m4c';
-import { createEffects } from './gfx/effects.js?v=m4c';
-import { createPostfx } from './gfx/postfx.js?v=m4c';
-import { createHud } from './ui/hud.js?v=m4c';
-import { createCries } from './audio/cries.js?v=m4c';
-import { createInput } from './core/input.js?v=m4c';
-import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m4c';
-import { enterRoom } from './sim/actors.js?v=m4c';
-import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m4c';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m4d';
+import { createLights } from './gfx/lights.js?v=m4d';
+import { createCamera } from './gfx/camera.js?v=m4d';
+import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m4d';
+import { createBillboard } from './gfx/sprites.js?v=m4d';
+import { createEffects } from './gfx/effects.js?v=m4d';
+import { createPostfx } from './gfx/postfx.js?v=m4d';
+import { createHud } from './ui/hud.js?v=m4d';
+import { createCries } from './audio/cries.js?v=m4d';
+import { createInput } from './core/input.js?v=m4d';
+import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m4d';
+import { enterRoom } from './sim/actors.js?v=m4d';
+import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m4d';
+import { dexSpecies, dexApply, dexStore } from './sim/dex.js?v=m4d';
 
 const hud = createHud();
 const tier = detectTier();
@@ -193,6 +194,35 @@ async function boot() {
   }
   const enemyViews = new Map();
   let roomView = null, props = null;
+
+  // ---- 图鉴：物种表 + 精灵缩略图（从图集 Idle 首帧裁剪） ----
+  const dexList = dexSpecies(data);
+  let dexState = (() => {
+    const st = dexStore.read();
+    const r = dexApply(st, [{ t: 'dex-seen', eid: 'pikachu' }]);
+    if (r.changed) dexStore.write(r.dex);
+    return r.dex;
+  })();
+  const dexThumbs = {};
+  for (const c of dexList) {
+    try {
+      const at = atlases[c.anim];
+      const tex = texBySlug[c.anim];
+      if (!at || !tex || !at.anims) continue;
+      const a = at.anims.Idle || at.anims.Walk;
+      const f = a.frames[0][0];
+      const cv = document.createElement('canvas');
+      cv.width = a.frameW; cv.height = a.frameH;
+      cv.getContext('2d').drawImage(tex.image, f.x, f.y, a.frameW, a.frameH, 0, 0, a.frameW, a.frameH);
+      dexThumbs[c.anim] = cv.toDataURL();
+    } catch (e) { /* 缩略图失败仅影响显示 */ }
+  }
+  function refreshDex() { hud.dex(dexList, dexState, dexThumbs, { onCry: playDexCry }); }
+  function playDexCry(c) {
+    const go = () => cries.play(c.dex, { volume: 0.7, rateJitter: false });
+    if (cries.statusOf(c.dex) === 'ok') go();
+    else cries.load(c.dex, `assets/cries/${c.dex}.ogg`).then(go);
+  }
   let hitStopT = 0;
   const feel = data.balance.feel;
   const v3 = new THREE.Vector3();
@@ -229,6 +259,7 @@ async function boot() {
   window.__depths = { run, renderer, scene, camera: camCtl.camera, cries, tier, postfx, input, lightOk, data,
     get roomView() { return roomView; },
     get player() { return player; }, pump: null,
+    get dexState() { return dexState; },
     restart: () => { saveStore.clear(); run = createRun(data); window.__depths.run = run; hud.hideVictory(); hud.hideDeath(); rebuildRoom(); },
     goRoom: (key) => { enterRoom(run, data, key); window.__depths.run = run; rebuildRoom(); },   // ?debug 传送
     give: (id) => { run.player.inv.passives.push(id); recompute(run, data); hud.slots(run.player.moveA, run.player.moveB, run.player.slot, run.player.mods.lockB); } };
@@ -274,9 +305,12 @@ async function boot() {
     onContinue: () => beginRun(savedOk),
     onNew: () => { saveStore.clear(); beginRun(createRun(data)); hud.banner('宝可梦 · 晶穴深处', '洞窟层 · 找到小刚的道馆', 2600); },
     onDaily: () => { saveStore.clear(); const r = createRun(data, dailySeed()); r.isDaily = true; beginRun(r); hud.banner('每日挑战', '今日全服同图 · 种子 ' + (dailySeed() >>> 0), 2600); },
+    onDex: () => refreshDex(),
   });
 
   function aimVector() {
+    const ta = input.touchAim();
+    if (ta) return { x: ta.x, y: ta.y };            // 触屏右摇杆：朝推动方向射击
     raycaster.setFromCamera(input.mouse, camCtl.camera);
     if (raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
       const dx = hitPoint.x - run.player.x, dz = hitPoint.z - run.player.y;
@@ -440,6 +474,9 @@ async function boot() {
         default: break;
       }
     }
+    // 图鉴：本帧事件批量点亮 + 持久化
+    const dr = dexApply(dexState, run.events);
+    if (dr.changed) { dexState = dr.dex; dexStore.write(dexState); }
   }
 
   function stepFading(dt) {
@@ -467,6 +504,11 @@ async function boot() {
     if (hitStopT > 0) { hitStopT -= dt; dt *= 0.08; }
 
     if (input.consumePress('KeyC')) cries.play(25);
+    if (input.consumePress('KeyB') || input.consumePress('Escape')) {
+      if (hud.dexOpen) hud.hideDex();
+      else refreshDex();
+    }
+    const dexPaused = hud.dexOpen;
     const digit = ['Digit1', 'Digit2', 'Digit3'].find((c) => input.consumePress(c));
     if (digit) {
       const map = { Digit1: 'high', Digit2: 'med', Digit3: 'low' };
@@ -492,7 +534,7 @@ async function boot() {
     const gameInput = {
       move: input.getMove(),
       aim: aimVector(),
-      fire: input.fire && run.player.alive && !run.over,
+      fire: (input.fire || !!input.touchAim()) && run.player.alive && !run.over,
       dashEdge: input.consumePress('Space'),
       slotEdge: input.consumePress('KeyQ'),
       useEdge: input.consumePress('KeyE'),
@@ -500,7 +542,7 @@ async function boot() {
       swapEdge: input.consumePress('KeyF'),
     };
 
-    if (!started) { acc = 0; steps = 0; }
+    if (!started || dexPaused) { acc = 0; steps = 0; }
     else {
       acc += dt;
       steps = 0;
@@ -595,6 +637,22 @@ async function boot() {
       }
     }
 
+    // 触屏虚拟摇杆同步
+    {
+      const stks = input.sticks();
+      for (const [id, key] of [['stick-l', 'l'], ['stick-r', 'r']]) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const o = stks[key];
+        if (o) {
+          el.style.display = 'block';
+          el.style.left = o.ox + 'px';
+          el.style.top = o.oy + 'px';
+          el.firstElementChild.style.transform = `translate(${Math.round(o.kx * 34)}px, ${Math.round(o.ky * 34)}px)`;
+        } else el.style.display = 'none';
+      }
+    }
+
     // Tab 长按：数据面板（全层地图 + 面板 + 道具收藏）
     const sheetWant = input.held('Tab') && !run.over && p.alive;
     if (sheetWant !== sheetOn) {
@@ -641,6 +699,10 @@ async function boot() {
   });
   window.addEventListener('beforeunload', saveNow);
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
+  for (const [id, code] of [['btn-dash', 'Space'], ['btn-dex', 'KeyB'], ['btn-sheet', 'Tab']]) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); input.pressButton(code); }, { passive: false });
+  }
   window.__depths.pump = (n = 1, dtMs = 1000 / 60) => {
     let t = performance.now();
     for (let i = 0; i < n; i++) { t += dtMs; frame(t, dtMs / 1000); input.endFrame(); }
