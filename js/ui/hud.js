@@ -25,6 +25,8 @@ export function createHud() {
     <div id="sheet" class="hidden"></div>
     <div id="start" class="hidden"></div>
     <div id="dex" class="hidden"></div>
+    <div id="achv" class="hidden"></div>
+    <div id="toasts"></div>
     <div id="stick-l" class="stick"><div class="knob"></div></div>
     <div id="stick-r" class="stick"><div class="knob"></div></div>
     <button id="btn-dash" class="tbtn" style="right: 132px; bottom: 34px;">冲刺</button>
@@ -43,8 +45,8 @@ export function createHud() {
     </div>
     <div id="victory" class="hidden">
       <div class="box">
-        <div class="v-title">灰色徽章 GET！</div>
-        <div class="d-sub">小刚：石头一样的意志，也有裂缝啊……这枚徽章是你的了。</div>
+        <div class="v-title">三枚徽章集齐！</div>
+        <div class="d-sub">娜姿：……你的羁绊，比我的念力更强。晶穴的故事，等你续写下一章。</div>
         <div id="v-stats"></div>
         <div class="d-hint">按 R 再来一局</div>
       </div>
@@ -56,6 +58,7 @@ export function createHud() {
   const pricesEl = $('prices'), itemcardEl = $('itemcard');
   const peekEl = $('peek'), sheetEl = $('sheet');
   const startEl = $('start'), dexEl = $('dex');
+  const achvEl = $('achv'), toastsEl = $('toasts');
   const bossbarEl = $('bossbar'), bossFill = $('boss-fill'), bossName = $('boss-name');
   const bannerEl = $('banner'), flashEl = $('flashmask');
   const deathEl = $('death'), deathStats = $('d-stats');
@@ -164,7 +167,10 @@ export function createHud() {
         Array.from({ length: dashMax }, (_, i) => `<span class="d-dot ${i < dashCharges ? 'on' : ''}"></span>`).join('');
     },
     slots(slotA, slotB, active, lockB) {
-      const nm = { 'thunder-shock': '电击', 'water-gun': '水枪', 'fire-spin': '火焰漩涡', 'grass-knot': '打草结' };
+      const nm = {
+        'thunder-shock': '电击', 'water-gun': '水枪', 'fire-spin': '火焰漩涡', 'grass-knot': '打草结',
+        'swift': '高速星星', 'bone-club': '骨棒', 'bubble': '泡沫',
+      };
       slotsEl.innerHTML =
         `<span class="slot ${active === 'A' ? 'on' : ''}">A·${nm[slotA] || slotA}</span>` +
         (slotB ? `<span class="slot ${active === 'B' && !lockB ? 'on' : ''}${lockB ? ' lock' : ''}">B·${nm[slotB] || slotB}${lockB ? '🔒' : ''}</span>` : '');
@@ -185,14 +191,19 @@ export function createHud() {
       peekEl.classList.remove('hidden');
     },
     hidePeek() { peekEl.classList.add('hidden'); },
-    // 开始界面：继续存档 / 新开 / 每日挑战 / 图鉴 + 本机榜
-    startScreen({ save, board, onContinue, onNew, onDaily, onDex }) {
+    // 开始界面：继续存档 / 新开 / 每日挑战 / 图鉴 / 成就 / 存档管理 + 本机榜
+    startScreen({ save, board, onContinue, onNew, onDaily, onDex, onAchv, onExport, onImport, achvCount }) {
       const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
       const btns = [
         save ? `<button class="st-btn primary" id="st-continue">继续探险 · 第 ${save.floorNo} 层 ${save.name}</button>` : '',
         `<button class="st-btn" id="st-new">${save ? '新的探险' : '开始探险'}</button>`,
         '<button class="st-btn" id="st-daily">每日挑战 · 今日同图</button>',
-        onDex ? '<button class="st-btn st-sub-btn" id="st-dex">图鉴</button>' : '',
+        '<div class="st-row">' +
+          '<button class="st-btn st-sub-btn" id="st-dex">图鉴</button>' +
+          `<button class="st-btn st-sub-btn" id="st-achv">成就${achvCount != null ? ' ' + achvCount : ''}</button>` +
+          (save ? '<button class="st-btn st-sub-btn" id="st-export">导出存档</button>' : '') +
+          '<button class="st-btn st-sub-btn" id="st-import">导入存档</button>' +
+        '</div>',
       ].join('');
       const boardHtml = board.length
         ? '<div class="st-title">本机榜</div><div class="st-board">' + board.map((b, i) =>
@@ -203,7 +214,8 @@ export function createHud() {
           <div class="st-sub">Pokémon: Crystal Depths</div>
           ${btns}
           ${boardHtml}
-          <div class="st-hint">WASD 移动 · 鼠标射击 · 空格冲刺 · 长按 Tab 面板/地图</div>
+          <div class="st-hint">WASD 移动 · 鼠标射击 · 空格冲刺 · 长按 Tab 面板/地图 · 手柄直插即用</div>
+          <input type="file" id="st-file" accept=".json,application/json" style="display:none">
         </div>`;
       startEl.classList.remove('hidden');
       const hide = () => startEl.classList.add('hidden');
@@ -213,8 +225,47 @@ export function createHud() {
       q('st-new').onclick = () => { hide(); onNew(); };
       q('st-daily').onclick = () => { hide(); onDaily(); };
       if (q('st-dex')) q('st-dex').onclick = () => { onDex(); };
+      if (q('st-achv')) q('st-achv').onclick = () => { onAchv && onAchv(); };
+      if (q('st-export')) q('st-export').onclick = () => { onExport && onExport(); };
+      q('st-import').onclick = () => {
+        const inp = q('st-file');
+        inp.onchange = () => {
+          const f = inp.files && inp.files[0];
+          if (!f) return;
+          const rd = new FileReader();
+          rd.onload = () => { onImport && onImport(String(rd.result)); };
+          rd.readAsText(f);
+        };
+        inp.click();
+      };
       primary.focus();
       startEl.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); primary.click(); } };
+    },
+    // 搭档选择（新的探险/每日挑战之后）：4 张卡，未解锁的显示条件
+    starterPick({ list, thumbs, isUnlocked, onPick, title }) {
+      const cards = list.map((s) => {
+        const ok = isUnlocked(s);
+        return `<div class="sp-card ${ok ? '' : 'locked'}" data-sid="${s.id}" tabindex="0">
+          <img src="${thumbs[s.anim] || ''}" ${ok ? '' : 'class="sil"'} draggable="false" alt="">
+          <div class="sp-name">${ok ? s.name : '？？？'}</div>
+          <div class="sp-role">${ok ? s.role : (s.lockName || '未解锁')}</div>
+          <div class="sp-desc">${ok ? s.desc : '达成条件后解锁'}</div>
+        </div>`;
+      }).join('');
+      startEl.innerHTML = `<div class="st-box sp-box">
+          <div class="st-logo sp-title">${title || '选择搭档'}</div>
+          <div class="sp-grid">${cards}</div>
+          <div class="st-hint">点击选择</div>
+        </div>`;
+      startEl.classList.remove('hidden');
+      startEl.querySelectorAll('.sp-card').forEach((el) => {
+        const pick = () => {
+          const s = list.find((x) => x.id === el.dataset.sid);
+          if (s && isUnlocked(s)) { startEl.classList.add('hidden'); onPick(s.id); }
+        };
+        el.onclick = pick;
+        el.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); pick(); } };
+      });
     },
     // 图鉴：物种网格（未点亮=剪影+？？？），点击试听叫声
     dex(species, dexState, thumbs, opts = {}) {
@@ -247,6 +298,37 @@ export function createHud() {
     },
     hideDex() { dexEl.classList.add('hidden'); },
     get dexOpen() { return !dexEl.classList.contains('hidden'); },
+    // 成就面板：20 格（未解锁灰显 + 进度条），J 键或开始界面入口。
+    // ctx = { progress: (id)=>{cur,need}|null, speciesName: (sid)=>string }
+    achv(achvs, set, ctx = {}) {
+      const done = achvs.filter((a) => set.has(a.id)).length;
+      const cells = achvs.map((a) => {
+        const ok = set.has(a.id);
+        const pr = ok ? null : (ctx.progress && ctx.progress(a.id));
+        return `<div class="ac-cell ${ok ? 'done' : ''}">
+          <div class="ac-name">${ok ? '🏅' : '🔒'} ${a.name}</div>
+          <div class="ac-desc">${a.desc}</div>
+          ${pr ? `<div class="ac-bar"><i style="width:${Math.round(pr.cur / pr.need * 100)}%"></i><span>${pr.cur}/${pr.need}</span></div>` : ''}
+          ${a.unlock ? `<div class="ac-unlock">解锁搭档：${(ctx.speciesName && ctx.speciesName(a.unlock)) || a.unlock}</div>` : ''}
+        </div>`;
+      }).join('');
+      achvEl.innerHTML = `<div class="ac-box">
+        <div class="ac-head"><span>成就</span><span class="ac-count">${done} / ${achvs.length}</span></div>
+        <div class="ac-grid">${cells}</div>
+        <div class="ac-hint">J / Esc 关闭 · 成就跨局永久保存</div>
+      </div>`;
+      achvEl.classList.remove('hidden');
+    },
+    hideAchv() { achvEl.classList.add('hidden'); },
+    get achvOpen() { return !achvEl.classList.contains('hidden'); },
+    // 成就解锁 toast（右上角堆叠，3.6s 自动消失）
+    toast(title, sub) {
+      const el = document.createElement('div');
+      el.className = 'toast';
+      el.innerHTML = `<div class="t-title">${title}</div>${sub ? `<div class="t-sub">${sub}</div>` : ''}`;
+      toastsEl.appendChild(el);
+      setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 450); }, 3600);
+    },
     // Tab 长按：以撒式数据页（全层地图 + 面板 + 道具收藏）
     sheet(show, run, data) {
       if (!show) { sheetEl.classList.add('hidden'); return; }
@@ -358,7 +440,8 @@ export function createHud() {
       setTimeout(() => el.remove(), 750);
     },
     hideDeath() { deathEl.classList.add('hidden'); },
-    showDeath(stats, seed) {
+    showDeath(stats, seed, name = '搭档') {
+      deathEl.querySelector('.d-sub').textContent = `${name}被护送撤出了洞窟`;
       deathStats.innerHTML =
         `击倒 ${stats.kills} 只 · 总伤害 ${Math.round(stats.dmgDealt)}<br>` +
         `克制命中 ${stats.superHits} 次 · 发射 ${stats.shots} 发<br>` +

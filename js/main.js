@@ -1,23 +1,36 @@
 // 启动入口 M3：楼层/多房间/道具/Boss 全链路。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m4d';
-import { createLights } from './gfx/lights.js?v=m4d';
-import { createCamera } from './gfx/camera.js?v=m4d';
-import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m4d';
-import { createBillboard } from './gfx/sprites.js?v=m4d';
-import { createEffects } from './gfx/effects.js?v=m4d';
-import { createPostfx } from './gfx/postfx.js?v=m4d';
-import { createHud } from './ui/hud.js?v=m4d';
-import { createCries } from './audio/cries.js?v=m4d';
-import { createInput } from './core/input.js?v=m4d';
-import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m4d';
-import { enterRoom } from './sim/actors.js?v=m4d';
-import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m4d';
-import { dexSpecies, dexApply, dexStore } from './sim/dex.js?v=m4d';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m4e';
+import { createLights } from './gfx/lights.js?v=m4e';
+import { createCamera } from './gfx/camera.js?v=m4e';
+import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m4e';
+import { createBillboard } from './gfx/sprites.js?v=m4e';
+import { createEffects } from './gfx/effects.js?v=m4e';
+import { createPostfx } from './gfx/postfx.js?v=m4e';
+import { createHud } from './ui/hud.js?v=m4e';
+import { createCries } from './audio/cries.js?v=m4e';
+import { createInput } from './core/input.js?v=m4e';
+import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m4e';
+import { enterRoom } from './sim/actors.js?v=m4e';
+import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m4e';
+import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m4e';
+import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m4e';
 
 const hud = createHud();
 const tier = detectTier();
-const debugOn = new URLSearchParams(location.search).has('debug');
+const params = new URLSearchParams(location.search);
+const debugOn = params.has('debug');
+const selfcheckOn = params.has('selfcheck');
+
+// ---- 换皮推演（ADR-15）：?pack=orig 用原创占位包整体替换表现层 ----
+let manifest = null;
+if (params.get('pack') === 'orig') {
+  try {
+    manifest = await loadJsonRaw('js/data/pack-orig.json');
+    console.info('[pack] 换皮推演：' + manifest.name);
+  } catch (e) { console.warn('[pack] manifest 加载失败，回退正式包', e); }
+}
+function loadJsonRaw(u) { return fetch(u).then((r) => r.json()); }
 
 function loadTexture(url, { srgb = true, pixel = false, mip = false } = {}) {
   return new Promise((resolve, reject) => {
@@ -80,21 +93,35 @@ const ROOM_NAMES = { start: '出生房', combat: '洞窟', treasure: '宝箱房'
 
 async function boot() {
   hud.progress(0.05, '读取数据…');
-  const [tcD, edD, mvD, bal, itemsD, floorsD] = await Promise.all([
+  const [tcD, edD, mvD, bal, itemsD, floorsD, spD] = await Promise.all([
     loadJson('js/data/typechart.json'), loadJson('js/data/enemies.json'),
     loadJson('js/data/moves.json'), loadJson('js/data/balance.json'), loadJson('js/data/items.json'),
-    loadJson('js/data/floors.json'),
+    loadJson('js/data/floors.json'), loadJson('js/data/species.json'),
   ]);
   const data = {
     typechart: tcD.chart, enemies: edD.enemies, moves: mvD.moves, items: itemsD.items,
     itemPools: itemsD.poolConfig, balance: bal, waves: floorsD.floors['1'].waves,
-    floors: floorsD.floors, species: { player: { types: ['electric'] } }, floorNo: 1,
+    floors: floorsD.floors, species: spD.species, floorNo: 1,
   };
+  // 换皮：manifest 覆盖名字/图集映射（数据层替换，引擎零改动——ADR-15）
+  if (manifest) {
+    for (const [k, v] of Object.entries(manifest.entries)) {
+      if (data.enemies[k]) { data.enemies[k].name = v.name; data.enemies[k].anim = v.anim; }
+      if (data.species[k]) { data.species[k].name = v.name; data.species[k].anim = v.anim; }
+    }
+  }
+  const atlasDir = manifest ? manifest.atlasDir : 'assets/atlas';
 
   hud.progress(0.15, '读取图集…');
-  const slugs = ['pikachu', 'rattata', 'caterpie', 'oddish', 'onix', 'raichu', 'voltorb', 'magnemite', 'grimer', 'koffing', 'poliwag', 'meowth', 'electrode', 'magneton', 'abra', 'gastly', 'sandshrew', 'machop', 'rhyhorn', 'kecleon', 'sandslash', 'gengar', 'alakazam', 'eevee', 'cubone', 'politoed'];
+  // 图集需求从数据推导（含换皮覆盖后的 anim），不再手写清单；单张缺失不炸启动（视图层兜底）
+  const slugSet = new Set();
+  for (const s of Object.values(data.species)) if (s.anim) slugSet.add(s.anim);
+  for (const [eid, e] of Object.entries(data.enemies)) slugSet.add(e.anim || eid);
+  const slugs = [...slugSet].filter(Boolean);
   const atlases = {};
-  await Promise.all(slugs.map(async (slug) => { atlases[slug] = await loadJson(`assets/atlas/${slug}.json`); }));
+  await Promise.all(slugs.map(async (slug) => {
+    atlases[slug] = await loadJson(`${atlasDir}/${slug}.json`).catch(() => null);
+  }));
 
   hud.progress(0.3, '加载纹理…');
   const iconSlugs = Object.values(itemsD.items).map((it) => it.icon);
@@ -170,14 +197,21 @@ async function boot() {
 
   hud.progress(0.85, '叫声（可降级）…');
   const cries = createCries();
-  cries.load(25, 'assets/cries/25.ogg');
+  const criesOn = !(manifest && manifest.cries === false);   // 换皮包关闭叫声
+  if (criesOn) {
+    cries.load(25, 'assets/cries/25.ogg');
+    for (const c of [133, 104, 61]) cries.load(c, `assets/cries/${c}.ogg`);   // 解锁搭档预载
+  }
+  const cry = (id, opts) => { if (criesOn) cries.play(id, opts); };
   const input = createInput();
   input.onFirstInteraction(() => cries.ensureCtx());
+  input.onPadConnect((id) => hud.toast('手柄已连接', (id || '').slice(0, 30)));
 
   // ---- 局与视图 ----
   let run = createRun(data);
   let playerSlug = 'pikachu';
-  let player = createBillboard(THREE, texBySlug.pikachu, atlases.pikachu, shadowTex);
+  const pkAnim = (data.species.pikachu && data.species.pikachu.anim) || 'pikachu';   // 换皮后指向占位图集
+  let player = createBillboard(THREE, texBySlug[pkAnim], atlases[pkAnim], shadowTex);
   scene.add(player.group);
   function setPlayerSprite(slug) {
     const eff = slug === 'grimer-small' ? 'grimer' : slug;
@@ -266,8 +300,9 @@ async function boot() {
 
   // ---- 存档与本机榜 ----
   const BOARD_KEY = 'depths-board';
-  function saveNow() { if (started && !run.over && run.player.alive) saveStore.write(run); }
+  function saveNow() { if (!selfcheckOn && started && !run.over && run.player.alive) saveStore.write(run); }
   function recordBoard() {
+    if (selfcheckOn) return;
     try {
       const list = JSON.parse(localStorage.getItem(BOARD_KEY) || '[]');
       list.push({
@@ -285,7 +320,32 @@ async function boot() {
   hud.progress(1, '出发！');
   hud.ready();
 
-  // ---- 开始界面：继续 / 新开 / 每日 ----
+  // ---- 成就 / 跨局 meta（M4）----
+  let achvSet = achvStore.read();
+  let meta = metaStore.read();
+  const dexCountNow = () => dexList.reduce((n, c) => n + (dexState[c.eid] && dexState[c.eid].seen ? 1 : 0), 0);
+  function refreshAchv() {
+    hud.achv(ACHVS, achvSet, {
+      progress: (id) => achvProgress(id, { meta, dexCount: dexCountNow(), dexTotal: dexList.length }),
+      speciesName: (sid) => (data.species[sid] && data.species[sid].name) || sid,
+    });
+  }
+  function applyAchv() {
+    const r = achvApply(achvSet, meta, { run, events: run.events, dexCount: dexCountNow(), dexTotal: dexList.length });
+    meta = r.meta;
+    if (!selfcheckOn) metaStore.write(meta);
+    if (r.unlocked.length) {
+      achvSet = r.set;
+      if (!selfcheckOn) achvStore.write(achvSet);
+      for (const a of r.unlocked) {
+        const sp = a.unlock && data.species[a.unlock];
+        hud.toast(`🏅 成就解锁：${a.name}`, sp ? `新搭档「${sp.name}」可选！` : a.desc);
+      }
+      if (hud.achvOpen) refreshAchv();
+    }
+  }
+
+  // ---- 开始界面：继续 / 新开（选搭档）/ 每日 / 图鉴 / 成就 / 存档管理 ----
   let started = false;
   function beginRun(freshRun) {
     run = freshRun;
@@ -294,23 +354,78 @@ async function boot() {
     setPlayerSprite(run.player.species);
     rebuildRoom();
     hud.slots(run.player.moveA, run.player.moveB, run.player.slot, run.player.mods.lockB);
+    // 图鉴点亮所选搭档
+    const dr0 = dexApply(dexState, [{ t: 'dex-seen', eid: run.player.species }]);
+    if (dr0.changed) { dexState = dr0.dex; dexStore.write(dexState); }
     started = true;
   }
-  const savedRaw = saveStore.read();
-  const savedOk = (savedRaw && deserializeRun(data, savedRaw)) || null;   // 顺便校验
-  if (savedRaw && !savedOk) saveStore.clear();                    // 损坏/旧版存档清掉
-  hud.startScreen({
-    save: savedOk ? { floorNo: savedOk.floorNo, name: data.floors[savedOk.floorNo].name } : null,
-    board: readBoard(),
-    onContinue: () => beginRun(savedOk),
-    onNew: () => { saveStore.clear(); beginRun(createRun(data)); hud.banner('宝可梦 · 晶穴深处', '洞窟层 · 找到小刚的道馆', 2600); },
-    onDaily: () => { saveStore.clear(); const r = createRun(data, dailySeed()); r.isDaily = true; beginRun(r); hud.banner('每日挑战', '今日全服同图 · 种子 ' + (dailySeed() >>> 0), 2600); },
-    onDex: () => refreshDex(),
-  });
+  const starterList = Object.entries(data.species)
+    .filter(([, s]) => !s.evolved)
+    .map(([id, s]) => ({
+      id, name: s.name, role: s.role || '', desc: s.desc || '', anim: s.anim, unlock: s.unlock || null,
+      lockName: s.unlock ? `解锁：${(ACHVS.find((a) => a.id === s.unlock) || {}).name || s.unlock}` : null,
+    }));
+  function pickStarter(daily) {
+    hud.starterPick({
+      list: starterList, thumbs: dexThumbs,
+      isUnlocked: (s) => starterUnlocked(s, achvSet),
+      title: daily ? '每日挑战 · 选择搭档' : '选择搭档',
+      onPick: (sid) => {
+        saveStore.clear();
+        const r = daily ? createRun(data, dailySeed(), sid) : createRun(data, undefined, sid);
+        if (daily) r.isDaily = true;
+        beginRun(r);
+        if (daily) hud.banner('每日挑战', '今日全服同图 · 种子 ' + (dailySeed() >>> 0) + ' · ' + data.species[sid].name, 2600);
+        else hud.banner('宝可梦 · 晶穴深处', `${data.species[sid].name}，就决定是你了！`, 2600);
+      },
+    });
+  }
+  function showStart() {
+    const raw = saveStore.read();
+    const ok = (raw && deserializeRun(data, raw)) || null;      // 顺便校验
+    if (raw && !ok) saveStore.clear();                          // 损坏/旧版存档清掉
+    hud.startScreen({
+      save: ok ? { floorNo: ok.floorNo, name: data.floors[ok.floorNo].name } : null,
+      board: readBoard(),
+      achvCount: `${achvSet.size}/${ACHVS.length}`,
+      onContinue: () => beginRun(ok),
+      onNew: () => pickStarter(false),
+      onDaily: () => pickStarter(true),
+      onDex: () => refreshDex(),
+      onAchv: () => refreshAchv(),
+      onExport: () => {
+        const rawSave = saveStore.read();
+        if (!rawSave) return;
+        const blob = new Blob([JSON.stringify(rawSave, null, 1)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `depths-save-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        hud.toast('存档已导出', a.download);
+      },
+      onImport: (text) => {
+        try {
+          const parsed = JSON.parse(text);
+          const okRun = deserializeRun(data, parsed);
+          if (!okRun) throw new Error('格式不符');
+          saveStore.write(okRun);
+          hud.toast('存档已导入', `第 ${okRun.floorNo} 层 · ${data.floors[okRun.floorNo].name}`);
+          showStart();                                           // 重开界面让"继续"出现
+        } catch (e) {
+          hud.toast('导入失败', '不是有效的晶穴存档 JSON');
+        }
+      },
+    });
+    return ok;
+  }
+  showStart();
 
   function aimVector() {
     const ta = input.touchAim();
     if (ta) return { x: ta.x, y: ta.y };            // 触屏右摇杆：朝推动方向射击
+    const pa = input.padAim();
+    if (pa) return { x: pa.x, y: pa.y };            // 手柄右摇杆：朝推动方向射击
     raycaster.setFromCamera(input.mouse, camCtl.camera);
     if (raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
       const dx = hitPoint.x - run.player.x, dz = hitPoint.z - run.player.y;
@@ -347,8 +462,10 @@ async function boot() {
           if (ev.cell !== run.cellKey) break;
           rebuildRoom();
           saveNow();
-          const nm = ROOM_NAMES[ev.type] || '';
-          if (ev.type === 'boss') hud.banner('尼比道馆 · 小刚', '岩石般坚硬的意志！', 3000);
+          if (ev.type === 'boss') {
+            const bSpec = data.enemies[data.floors[run.floorNo].boss];
+            hud.banner(`${data.floors[run.floorNo].name} · ${bSpec.name}`, bSpec.intro || '馆主的试炼！', 3000);
+          }
           else if (ev.type === 'shop') hud.banner('友好商店', '踩上商品即可购买', 1800);
           else if (ev.type === 'treasure') hud.banner('宝箱房', '免费的强化在等你', 1600);
           else if (ev.type === 'secret') hud.banner('隐藏房！', '你发现了秘密', 2000);
@@ -358,11 +475,13 @@ async function boot() {
         case 'room-transition': hud.flash(); break;
         case 'spawn': {
           const spec = data.enemies[ev.eid];
-          const anim = spec.anim || ev.eid;
-          const bb = createBillboard(THREE, texBySlug[anim], atlases[anim], shadowTex);
-          bb.place(ev.x, ev.y); bb.setSpawnK(0.2);
-          scene.add(bb.group);
-          enemyViews.set(ev.id, bb);
+          const anim = (spec && spec.anim) || ev.eid;
+          if (atlases[anim] && texBySlug[anim]) {           // 图集缺失→无视图（模拟照跑）
+            const bb = createBillboard(THREE, texBySlug[anim], atlases[anim], shadowTex);
+            bb.place(ev.x, ev.y); bb.setSpawnK(0.2);
+            scene.add(bb.group);
+            enemyViews.set(ev.id, bb);
+          }
           fx.burst(ev.x, ev.y, 6, 0x9fb8d8);
           break;
         }
@@ -400,9 +519,9 @@ async function boot() {
           saveStore.clear();
           recordBoard();
           camCtl.shake(0.5, 0.5);
-          cries.play(25, { volume: 0.7, rateJitter: false });
+          cry((data.species[run.player.species] || {}).cry ?? 25, { volume: 0.7, rateJitter: false });
           run.stats.tRun = run.t;
-          hud.showDeath(run.stats, run.seed);
+          hud.showDeath(run.stats, run.seed, (data.species[run.player.species] || {}).name || '搭档');
           break;
         case 'item-take':
           props && props.removePedestal(run.pedestals.find((d) => d.itemId === ev.id)?.id ?? -1);
@@ -426,10 +545,10 @@ async function boot() {
           camCtl.shake(0.35, 0.4);
           break;
         case 'evolve':
-          setPlayerSprite('raichu');
-          hud.banner('进化！皮卡丘 → 雷丘', '面板成长 + Z 招式升级为「打雷」', 3600);
+          setPlayerSprite(ev.to);
+          hud.banner(`进化！${ev.from || '搭档'} → ${ev.name}`, '面板成长 + Z 招式升级', 3600);
           camCtl.shake(0.4, 0.6);
-          cries.play(25, { volume: 0.8 });
+          cry((data.species[ev.to] || {}).cry ?? 25, { volume: 0.8 });
           fx.burst(run.player.x, run.player.y, 20, 0xffffff);
           break;
         case 'zmove':
@@ -471,12 +590,17 @@ async function boot() {
           setTimeout(() => hud.showVictory(run.stats, run.seed), 1800);
           break;
         case 'clear': hud.minimap(run.map, run.cellKey); saveNow(); break;
+        case 'use-blocked':
+          hud.toast('雷之石没有反应…', '这只搭档没有进化链，石头留在背包里');
+          break;
         default: break;
       }
     }
     // 图鉴：本帧事件批量点亮 + 持久化
     const dr = dexApply(dexState, run.events);
-    if (dr.changed) { dexState = dr.dex; dexStore.write(dexState); }
+    if (dr.changed) { dexState = dr.dex; if (!selfcheckOn) dexStore.write(dexState); }
+    // 成就：同批事件评估（解锁弹 toast）
+    applyAchv();
   }
 
   function stepFading(dt) {
@@ -503,12 +627,18 @@ async function boot() {
     last = now;
     if (hitStopT > 0) { hitStopT -= dt; dt *= 0.08; }
 
-    if (input.consumePress('KeyC')) cries.play(25);
+    input.poll();                                             // 手柄：帧首统一轮询
+    if (input.consumePress('KeyC')) cry((data.species[run.player.species] || {}).cry ?? 25);
     if (input.consumePress('KeyB') || input.consumePress('Escape')) {
       if (hud.dexOpen) hud.hideDex();
+      else if (hud.achvOpen) hud.hideAchv();
       else refreshDex();
     }
-    const dexPaused = hud.dexOpen;
+    if (input.consumePress('KeyJ')) {
+      if (hud.achvOpen) hud.hideAchv();
+      else refreshAchv();
+    }
+    const dexPaused = hud.dexOpen || hud.achvOpen;
     const digit = ['Digit1', 'Digit2', 'Digit3'].find((c) => input.consumePress(c));
     if (digit) {
       const map = { Digit1: 'high', Digit2: 'med', Digit3: 'low' };
@@ -522,7 +652,7 @@ async function boot() {
     const rPressed = input.consumePress('KeyR');
     if (rPressed && (!run.player.alive || run.over)) {
       saveStore.clear();
-      run = createRun(data);
+      run = createRun(data, undefined, run.player.species);   // 重开沿用本局搭档（进化形回退基线）
       window.__depths.run = run;
       hud.hideVictory(); hud.hideDeath();
       playerSlug = '';
@@ -534,7 +664,7 @@ async function boot() {
     const gameInput = {
       move: input.getMove(),
       aim: aimVector(),
-      fire: (input.fire || !!input.touchAim()) && run.player.alive && !run.over,
+      fire: (input.fire || !!input.touchAim() || !!input.padAim() || input.padFire()) && run.player.alive && !run.over,
       dashEdge: input.consumePress('Space'),
       slotEdge: input.consumePress('KeyQ'),
       useEdge: input.consumePress('KeyE'),
@@ -574,6 +704,7 @@ async function boot() {
       let bb = enemyViews.get(e.id);
       if (!bb) {
         const anim = data.enemies[e.eid]?.anim || e.eid;
+        if (!atlases[anim] || !texBySlug[anim]) continue;   // 图集缺失→无视图（模拟照跑）
         bb = createBillboard(THREE, texBySlug[anim], atlases[anim], shadowTex);
         scene.add(bb.group);
         enemyViews.set(e.id, bb);
@@ -594,9 +725,13 @@ async function boot() {
     const live = new Set(run.enemies.map((e) => e.id));
     for (const [id, bb] of enemyViews) if (!live.has(id) && !fading.some((f) => f.bb === bb)) { scene.remove(bb.group); bb.dispose(); enemyViews.delete(id); }
 
-    // Boss 条
+    // Boss 条（馆主名 · 搭档物种名）
     const boss = run.enemies.find((e) => e.family === 'boss');
-    if (boss) hud.bossBar(`${boss.name} · 大岩蛇`, boss.hp / boss.maxHp);
+    if (boss) {
+      const aceAnim = (data.enemies[boss.eid] || {}).anim;
+      const aceName = (aceAnim && ((DEX_EXTRA[aceAnim] || {}).name || (data.enemies[aceAnim] || {}).name)) || '';
+      hud.bossBar(aceName ? `${boss.name} · ${aceName}` : boss.name, boss.hp / boss.maxHp);
+    }
     else if (!run.over) hud.hideBossBar();
 
     fx.syncProjectiles(run.projectiles, alpha);
@@ -707,6 +842,44 @@ async function boot() {
     let t = performance.now();
     for (let i = 0; i < n; i++) { t += dtMs; frame(t, dtMs / 1000); input.endFrame(); }
   };
+
+  // ---- selfcheck（?selfcheck=1）：开机自检 + 换皮推演证据。
+  // 不写任何 localStorage（存档/榜/成就/meta 全部跳过），跑完把结果写进 DOM。
+  if (selfcheckOn) {
+    const out = { pack: manifest ? manifest.name : 'pkmn', errors: [] };
+    try {
+      document.getElementById('start').classList.add('hidden');
+      beginRun(createRun(data, 424242, 'pikachu'));
+      window.__depths.pump(90);
+      const keyOf = (type) => [...run.map.entries()].find(([, c]) => c.type === type)?.[0];
+      window.__depths.goRoom(keyOf('combat'));
+      window.__depths.pump(90);
+      out.enemiesCombat = run.enemies.length;
+      for (let w = 0; w < 6 && !run.room.cleared; w++) {   // 逐波清空（F1 共 3 波）
+        for (const e of run.enemies) e.hp = 0;             // debug 击杀路径
+        window.__depths.pump(75);
+      }
+      out.combatCleared = run.room.cleared;
+      out.playerAlive = run.player.alive;
+      window.__depths.goRoom(keyOf('boss'));
+      window.__depths.pump(200);
+      out.bossSpawned = run.enemies.some((e) => e.family === 'boss');
+      out.playerAlive2 = run.player.alive;
+      out.calls = renderer.info.render.calls;
+      out.tris = renderer.info.render.triangles;
+      out.ok = out.enemiesCombat > 0 && out.combatCleared && out.playerAlive && out.playerAlive2 && out.bossSpawned && out.calls > 0;
+    } catch (e) {
+      out.ok = false;
+      out.errors.push(String((e && e.stack) || e));
+    }
+    const el = document.createElement('div');
+    el.id = 'selfcheck';
+    el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99;background:rgba(0,0,0,.85);color:' + (out.ok ? '#7dff9b' : '#ff7d7d') + ';padding:8px 12px;font:12px monospace;white-space:pre;border-radius:4px';
+    el.textContent = 'SELFCHECK ' + (out.ok ? 'PASS' : 'FAIL') + ' ' + JSON.stringify(out);
+    document.body.appendChild(el);
+    document.title = 'SELFCHECK ' + (out.ok ? 'PASS' : 'FAIL');
+    console.info('[selfcheck]', out);
+  }
 }
 
 boot().catch((e) => {

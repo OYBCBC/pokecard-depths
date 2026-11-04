@@ -1,10 +1,10 @@
 // 模拟层引擎：多层塔状态机。纯数据变换，无 DOM/three（node 可无头跑）。
 // 坐标：模拟层 (x, y) 平面，y+ = 南；渲染层映射为 (x, 0, y)。
-import { makeRng, rngNext } from './rng.js?v=m4d';
-import { genMap } from './genmap.js?v=m4d';
-import { applyItems, playerStats } from './items.js?v=m4d';
-import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom } from './actors.js?v=m4d';
-import { stepTelegraphs } from './boss.js?v=m4d';
+import { makeRng, rngNext } from './rng.js?v=m4e';
+import { genMap } from './genmap.js?v=m4e';
+import { applyItems, playerStats } from './items.js?v=m4e';
+import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom } from './actors.js?v=m4e';
+import { stepTelegraphs } from './boss.js?v=m4e';
 
 export const STEP = 1 / 60;
 export const ROOM_W = 17;
@@ -26,11 +26,15 @@ export function dirOf(vx, vy) {
 
 export const MAX_FLOOR = 3;
 
-export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0) {
+export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0, speciesId = 'pikachu') {
   const rng = makeRng(seed);
   const rand = () => rngNext(rng);
   const floorNo = data.floorNo || 1;
   const floorCfg = data.floors[floorNo];
+  // 物种表缺项/旧形状（无物种表）兜底皮卡丘基线
+  const spec = (speciesId && data.species[speciesId]) || data.species.pikachu
+    || { types: ['electric'], moveA: 'thunder-shock', zmove: 'thunderbolt-z' };
+  const baseHp = spec.maxHp || data.balance.player.maxHp;
 
   const map = genMap(rand, floorNo);
   const cells = new Map(map.cells.map((c) => [c.x + ',' + c.y, c]));
@@ -46,11 +50,17 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
     over: false, win: false,
     player: {
       x: ROOM_W / 2, y: ROOM_H / 2 + 1.5, px: ROOM_W / 2, py: ROOM_H / 2 + 1.5,
-      hp: data.balance.player.maxHp, maxHp: data.balance.player.maxHp,
+      hp: baseHp, maxHp: baseHp,
       alive: true, deathT: 0,
-      species: 'pikachu', evolved: false,               // 进化：pikachu → raichu
+      species: (speciesId && data.species[speciesId] && !data.species[speciesId].evolved) ? speciesId : 'pikachu',
+      types: spec.types,                                 // STAB 用（攻击方属性）
+      evolveTo: spec.evolveTo || null,                   // 进化目标（皮卡丘→雷丘；其余 null）
+      zmove: spec.zmove || 'thunderbolt-z',
+      zmoveEvolved: spec.zmoveEvolved || spec.zmove || 'thunderbolt-z',
+      luckBase: spec.luck || 0,                          // 掉落运气（伊布）
+      evolved: false,
       anim: 'Idle', dir: 0, moving: false, lastDir: { x: 0, y: 1 },
-      iframes: 0, fireCd: 0, moveA: 'thunder-shock', moveB: null, slot: 'A', pp: 0,
+      iframes: 0, fireCd: 0, moveA: spec.moveA || 'thunder-shock', moveB: null, slot: 'A', pp: 0,
       dashActive: false, dashT: 0, dashDir: { x: 0, y: 1 },
       dashCharges: data.balance.player.dashCharges, dashRe: 0,
       money: data.balance.player.startMoney || 15,
@@ -60,7 +70,12 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
       companion: null,                                   // 救援营地替补 {eid, name, hp, maxHp, types, moveA}
       activeSide: 'main',                                // main | companion
     },
-    stats: { kills: 0, dmgDealt: 0, superHits: 0, shots: 0, t0: 0, coins: 0, roomsCleared: 0, items: 0, tRun: 0 },
+    stats: {
+      kills: 0, dmgDealt: 0, superHits: 0, shots: 0, t0: 0, coins: 0, roomsCleared: 0, items: 0, tRun: 0,
+      streak: 0, maxStreak: 0,                           // 不受击连杀
+      hurtFloors: [],                                    // 受过伤的楼层（无伤一层判定）
+      dmgTaken: 0, spent: 0, secrets: 0, camps: 0,
+    },
   };
   state.hurtPlayer = (dmg) => hurtPlayer(state, dmg, data);
   recompute(state, data);
@@ -71,9 +86,12 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
 export function recompute(state, data) {
   const p = state.player;
   p.mods = applyItems(data.items, p.inv);
-  p.stats = playerStats(p.mods);
+  const spec = (data.species && data.species[p.species]) || {};
+  p.stats = playerStats(p.mods, { moveSpeed: spec.moveSpeed });
+  if (p.types == null) p.types = spec.types || ['electric'];   // 旧存档兜底
   if (p.evolved) p.stats.damage *= 1.25;                 // 进化面板成长
-  const newMax = data.balance.player.maxHp + p.mods.maxHpAdd + (p.evolved ? 2 : 0);
+  const baseHp = spec.maxHp || data.balance.player.maxHp;
+  const newMax = baseHp + p.mods.maxHpAdd + (p.evolved ? 2 : 0);
   if (newMax > p.maxHp) p.hp += (newMax - p.maxHp);
   p.maxHp = newMax;
   p.hp = Math.min(p.hp, p.maxHp);

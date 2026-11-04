@@ -1,9 +1,9 @@
 // 战斗与房间行为系统：玩家/弹体/敌人三族/波次/多房间楼层/拾取经济/台座。
 // 全部纯数据变换；事件写进 state.events 供表现层消费。
-import { computeHit } from './combat.js?v=m4d';
-import { fireInterval } from './combat.js?v=m4d';
-import { rollItem } from './items.js?v=m4d';
-import { spawnBoss, stepBoss } from './boss.js?v=m4d';
+import { computeHit } from './combat.js?v=m4e';
+import { fireInterval } from './combat.js?v=m4e';
+import { rollItem } from './items.js?v=m4e';
+import { spawnBoss, stepBoss } from './boss.js?v=m4e';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -52,6 +52,11 @@ export function enterRoom(state, data, cellKey) {
   if (stash) {
     for (const k of stash.pickups) state.pickups.push({ ...k });
     for (const d of stash.pedestals) state.pedestals.push({ ...d });
+  }
+  // 房型统计（成就用）：首次进隐藏房/救援营地
+  if (state.room.firstEntry) {
+    if (cell.type === 'secret') state.stats.secrets = (state.stats.secrets || 0) + 1;
+    if (cell.type === 'camp') state.stats.camps = (state.stats.camps || 0) + 1;
   }
 
   if (cell.cleared) {
@@ -160,33 +165,44 @@ export function stepPlayer(state, input, data) {
   // E 使用消耗品
   if (input.useEdge && p.inv.consumable) {
     const it = data.items[p.inv.consumable];
-    if (it.effect.heal) p.hp = Math.min(p.maxHp, p.hp + it.effect.heal);
-    if (it.effect.evolve && state.floorNo >= 2 && !p.evolved) {
-      p.evolved = true; p.species = it.effect.evolve;
-      engine_recompute(state, data);
-      state.events.push({ t: 'evolve', to: it.effect.evolve, name: '雷丘' });
+    // 进化守卫：雷之石对无进化链的搭档无效——不消耗，留在背包
+    if (it.effect.evolve && !p.evolveTo) {
+      state.events.push({ t: 'use-blocked', id: p.inv.consumable, reason: 'no-evolve' });
+    } else {
+      if (it.effect.heal) p.hp = Math.min(p.maxHp, p.hp + it.effect.heal);
+      if (it.effect.evolve && state.floorNo >= 2 && !p.evolved) {
+        const from = data.species[p.species] ? data.species[p.species].name : p.species;
+        p.evolved = true; p.species = p.evolveTo;
+        engine_recompute(state, data);
+        state.events.push({ t: 'evolve', to: p.evolveTo, from, name: data.species[p.evolveTo].name });
+      }
+      state.events.push({ t: 'use-consumable', id: p.inv.consumable, heal: it.effect.heal });
+      p.inv.consumable = null;
     }
-    state.events.push({ t: 'use-consumable', id: p.inv.consumable, heal: it.effect.heal });
-    p.inv.consumable = null;
   }
 
   // R：Z 招式（PP 满）或死亡重开由 main 处理
   if (input.zEdge && p.pp >= 100 * p.mods.ppCost) {
-    const zid = p.evolved ? 'thunder-z' : 'thunderbolt-z';
+    const zid = p.evolved ? (p.zmoveEvolved || 'thunder-z') : (p.zmove || 'thunderbolt-z');
     const zm = data.moves[zid];
     p.pp = 0;
-    // 全场/近场 AoE：以玩家为圆心
-    const D = p.stats.damage;
+    // 全场/近场 AoE：以玩家为圆心，走属性克制（Boss 免疫按 ×0.5 防卡关）
     let hits = 0;
     for (const e of state.enemies) {
       if (e.state === 'spawning' || e.state === 'dead') continue;
       const d = Math.hypot(e.x - p.x, e.y - p.y);
       if (d <= zm.radius) {
-        e.hp -= D * (zm.power / 40) * 0.5;            // AoE 打 5 折换覆盖面
+        const hit = computeHit({
+          D: p.stats.damage, power: zm.power * 0.5, moveType: zm.type,   // AoE 打 5 折换覆盖面
+          atkTypes: p.types || ['electric'], defTypes: e.types, spdMod: e.spdMod,
+          critChance: 0, rng01: 0.5, stabMul: 1.5, chart: data.typechart,
+          immuneFloor: e.family === 'boss' ? 0.5 : 0,
+        });
+        e.hp -= hit.dmg;
         e.flash = 0.2;
         const kd = Math.hypot(e.x - p.x, e.y - p.y) || 1;
         e.kx = (e.x - p.x) / kd * 9; e.ky = (e.y - p.y) / kd * 9;
-        if (e.hp <= 0) killEnemy(state, e, 'super');
+        if (e.hp <= 0) killEnemy(state, e, hit.kind === 'immune' ? 'normal' : hit.kind);
         hits++;
       }
     }
@@ -197,7 +213,8 @@ export function stepPlayer(state, input, data) {
   if (input.swapEdge && p.companion && p.companion.hp > 0) {
     p.activeSide = p.activeSide === 'main' ? 'companion' : 'main';
     p.iframes = Math.max(p.iframes, 0.5);
-    state.events.push({ t: 'companion-swap', side: p.activeSide, name: p.activeSide === 'companion' ? p.companion.name : (p.evolved ? '雷丘' : '皮卡丘') });
+    const mainName = data.species[p.species] ? data.species[p.species].name : '搭档';
+    state.events.push({ t: 'companion-swap', side: p.activeSide, name: p.activeSide === 'companion' ? p.companion.name : mainName });
   }
 
   // 冲刺
@@ -322,7 +339,11 @@ export function hurtPlayer(state, dmg, data) {
   }
   p.hp -= dmg;
   p.iframes = data.balance.player.iframesOnHurt;
-  state.events.push({ t: 'player-hurt', dmg, x: p.x, y: p.y, hp: Math.max(p.hp, 0) });
+  state.stats.dmgTaken = (state.stats.dmgTaken || 0) + dmg;
+  state.stats.streak = 0;                                // 受击断连杀
+  if (!state.stats.hurtFloors) state.stats.hurtFloors = [];
+  if (!state.stats.hurtFloors.includes(state.floorNo)) state.stats.hurtFloors.push(state.floorNo);
+  state.events.push({ t: 'player-hurt', dmg, x: p.x, y: p.y, hp: Math.max(p.hp, 0), floor: state.floorNo });
   if (p.hp <= 0) {
     // 气势披带：每层一次保命
     if (m.lethalGuard && !p.lethalGuardUsed) {
@@ -344,23 +365,26 @@ export function stepProjectiles(state, data) {
   for (let i = state.projectiles.length - 1; i >= 0; i--) {
     const b = state.projectiles[i];
     b.px = b.x; b.py = b.y;
-    // 追踪
-    if (b.owner === 'player' && state.player.mods.homing > 0) {
-      let tgt = null, nd = 1e9;
-      for (const e of state.enemies) {
-        if (e.state === 'spawning' || e.state === 'dead') continue;
-        const d = dist2(b.x, b.y, e.x, e.y);
-        if (d < nd) { nd = d; tgt = e; }
-      }
-      if (tgt) {
-        const sp = Math.hypot(b.vx, b.vy);
-        const dx = tgt.x - b.x, dy = tgt.y - b.y;
-        const l = Math.hypot(dx, dy) || 1;
-        const turn = state.player.mods.homing;
-        b.vx += (dx / l * sp - b.vx) * turn;
-        b.vy += (dy / l * sp - b.vy) * turn;
-        const ns = Math.hypot(b.vx, b.vy) || 1;
-        b.vx = b.vx / ns * sp; b.vy = b.vy / ns * sp;
+    // 追踪（道具 mods + 招式自带：高速星星）
+    if (b.owner === 'player') {
+      const mvHoming = (data.moves[b.moveId] && data.moves[b.moveId].homing) || 0;
+      const turn = state.player.mods.homing + mvHoming;
+      if (turn > 0) {
+        let tgt = null, nd = 1e9;
+        for (const e of state.enemies) {
+          if (e.state === 'spawning' || e.state === 'dead') continue;
+          const d = dist2(b.x, b.y, e.x, e.y);
+          if (d < nd) { nd = d; tgt = e; }
+        }
+        if (tgt) {
+          const sp = Math.hypot(b.vx, b.vy);
+          const dx = tgt.x - b.x, dy = tgt.y - b.y;
+          const l = Math.hypot(dx, dy) || 1;
+          b.vx += (dx / l * sp - b.vx) * turn;
+          b.vy += (dy / l * sp - b.vy) * turn;
+          const ns = Math.hypot(b.vx, b.vy) || 1;
+          b.vx = b.vx / ns * sp; b.vy = b.vy / ns * sp;
+        }
       }
     }
     b.x += b.vx * state.dt;
@@ -416,11 +440,11 @@ function applyHit(state, e, b, data) {
   const p = state.player;
   const mv = data.moves[b.moveId];
   const m = p.mods;
-  const species = data.species.player;
   let spdMod = e.spdMod;
   const hit = computeHit({
     D: p.stats.damage, power: mv.power, moveType: mv.type,
-    atkTypes: species.types, defTypes: e.types, spdMod,
+    atkTypes: p.types || (data.species.player && data.species.player.types) || ['electric'],
+    defTypes: e.types, spdMod,
     critChance: m.crit, rng01: state.rand(),
     stabMul: 1.5, chart: data.typechart,
     immuneFloor: e.family === 'boss' ? 0.5 : 0,      // 防卡关：Boss 免疫按 ×0.5
@@ -438,8 +462,9 @@ function applyHit(state, e, b, data) {
   e.hp -= dmg;
   e.flash = 0.12;
   const kl = Math.hypot(b.vx, b.vy) || 1;
-  e.kx = (b.vx / kl) * data.balance.enemy.knockback * m.knockMul;
-  e.ky = (b.vy / kl) * data.balance.enemy.knockback * m.knockMul;
+  const knock = data.balance.enemy.knockback * m.knockMul * (mv.knock || 1);   // 骨棒重击退
+  e.kx = (b.vx / kl) * knock;
+  e.ky = (b.vy / kl) * knock;
   // 畏缩（王者之证）
   if (m.flinch > 0 && state.rand() < m.flinch && e.family !== 'boss') e.stun = 0.6;
   state.stats.dmgDealt += dmg;
@@ -500,7 +525,9 @@ function killEnemy(state, e, kind = 'normal') {
   }
   e.state = 'dead';
   state.stats.kills += 1;
-  state.events.push({ t: 'enemy-die', id: e.id, eid: e.eid, x: e.x, y: e.y, kind, name: e.name });
+  state.stats.streak = (state.stats.streak || 0) + 1;    // 不受击连杀
+  state.stats.maxStreak = Math.max(state.stats.maxStreak || 0, state.stats.streak);
+  state.events.push({ t: 'enemy-die', id: e.id, eid: e.eid, x: e.x, y: e.y, kind, name: e.name, floor: state.floorNo });
 }
 
 // ---------- 敌人 ----------
@@ -757,6 +784,7 @@ export function stepRoom(state, input, data) {
       if (d.price > 0) {
         if (p.money >= d.price) {
           p.money -= d.price;
+          state.stats.spent = (state.stats.spent || 0) + d.price;
           takePedestal(state, data, d);
         }
       } else {
@@ -811,7 +839,7 @@ function clearRoom(state, data, cell) {
 }
 
 function rollDrop(state, data) {
-  const luck = 0;
+  const luck = state.player.luckBase || 0;               // 伊布：运气流掉落加成
   const roll = state.rand() + luck * 0.1;
   for (const [limit, kind] of data.balance.pickup.dropBands) {
     if (roll < limit) {
@@ -896,14 +924,15 @@ function takePedestal(state, data, d) {
       break;
     case 'consumable':
       if (d.itemId === 'thunder-stone') {
-        // 雷之石：即拾即用（第 2 层起进化）
-        if (state.floorNo >= 2 && !p.evolved) {
-          p.evolved = true; p.species = 'raichu';
+        // 雷之石：即拾即用（第 2 层起进化；只有配了进化链的物种响应）
+        if (state.floorNo >= 2 && !p.evolved && p.evolveTo) {
+          const from = data.species[p.species] ? data.species[p.species].name : p.species;
+          p.evolved = true; p.species = p.evolveTo;
           engine_recompute(state, data);
-          state.events.push({ t: 'evolve', to: 'raichu', name: '雷丘' });
+          state.events.push({ t: 'evolve', to: p.evolveTo, from, name: data.species[p.evolveTo].name });
         } else {
           p.inv.consumable = d.itemId;                 // 不满足条件先存着
-          state.events.push({ t: 'item-take', id: d.itemId, name: it.name, desc: state.floorNo < 2 ? '（第 2 层起可用）' : it.desc, icon: it.icon, quality: it.quality, kind: it.kind, price: 0 });
+          state.events.push({ t: 'item-take', id: d.itemId, name: it.name, desc: (state.floorNo < 2 || !p.evolveTo) ? '（第 2 层起可用；无进化链的搭档不消耗）' : it.desc, icon: it.icon, quality: it.quality, kind: it.kind, price: 0 });
           return;
         }
         break;
@@ -920,4 +949,4 @@ function takePedestal(state, data, d) {
 }
 
 // 规避循环 import：engine.recompute 通过事件总线由调用方重算——这里直接内联等价逻辑
-import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m4d';
+import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m4e';

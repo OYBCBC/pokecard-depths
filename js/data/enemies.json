@@ -123,7 +123,8 @@
           "radius": 1.0
         },
         "badgeReward": "gray-badge"
-      }
+      },
+      "intro": "岩石般坚硬的意志！"
     },
     "voltorb": {
       "dex": 100,
@@ -212,7 +213,7 @@
       "types": [
         "poison"
       ],
-      "anim": "grimer-small",
+      "anim": "grimer",
       "base": {
         "hp": 28,
         "atk": 80,
@@ -623,7 +624,8 @@
           "radius": 1.1
         },
         "badgeReward": "orange-badge"
-      }
+      },
+      "intro": "十万伏特的洗礼！"
     },
     "sabrina": {
       "dex": 0,
@@ -668,7 +670,8 @@
           "radius": 1.0
         },
         "badgeReward": "gold-badge"
-      }
+      },
+      "intro": "预知未来的少女！"
     }
   },
   "_waves_F1": "层1 波次表（score 预算 6+2×1=8）",

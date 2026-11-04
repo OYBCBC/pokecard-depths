@@ -258,3 +258,54 @@ body.reversed::after { content: ''; position: fixed; inset: 0; pointer-events: n
   letter-spacing: 1px; pointer-events: auto; display: none; }
 .tbtn:active { border-color: #7fd4ff; color: #7fd4ff; }
 body.touchmode .tbtn { display: block; }
+
+/* ---------- 成就面板 / 解锁 toast（M4 第四批） ---------- */
+#achv { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(8, 10, 18, .85); pointer-events: auto; z-index: 12; }
+.ac-box { width: min(860px, 94vw); max-height: 88vh; overflow: auto; background: rgba(13, 17, 28, .96);
+  border: 2px solid #3a4a6c; border-radius: 6px; padding: 18px 22px; }
+.ac-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 16px;
+  color: #ffe9a0; letter-spacing: 3px; margin-bottom: 12px; }
+.ac-count { font-size: 12px; color: #7fd4ff; letter-spacing: 1px; }
+.ac-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.ac-cell { background: #141b2c; border: 1px solid #2c3958; border-radius: 4px; padding: 8px 10px; }
+.ac-cell.done { border-color: #6a5a2c; background: #1a1c22; }
+.ac-name { font-size: 12px; color: #dfe8f5; }
+.ac-cell.done .ac-name { color: #ffe9a0; }
+.ac-cell:not(.done) .ac-name { color: #7e8ba5; }
+.ac-desc { font-size: 10px; color: #93a4c0; margin-top: 3px; line-height: 1.5; }
+.ac-cell:not(.done) .ac-desc { color: #525d75; }
+.ac-bar { margin-top: 5px; height: 8px; background: #0d1220; border: 1px solid #2c3958;
+  border-radius: 3px; position: relative; overflow: hidden; }
+.ac-bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #7fd4ff, #4aa8d8); }
+.ac-bar span { position: absolute; inset: 0; text-align: center; font-size: 8px; line-height: 8px; color: #dfe8f5; }
+.ac-unlock { margin-top: 4px; font-size: 9px; color: #c79fff; }
+.ac-hint { margin-top: 12px; font-size: 10px; color: #5d6a85; text-align: center; }
+
+#toasts { position: absolute; top: 64px; right: 16px; display: flex; flex-direction: column;
+  gap: 8px; z-index: 14; pointer-events: none; }
+.toast { background: rgba(20, 17, 8, .94); border: 1px solid #ffd24a; border-radius: 4px;
+  padding: 8px 14px; box-shadow: 0 0 16px rgba(255, 210, 74, .35); opacity: 1;
+  transition: opacity .4s, transform .4s; }
+.toast.out { opacity: 0; transform: translateX(24px); }
+.toast .t-title { font-size: 12px; color: #ffe9a0; letter-spacing: 1px; }
+.toast .t-sub { font-size: 10px; color: #93a4c0; margin-top: 2px; }
+
+/* ---------- 开始界面：按钮行 / 搭档选择 ---------- */
+.st-row { display: flex; gap: 8px; }
+.st-row .st-btn { flex: 1; }
+.sp-box { width: min(880px, 94vw); }
+.sp-title { font-size: 26px !important; margin-bottom: 14px; }
+.sp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.sp-card { background: #141b2c; border: 1px solid #2c3958; border-radius: 6px; padding: 14px 12px 12px;
+  text-align: center; cursor: pointer; transition: border-color .15s, transform .15s; }
+.sp-card:hover { border-color: #7fd4ff; transform: translateY(-2px); }
+.sp-card img { width: 72px; height: 84px; image-rendering: pixelated; object-fit: contain; }
+.sp-card.locked img.sil { filter: brightness(0) invert(.3); }
+.sp-card.locked { cursor: default; opacity: .75; }
+.sp-card.locked:hover { border-color: #2c3958; transform: none; }
+.sp-name { font-size: 15px; color: #dfe8f5; margin-top: 6px; letter-spacing: 2px; }
+.sp-card.locked .sp-name { color: #4a5570; }
+.sp-role { font-size: 10px; color: #ffd24a; margin-top: 3px; letter-spacing: 1px; }
+.sp-card.locked .sp-role { color: #c79fff; }
+.sp-desc { font-size: 10px; color: #93a4c0; margin-top: 6px; line-height: 1.6; min-height: 32px; }

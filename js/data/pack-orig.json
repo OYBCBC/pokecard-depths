@@ -1,0 +1,120 @@
+{
+ "_comment": "ADR-15 换皮推演：?pack=orig 启动时整体替换表现层（名字/图集/叫声关闭），引擎零改动。",
+ "name": "晶穴·原创占位包",
+ "atlasDir": "assets/orig",
+ "cries": false,
+ "entries": {
+  "pikachu": {
+   "name": "吱晶兽",
+   "anim": "orig-0"
+  },
+  "eevee": {
+   "name": "噜晶灵",
+   "anim": "orig-1"
+  },
+  "cubone": {
+   "name": "咔晶仔",
+   "anim": "orig-2"
+  },
+  "poliwhirl": {
+   "name": "哞岩妖",
+   "anim": "orig-3"
+  },
+  "raichu": {
+   "name": "嗷岩蜗",
+   "anim": "orig-4"
+  },
+  "rattata": {
+   "name": "噗岩蛛",
+   "anim": "orig-5"
+  },
+  "caterpie": {
+   "name": "叮雷鲤",
+   "anim": "orig-6"
+  },
+  "oddish": {
+   "name": "咚雷鹗",
+   "anim": "orig-7"
+  },
+  "brock": {
+   "name": "咕雷蜥",
+   "anim": "orig-8"
+  },
+  "voltorb": {
+   "name": "唧雾鼬",
+   "anim": "orig-9"
+  },
+  "magnemite": {
+   "name": "吱晶兽",
+   "anim": "orig-0"
+  },
+  "grimer": {
+   "name": "噜晶灵",
+   "anim": "orig-1"
+  },
+  "grimer-small": {
+   "name": "咔晶仔",
+   "anim": "orig-2"
+  },
+  "koffing": {
+   "name": "哞岩妖",
+   "anim": "orig-3"
+  },
+  "poliwag": {
+   "name": "嗷岩蜗",
+   "anim": "orig-4"
+  },
+  "meowth": {
+   "name": "噗岩蛛",
+   "anim": "orig-5"
+  },
+  "electrode": {
+   "name": "叮雷鲤",
+   "anim": "orig-6"
+  },
+  "magneton": {
+   "name": "咚雷鹗",
+   "anim": "orig-7"
+  },
+  "abra": {
+   "name": "咕雷蜥",
+   "anim": "orig-8"
+  },
+  "gastly": {
+   "name": "唧雾鼬",
+   "anim": "orig-9"
+  },
+  "sandshrew": {
+   "name": "吱晶兽",
+   "anim": "orig-0"
+  },
+  "machop": {
+   "name": "噜晶灵",
+   "anim": "orig-1"
+  },
+  "rhyhorn": {
+   "name": "咔晶仔",
+   "anim": "orig-2"
+  },
+  "kecleon": {
+   "name": "哞岩妖",
+   "anim": "orig-3"
+  },
+  "sandslash": {
+   "name": "嗷岩蜗",
+   "anim": "orig-4"
+  },
+  "gengar": {
+   "name": "噗岩蛛",
+   "anim": "orig-5"
+  },
+  "surge": {
+   "name": "叮雷鲤",
+   "anim": "orig-6"
+  },
+  "sabrina": {
+   "name": "咚雷鹗",
+   "anim": "orig-7"
+  }
+ }
+}

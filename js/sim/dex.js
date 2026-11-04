@@ -8,6 +8,9 @@ export const DEX_EXTRA = {
   raichu: { dex: 26, name: '雷丘', anim: 'raichu', tag: '进化' },
   onix: { dex: 95, name: '大岩蛇', anim: 'onix', tag: '馆主搭档' },
   alakazam: { dex: 65, name: '胡地', anim: 'alakazam', tag: '馆主搭档' },
+  eevee: { dex: 133, name: '伊布', anim: 'eevee', tag: '解锁伙伴' },
+  cubone: { dex: 104, name: '卡拉卡拉', anim: 'cubone', tag: '解锁伙伴' },
+  poliwhirl: { dex: 61, name: '蚊香君', anim: 'poliwhirl', tag: '解锁伙伴' },
 };
 // 分裂子种 → 本体（小臭泥并入臭泥）
 export const DEX_ALIAS = { 'grimer-small': 'grimer' };

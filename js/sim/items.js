@@ -1,5 +1,5 @@
 // 道具效果系统（纯函数）：背包 → 数值修饰 mods。引擎与测试共用。
-import { damageStat, fireInterval } from './combat.js?v=m4d';
+import { damageStat, fireInterval } from './combat.js?v=m4e';
 
 export const BASE_MODS = () => ({
   dmgUps: 0, dmgFlat: 0, dmgMul: 1,
@@ -55,12 +55,12 @@ export function applyItems(items, inv) {
   return m;
 }
 
-/** 当前面板（结算用） */
-export function playerStats(mods) {
+/** 当前面板（结算用）。base.moveSpeed = 物种基线移速（缺省 4.2） */
+export function playerStats(mods, base = {}) {
   return {
     damage: damageStat(mods.dmgUps, mods.dmgFlat) * mods.dmgMul,
     fireInterval: fireInterval(mods.tears),
-    moveSpeed: 4.2 + mods.speedAdd,
+    moveSpeed: (base.moveSpeed != null ? base.moveSpeed : 4.2) + mods.speedAdd,
   };
 }
 

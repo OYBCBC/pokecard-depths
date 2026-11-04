@@ -1,4 +1,4 @@
-// 输入层 M2→M4：键盘移动 + 鼠标瞄准/射击 + 冲刺 + 触屏虚拟双摇杆。
+// 输入层 M2→M4：键盘移动 + 鼠标瞄准/射击 + 冲刺 + 触屏虚拟双摇杆 + 手柄（标准映射）。
 const GAME_KEYS = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
   'Space', 'Tab',
@@ -6,6 +6,11 @@ const GAME_KEYS = new Set([
 
 const STICK_R = 52;          // 虚拟摇杆半径（px）
 const STICK_DEAD = 0.14;     // 死区
+
+// 手柄标准映射（Gamepad API "standard" 布局）：
+// 左摇杆=移动，右摇杆=瞄准+射击，RT=射击，A=冲刺，B=图鉴，X=消耗品，Y=切槽，LB=换替补，RB=Z 招式，Start=面板
+const PAD_BTN = { 0: 'Space', 1: 'KeyB', 2: 'KeyE', 3: 'KeyQ', 4: 'KeyF', 5: 'KeyR', 9: 'Tab' };
+const PAD_AXIS_DEAD = 0.18;
 
 export function createInput(target = window) {
   const down = new Set();
@@ -103,15 +108,49 @@ export function createInput(target = window) {
     return null;
   }
 
+  // ---- 手柄：帧内幂等轮询（padPrev 保证边沿只触发一次） ----
+  let padPrev = [];
+  let padMove = null, padAimV = null, padFire = false;
+  function pollPad() {
+    padMove = null; padAimV = null; padFire = false;
+    const pads = (typeof navigator !== 'undefined' && navigator.getGamepads) ? navigator.getGamepads() : [];
+    let gp = null;
+    for (const p of pads) if (p && p.connected) { gp = p; break; }
+    if (!gp) { padPrev = []; return; }
+    const dz = (v) => (Math.abs(v) < PAD_AXIS_DEAD ? 0 : v);
+    const lx = dz(gp.axes[0] || 0), ly = dz(gp.axes[1] || 0);
+    const rx = dz(gp.axes[2] || 0), ry = dz(gp.axes[3] || 0);
+    if (lx || ly) padMove = { x: lx, y: ly };
+    if (rx || ry) padAimV = { x: rx, y: ry };
+    gp.buttons.forEach((b, i) => {
+      const code = PAD_BTN[i];
+      if (!code) return;
+      if (b.pressed && !padPrev[i]) {
+        pressedOnce.add(code);
+        if (down.size === 0) { onFirstKey.forEach((fn) => fn()); onFirstKey.length = 0; }
+      }
+      if (b.pressed) down.add(code);
+      else down.delete(code);
+    });
+    const rt = gp.buttons[7];
+    padFire = !!(rt && (rt.pressed || rt.value > 0.35));
+    padPrev = gp.buttons.map((b) => b.pressed);
+  }
+
   return {
+    poll() { pollPad(); },                          // main 每帧开头调用一次；幂等
     getMove() {
+      pollPad();
       const kb = keyboardMove();
+      let x = kb.x, y = kb.y;
+      if (padMove) { x += padMove.x; y += padMove.y; }
       const tm = touchStick('l');
-      if (!tm) return kb;
-      if (!kb.x && !kb.y) return { x: tm.x, y: tm.y };
-      return { x: kb.x + tm.x, y: kb.y + tm.y };   // 键盘+摇杆叠加（引擎会归一化）
+      if (tm) { x += tm.x; y += tm.y; }
+      return { x, y };                              // 多源叠加（引擎会归一化）
     },
     touchAim() { return touchStick('r'); },        // 右摇杆推过死区 = 朝该方向射击
+    padAim() { pollPad(); return padAimV; },        // 手柄右摇杆：朝推动方向射击
+    padFire() { pollPad(); return padFire; },       // RT 射击
     sticks() {
       const out = { l: null, r: null };
       for (const o of touches.values()) {
@@ -124,11 +163,17 @@ export function createInput(target = window) {
     held(code) { return down.has(code); },
     mouse,
     get fire() { return mouse.down; },
+    get padConnected() {
+      const pads = (typeof navigator !== 'undefined' && navigator.getGamepads) ? navigator.getGamepads() : [];
+      for (const p of pads) if (p && p.connected) return true;
+      return false;
+    },
     consumePress(code) {
       if (pressedOnce.has(code)) { pressedOnce.delete(code); return true; }
       return false;
     },
     endFrame() { pressedOnce.clear(); },
     onFirstInteraction(fn) { onFirstKey.push(fn); },
+    onPadConnect(fn) { window.addEventListener('gamepadconnected', (e) => fn(e.gamepad && e.gamepad.id)); },
   };
 }

@@ -129,6 +129,62 @@
       "power": 300,
       "kind": "zmove",
       "radius": 5.5
+    },
+    "swift": {
+      "name": "高速星星",
+      "type": "normal",
+      "power": 40,
+      "kind": "projectile",
+      "speed": 11,
+      "range": 7.5,
+      "radius": 0.18,
+      "sprite": "orb-bolt",
+      "tint": "#f5e9c8",
+      "homing": 0.1
+    },
+    "bone-club": {
+      "name": "骨棒",
+      "type": "ground",
+      "power": 55,
+      "kind": "projectile",
+      "speed": 5.0,
+      "range": 1.6,
+      "radius": 0.55,
+      "sprite": "orb-bolt",
+      "tint": "#e8d9b0",
+      "knock": 2.2
+    },
+    "bubble": {
+      "name": "泡沫",
+      "type": "water",
+      "power": 45,
+      "kind": "projectile",
+      "speed": 6.5,
+      "range": 6.0,
+      "radius": 0.3,
+      "sprite": "orb-bolt",
+      "tint": "#9fd8ff"
+    },
+    "evolve-light-z": {
+      "name": "进化之光·Z",
+      "type": "normal",
+      "power": 150,
+      "kind": "zmove",
+      "radius": 3.6
+    },
+    "earthquake-z": {
+      "name": "地震·Z",
+      "type": "ground",
+      "power": 220,
+      "kind": "zmove",
+      "radius": 8.0
+    },
+    "surf-z": {
+      "name": "冲浪·Z",
+      "type": "water",
+      "power": 170,
+      "kind": "zmove",
+      "radius": 7.0
     }
   }
 }
