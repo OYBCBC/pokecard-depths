@@ -72,9 +72,12 @@ export function createSfx({ ensureCtx } = {}) {
     achv:     () => { tone({ type: 'triangle', f0: 880, dur: 0.08, vol: 0.15 }); tone({ type: 'triangle', f0: 1175, dur: 0.14, vol: 0.15, delay: 0.07 }); },
     death:    () => [440, 349, 262, 175].forEach((f, i) => tone({ type: 'triangle', f0: f, dur: 0.3, vol: 0.16, delay: i * 0.18 })),
     win:      () => [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone({ type: 'square', f0: f, dur: 0.16, vol: 0.10, delay: i * 0.13 })),
+    chain:    () => { tone({ type: 'square', f0: 1560, f1: 2400, dur: 0.06, vol: 0.09 }); noise({ dur: 0.05, vol: 0.07, freq: 4200 }); },
+    freeze:   () => { tone({ type: 'sine', f0: 1980, f1: 1180, dur: 0.14, vol: 0.10 }); tone({ type: 'sine', f0: 2640, f1: 1560, dur: 0.12, vol: 0.06, delay: 0.04 }); },
+    poison:   () => noise({ dur: 0.10, vol: 0.08, freq: 620, q: 2, type: 'lowpass' }),
   };
   // 节流表（ms）：高频事件不逐发
-  const THROTTLE = { shot: 55, hit: 45, superhit: 60, coin: 40, kill: 60 };
+  const THROTTLE = { shot: 55, hit: 45, superhit: 60, coin: 40, kill: 60, chain: 90 };
 
   return {
     play(name) {

@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 
 const ROOT = dirname(fileURLToPath(import.meta.url)) + '/..';
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
-const { createRun, stepRun, STEP } = await import(join(ROOT, 'js/sim/engine.js?v=m4h'));
+const { createRun, stepRun, STEP } = await import(join(ROOT, 'js/sim/engine.js?v=m5b'));
 
 const tc = D('typechart.json'), ed = D('enemies.json'), mv = D('moves.json'), bal = D('balance.json'), itemsDoc = D('items.json');
 const fl = D('floors.json');
@@ -104,7 +104,7 @@ function botInput(run, mode) {
     }
     if (!goal) {
       for (const d of run.pedestals) {
-        if (d.taken || d.price > p.money) continue;
+        if (d.taken || d.priceHp > 0 || d.price > p.money) continue;   // 黑市血价商品：机器人不拿血换货
         const dist = Math.hypot(d.x - p.x, d.y - p.y);
         if (!goal || dist < goal.d) goal = { x: d.x, y: d.y, d: dist };
       }
@@ -156,6 +156,15 @@ function botInput(run, mode) {
     if (goal) {
       const dx = goal.x - p.x, dy = goal.y - p.y, l = Math.hypot(dx, dy);
       if (l > 0.25) move = { x: dx / l, y: dy / l };
+    }
+  }
+  // 防误踩黑市台座（血价商品路过也会买）：1.6 格内排斥
+  for (const d of run.pedestals) {
+    if (d.taken || !d.priceHp) continue;
+    const dx = p.x - d.x, dy = p.y - d.y, l = Math.hypot(dx, dy);
+    if (l < 1.6 && l > 0.01) {
+      const k = ((1.6 - l) / 1.6) * 1.6;
+      move = { x: move.x + (dx / l) * k, y: move.y + (dy / l) * k };
     }
   }
   // 防出界（过门目标豁免：传送必须压到 0.78 以内）

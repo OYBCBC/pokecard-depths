@@ -1,9 +1,9 @@
 // 战斗与房间行为系统：玩家/弹体/敌人三族/波次/多房间楼层/拾取经济/台座。
 // 全部纯数据变换；事件写进 state.events 供表现层消费。
-import { computeHit } from './combat.js?v=m4h';
-import { fireInterval } from './combat.js?v=m4h';
-import { rollItem } from './items.js?v=m4h';
-import { spawnBoss, stepBoss } from './boss.js?v=m4h';
+import { computeHit } from './combat.js?v=m5b';
+import { fireInterval } from './combat.js?v=m5b';
+import { rollItem } from './items.js?v=m5b';
+import { spawnBoss, stepBoss } from './boss.js?v=m5b';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -93,14 +93,60 @@ export function enterRoom(state, data, cellKey) {
     case 'challenge':
       spawnWave(state, data);
       if (cell.type === 'challenge') state.room.waveIdx = -1;   // 挑战房 3 波（负偏移计数用）
+      // 电气种子：上一房清空的奖励连锁弹，本房生效
+      if (state.bm && state.bm.pendChain > 0) {
+        p.chainLeft = state.bm.pendChain;
+        state.bm.pendChain = 0;
+        state.events.push({ t: 'chain-ready', n: p.chainLeft });
+      }
+      // 剧毒宝珠代价：每间战斗房 25% 自身中毒失去 1 格（不致死）
+      if (p.mods && p.mods.toxicSelf > 0 && state.rand() < p.mods.toxicSelf && p.hp > 1) {
+        p.hp -= 1;
+        state.events.push({ t: 'toxic-selfhurt', x: p.x, y: p.y });
+      }
       break;
     case 'treasure':
       if (!stash) addPedestal(state, data, 'treasure', 0);      // 有暂存则恢复原道具（防重 roll 刷道具）
       break;
     case 'shop':
-      if (!stash) for (let i = 0; i < 3; i++) addPedestal(state, data, 'shop', i);
+      const excl = [];
+      if (!stash) for (let i = 0; i < 3; i++) addPedestal(state, data, 'shop', i, { exclude: excl });
       state.room.cleared = true; state.room.doorOpen = true;
       cell.cleared = true;
+      break;
+    case 'blackmarket': {
+      // 火箭队黑市：亲密度上限（priceHp）交易高级道具；进过则本局祭坛不再出现
+      if (!stash) {
+        const slots = 3 + (p.mods.bmSlots || 0);                // 会员卡：多上架一件
+        const excl = [];
+        for (let i = 0; i < slots; i++) addPedestal(state, data, 'blackmarket', i, { priceHp: 2, slots, exclude: excl });
+      }
+      if (state.bm) state.bm.route = 'blackmarket';
+      state.room.cleared = true; state.room.doorOpen = true;
+      cell.cleared = true;
+      break;
+    }
+    case 'altar': {
+      // 吉利蛋祭坛：金钱捐献换守护类道具 + 免费回复
+      if (!stash) {
+        const excl = [];
+        for (let i = 0; i < 2; i++) addPedestal(state, data, 'altar', i, { slots: 2, exclude: excl });
+        state.pickups.push(mkPickup(state, 'heart', w / 2 - 1.6, h / 2 + 1.2));
+        state.pickups.push(mkPickup(state, 'heart', w / 2 + 1.6, h / 2 + 1.2));
+      }
+      if (state.bm) state.bm.route = 'altar';
+      state.room.cleared = true; state.room.doorOpen = true;
+      cell.cleared = true;
+      break;
+    }
+    case 'boss':
+      // 圣灰：进道馆回满（每层一次）
+      if (state.bm && p.mods.bossFullHeal && !state.bm.ashUsed && p.hp < p.maxHp) {
+        state.bm.ashUsed = true;
+        p.hp = p.maxHp;
+        state.events.push({ t: 'ash-heal', hp: p.hp });
+      }
+      spawnBoss(state, data);
       break;
     case 'secret':
       if (!stash) {
@@ -109,9 +155,6 @@ export function enterRoom(state, data, cellKey) {
       }
       state.room.cleared = true; state.room.doorOpen = true;
       cell.cleared = true;
-      break;
-    case 'boss':
-      spawnBoss(state, data);
       break;
     case 'camp':
       // 救援营地：3 只受困宝可梦（当层敌群抽取）结伴三选一
@@ -151,16 +194,17 @@ function mkPickup(state, kind, x, y, itemId) {
   return { id: state.nextId++, kind, itemId: itemId || null, x, y, px: x, py: y, bob: state.rand() * 6 };
 }
 
-function addPedestal(state, data, poolName, slotIdx) {
+function addPedestal(state, data, poolName, slotIdx, opts = {}) {
   let itemId;
   if (poolName === 'shop' && slotIdx === 2) {
     // 商店第三格保底消耗品（治疗树果）
     itemId = state.rand() < 0.5 ? 'sitrus-berry' : 'cheri-berry';
   } else {
     itemId = rollItem(data.items, data.itemPools, poolName, state.rand,
-      { owned: state.player.inv.passives, learnBy: state.player.species });   // 技能机按物种可学性过滤
+      { owned: [...state.player.inv.passives, ...(opts.exclude || [])], learnBy: state.player.species });   // 技能机可学性 + 同房不重复上架
   }
   if (!itemId) return;
+  if (opts.exclude) opts.exclude.push(itemId);
   const it = data.items[itemId];
   let price = 0;
   if (poolName === 'shop') {
@@ -168,11 +212,13 @@ function addPedestal(state, data, poolName, slotIdx) {
     price = Math.round(base + it.quality * 3);
     if (it.kind === 'consumable') price = 6;
     if (it.kind === 'stat') price = 12;
+  } else if (poolName === 'altar') {
+    price = 15 + it.quality * 2;                              // 祭坛：捐献定价
   }
   const [w, h] = [state.roomW, state.roomH];
-  const x = w / 2 + (slotIdx - 1) * 2.6;
+  const x = w / 2 + (slotIdx - (opts.slots ? (opts.slots - 1) / 2 : 1)) * 2.6;
   const y = h / 2 - 0.5;
-  state.pedestals.push({ id: state.nextId++, itemId, price, x, y, taken: false });
+  state.pedestals.push({ id: state.nextId++, itemId, price, priceHp: opts.priceHp || 0, x, y, taken: false });
 }
 
 // ---------- 玩家 ----------
@@ -192,20 +238,43 @@ export function stepPlayer(state, input, data) {
   // E 使用消耗品
   if (input.useEdge && p.inv.consumable) {
     const it = data.items[p.inv.consumable];
+    const e = it.effect || {};
     // 进化守卫：雷之石对无进化链的搭档无效——不消耗，留在背包
-    if (it.effect.evolve && !p.evolveTo) {
+    if (e.evolve && !p.evolveTo) {
       state.events.push({ t: 'use-blocked', id: p.inv.consumable, reason: 'no-evolve' });
     } else {
-      if (it.effect.heal) p.hp = Math.min(p.maxHp, p.hp + it.effect.heal);
-      if (it.effect.evolve && state.floorNo >= 2 && !p.evolved) {
+      if (e.heal) p.hp = Math.min(p.maxHp, p.hp + e.heal);
+      if (e.ppFull) { p.pp = 100; state.events.push({ t: 'pp-full' }); }
+      if (e.cure && state.reverseT > 0) { state.reverseT = 0; state.events.push({ t: 'cured' }); }
+      if (e.buffSpeed) p.buffs.speed = Math.max(p.buffs.speed, e.buffSpeed);
+      if (e.buffDmg) p.buffs.dmg = Math.max(p.buffs.dmg, e.buffDmg);
+      if (e.buffGuard) p.buffs.guard = Math.max(p.buffs.guard, e.buffGuard);
+      if (e.buffContact) p.buffs.contact = Math.max(p.buffs.contact, e.buffContact);
+      if (e.evolve && state.floorNo >= 2 && !p.evolved) {
         const from = data.species[p.species] ? data.species[p.species].name : p.species;
         p.evolved = true; p.species = p.evolveTo;
         engine_recompute(state, data);
         state.events.push({ t: 'evolve', to: p.evolveTo, from, name: data.species[p.evolveTo].name });
       }
-      state.events.push({ t: 'use-consumable', id: p.inv.consumable, heal: it.effect.heal });
+      if (e.teleport) {
+        // 离洞绳：回本层出生房
+        const start = [...state.map.values()].find((c) => c.type === 'start');
+        if (start) {
+          const target = state.map.get(start.x + ',' + start.y) ? start.x + ',' + start.y : state.cellKey;
+          enterRoom(state, data, target);
+          p.x = state.roomW / 2; p.y = state.roomH / 2 + 1.5;
+          p.px = p.x; p.py = p.y;
+          state.events.push({ t: 'teleport' });
+        }
+      }
+      state.events.push({ t: 'use-consumable', id: p.inv.consumable, heal: e.heal });
       p.inv.consumable = null;
     }
+  }
+
+  // 消耗品时限增益衰减（speed/dmg/guard/contact）
+  if (p.buffs) for (const k of Object.keys(p.buffs)) {
+    if (p.buffs[k] > 0) p.buffs[k] = Math.max(0, p.buffs[k] - state.dt);
   }
 
   // R：Z 招式（PP 满）或死亡重开由 main 处理
@@ -272,8 +341,9 @@ export function stepPlayer(state, input, data) {
     const l = Math.hypot(mv.x, mv.y);
     if (l > EPS) {
       const k = l > 1 ? 1 / l : 1;
-      vx = mv.x * k * p.stats.moveSpeed;
-      vy = mv.y * k * p.stats.moveSpeed;
+      const spd = p.stats.moveSpeed * (p.buffs && p.buffs.speed > 0 ? 1.3 : 1);   // 沙鳞果
+      vx = mv.x * k * spd;
+      vy = mv.y * k * spd;
       p.lastDir = { x: mv.x * k, y: mv.y * k };
     }
   }
@@ -288,6 +358,34 @@ export function stepPlayer(state, input, data) {
   // 冲刺撞隐藏房的裂缝墙 → 揭示
   if (p.dashActive) tryRevealSecret(state, data);
 
+  // 火焰宝珠：近身灼烧光环（每 0.4s 一跳）+ 代价自伤累计
+  if (p.mods.auraDps > 0) {
+    p.auraT = (p.auraT || 0) - state.dt;
+    if (p.auraT <= 0) {
+      p.auraT = 0.4;
+      let hitAny = false;
+      for (const e of state.enemies) {
+        if (e.state === 'spawning' || e.state === 'dead') continue;
+        if (dist2(e.x, e.y, p.x, p.y) < p.mods.auraR * p.mods.auraR) {
+          e.hp -= p.mods.auraDps * 0.4;
+          e.flash = 0.12;
+          e.burnT = Math.max(e.burnT || 0, 1.2); e.burnDps = Math.max(e.burnDps || 0, 2);
+          hitAny = true;
+          if (e.hp <= 0) killEnemy(state, e, 'fire');
+        }
+      }
+      if (hitAny) state.events.push({ t: 'aura-hit', x: p.x, y: p.y, r: p.mods.auraR });
+      const bm = state.bm;
+      if (bm && p.mods.auraSelfHurt > 0) {
+        bm.auraDebt = (bm.auraDebt || 0) + p.mods.auraSelfHurt * 0.4;
+        if (bm.auraDebt >= 1) {
+          bm.auraDebt -= 1;
+          if (p.hp > 1) { p.hp -= 1; state.events.push({ t: 'aura-selfhurt', x: p.x, y: p.y }); }
+        }
+      }
+    }
+  }
+
   // 射击
   p.fireCd -= state.dt;
   if (input.fire && p.fireCd <= 0) {
@@ -296,14 +394,16 @@ export function stepPlayer(state, input, data) {
     const moveId = p.slot === 'B' && p.moveB && !p.mods.lockB ? p.moveB : moveA_eff;
     const mv = data.moves[moveId];
     const aim = input.aim;
-    const l = Math.hypot(aim.x, aim.y) || 1;
     const m = p.mods;
     // 以撒式弹型参数（per-move）：spread/arcDeg=扇形散射（三重攻击），pierce=自带贯通
     // （破坏光线），intervalMul=攻速倍率（破坏光线 2.6 慢炮），sizeMul=弹径倍率
     const spread = mv.spread || 1;
     const arcRad = ((mv.arcDeg || 24) * Math.PI) / 180;
     const baseA = Math.atan2(aim.y, aim.x);
-    const speed = mv.speed * m.shotSpeedMul;
+    const speed = mv.speed * m.shotSpeedMul + m.shotSpeedAdd;
+    // 电气种子：清房奖励的连锁弹（发射时扣数）
+    const chain = p.chainLeft > 0;
+    if (chain) p.chainLeft -= 1;
     for (let s = 0; s < spread; s++) {
       const a = baseA + (spread > 1 ? (s / (spread - 1) - 0.5) * arcRad : 0);
       state.projectiles.push({
@@ -311,10 +411,10 @@ export function stepPlayer(state, input, data) {
         x: p.x, y: p.y, px: p.x, py: p.y,
         vx: Math.cos(a) * speed,
         vy: Math.sin(a) * speed,
-        life: (mv.range * m.rangeMul) / speed,
+        life: (mv.range * m.rangeMul) / Math.max(speed, 0.1),
         radius: mv.radius * m.sizeMul * (mv.sizeMul || 1),
         pierceLeft: Math.max(mv.pierce || 0, m.pierce),
-        hitIds: [],
+        hitIds: [], chain: chain || undefined,
       });
     }
     p.fireCd = p.stats.fireInterval * (mv.intervalMul || 1);
@@ -350,6 +450,13 @@ export function hurtPlayer(state, dmg, data) {
   const p = state.player;
   if (!p.alive || p.iframes > 0 || p.dashActive) return false;
   const m = p.mods;
+  // 龙睛果护盾：格挡一次并消耗
+  if (p.buffs && p.buffs.guard > 0) {
+    p.buffs.guard = 0;
+    p.iframes = 0.4;
+    state.events.push({ t: 'player-block', x: p.x, y: p.y, shield: true });
+    return false;
+  }
   // 闪避
   if (m.dodge > 0 && state.rand() < m.dodge) {
     state.events.push({ t: 'player-dodge', x: p.x, y: p.y });
@@ -377,9 +484,11 @@ export function hurtPlayer(state, dmg, data) {
     return true;
   }
   p.hp -= dmg;
-  p.iframes = data.balance.player.iframesOnHurt;
+  p.iframes = data.balance.player.iframesOnHurt + (m.iframesAdd || 0);   // 净化之符延长无敌
   state.stats.dmgTaken = (state.stats.dmgTaken || 0) + dmg;
   state.stats.streak = 0;                                // 受击断连杀
+  p.hitStreak = 0;                                       // 节拍器连击重置
+  if (state.bm && state.room && state.room.type === 'boss') state.bm.bossHurt = true;   // 黑市计量条
   if (!state.stats.hurtFloors) state.stats.hurtFloors = [];
   if (!state.stats.hurtFloors.includes(state.floorNo)) state.stats.hurtFloors.push(state.floorNo);
   state.events.push({ t: 'player-hurt', dmg, x: p.x, y: p.y, hp: Math.max(p.hp, 0), floor: state.floorNo });
@@ -495,11 +604,33 @@ function applyHit(state, e, b, data) {
   if (hit.kind === 'super') dmg *= 1 + m.superBonus;
   // 打草结：对重型敌加成
   if (mv.heavyBonus && e.score >= 4) dmg *= mv.heavyBonus;
+  // 疾风羽：对飞行系敌加成
+  if (m.flyingMul > 1 && e.types && e.types.includes('flying')) dmg *= m.flyingMul;
+  // 龙火果：限时特攻 buff
+  if (p.buffs && p.buffs.dmg > 0) dmg *= 1.5;
+  // 节拍器：连续命中递增（受伤重置，上限 ×1.4）
+  if (m.hitRamp > 0) {
+    dmg *= 1 + Math.min(p.hitStreak || 0, 10) * m.hitRamp;
+    p.hitStreak = Math.min((p.hitStreak || 0) + 1, 10);
+  }
   // 分裂子弹伤害衰减
   if (b.splitChild) dmg *= 0.4;
 
   e.hp -= dmg;
   e.flash = 0.12;
+  // 异常状态上挂（Boss 抗性减半时长）
+  const bossK = e.family === 'boss' ? 0.5 : 1;
+  if (m.burnChance > 0 && state.rand() < m.burnChance) {
+    e.burnT = Math.max(e.burnT || 0, 2 * bossK); e.burnDps = 2;
+  }
+  if (m.poisonChance > 0 && state.rand() < m.poisonChance) {
+    e.poisonT = Math.max(e.poisonT || 0, 3 * bossK); e.poisonDps = 1.5;
+  }
+  if (m.freezeChance > 0 && state.rand() < m.freezeChance && e.family !== 'boss') {
+    e.frozenT = 0.8;
+    state.events.push({ t: 'enemy-freeze', id: e.id, x: e.x, y: e.y });
+  }
+  if (m.slowOnHit > 0 && e.family !== 'boss') e.slowT = m.slowOnHit;
   const kl = Math.hypot(b.vx, b.vy) || 1;
   const knock = data.balance.enemy.knockback * m.knockMul * (mv.knock || 1);   // 骨棒重击退
   e.kx = (b.vx / kl) * knock;
@@ -508,7 +639,31 @@ function applyHit(state, e, b, data) {
   if (m.flinch > 0 && state.rand() < m.flinch && e.family !== 'boss') e.stun = 0.6;
   state.stats.dmgDealt += dmg;
   if (hit.kind === 'super') state.stats.superHits += 1;
+  // 贝壳之铃：累计伤害回血
+  if (m.echoHeal > 0) {
+    state.echoAcc = (state.echoAcc || 0) + dmg;
+    while (state.echoAcc >= m.echoHeal) {
+      state.echoAcc -= m.echoHeal;
+      if (p.hp < p.maxHp) { p.hp += 1; state.events.push({ t: 'regen', heal: 1, echo: true }); }
+    }
+  }
   state.player.pp = Math.min(100, state.player.pp + dmg * data.balance.player.ppPerDamage * (hit.kind === 'super' ? data.balance.player.ppSuperMul : 1) * m.ppMul);
+  // 电气种子连锁闪电：跳向 2.2 内最近的另一只敌（50% 伤害，视觉由 chain-hit 表现）
+  if (b.chain && e.hp > 0) {
+    let tgt = null, nd = 2.2 * 2.2;
+    for (const o of state.enemies) {
+      if (o === e || o.state === 'spawning' || o.state === 'dead') continue;
+      if (b.hitIds && b.hitIds.includes(o.id)) continue;
+      const d = dist2(e.x, e.y, o.x, o.y);
+      if (d < nd) { nd = d; tgt = o; }
+    }
+    if (tgt) {
+      tgt.hp -= dmg * 0.5;
+      tgt.flash = 0.12;
+      state.events.push({ t: 'chain-hit', from: [e.x, e.y], to: [tgt.x, tgt.y] });
+      if (tgt.hp <= 0) killEnemy(state, tgt, 'electric');
+    }
+  }
 
   // 分裂种子
   if (m.split && !b.splitChild && e.hp > 0) {
@@ -596,12 +751,42 @@ export function stepEnemies(state, input, data) {
           for (let k = 0; k < 6; k++) {
             state.pickups.push(mkPickup(state, 'coin', e.x + (state.rand() - 0.5) * 2.5, e.y + (state.rand() - 0.5) * 2.5));
           }
+          // 馆主徽章（F1 灰 / F2 橙 / F3 金）：全局被动
+          const badgeId = { 1: 'badge-gray', 2: 'badge-orange', 3: 'badge-gold' }[state.floorNo];
+          if (badgeId && data.items[badgeId] && !state.player.inv.badges.includes(badgeId)) {
+            state.player.inv.badges.push(badgeId);
+            engine_recompute(state, data);
+            state.events.push({ t: 'badge-take', id: badgeId, name: data.items[badgeId].name, floor: state.floorNo });
+          }
         }
       }
       state.enemies.splice(i, 1);
       continue;
     }
     if (e.flash > 0) e.flash -= state.dt;
+
+    // 异常状态 DoT（灼烧/中毒，每 0.5s 一跳）——先于出生转移，防状态敌人免伤
+    if (e.burnT > 0) {
+      e.burnT -= state.dt;
+      e.burnTick = (e.burnTick || 0) - state.dt;
+      if (e.burnTick <= 0) {
+        e.burnTick = 0.5;
+        e.hp -= (e.burnDps || 2) * 0.5;
+        e.flash = 0.12;
+        state.events.push({ t: 'enemy-burn', id: e.id, x: e.x, y: e.y });
+      }
+    }
+    if (e.poisonT > 0) {
+      e.poisonT -= state.dt;
+      e.poisonTick = (e.poisonTick || 0) - state.dt;
+      if (e.poisonTick <= 0) {
+        e.poisonTick = 0.5;
+        e.hp -= (e.poisonDps || 1.5) * 0.5;
+        e.flash = 0.12;
+        state.events.push({ t: 'enemy-poison', id: e.id, x: e.x, y: e.y });
+      }
+    }
+    if ((e.burnT > 0 || e.poisonT > 0) && e.hp <= 0 && e.state !== 'dead') killEnemy(state, e, 'poison');
 
     // 出生状态转移对所有族（含 Boss）生效——否则 Boss 永远无敌（弹体跳过 spawning）
     if (e.state === 'spawning') {
@@ -611,7 +796,14 @@ export function stepEnemies(state, input, data) {
     }
 
     if (e.family === 'boss') { stepBoss(state, e, data); continue; }
+    // 冰冻/畏缩：定身
+    if (e.frozenT > 0) {
+      e.frozenT -= state.dt;
+      e.moving = false; e.anim = 'Idle';
+      continue;
+    }
     if (e.stun > 0) { e.stun -= state.dt; e.anim = 'Hurt'; e.moving = false; continue; }
+    if (e.slowT > 0) e.slowT -= state.dt;
 
     if (Math.abs(e.kx) > EPS || Math.abs(e.ky) > EPS) {
       e.x += e.kx * state.dt; e.y += e.ky * state.dt;
@@ -669,11 +861,12 @@ export function stepEnemies(state, input, data) {
         if (e.shootCd <= 0 && p.alive) {
           const base = Math.atan2(p.y - e.y, p.x - e.x);
           const mv = data.moves[e.shoot.move];
+          const spd = mv.speed * (state.player.mods ? state.player.mods.enemyShotMul : 1);   // 金色徽章
           state.projectiles.push({
             owner: 'enemy', id: state.nextId++, moveId: e.shoot.move,
             x: e.x, y: e.y, px: e.x, py: e.y,
-            vx: Math.cos(base) * mv.speed, vy: Math.sin(base) * mv.speed,
-            life: mv.range / mv.speed, radius: mv.radius,
+            vx: Math.cos(base) * spd, vy: Math.sin(base) * spd,
+            life: mv.range / spd, radius: mv.radius,
           });
           e.shootCd = e.shoot.cooldown * (0.85 + state.rand() * 0.3);
         }
@@ -706,13 +899,14 @@ export function stepEnemies(state, input, data) {
         const base = Math.atan2(dy, dx);
         const arc = (e.shoot.spread > 1 ? e.shoot.arcDeg * Math.PI / 180 : 0);
         const mv = data.moves[e.shoot.move];
+        const spd = mv.speed * (state.player.mods ? state.player.mods.enemyShotMul : 1);   // 金色徽章
         for (let s = 0; s < e.shoot.spread; s++) {
           const a = base + (e.shoot.spread > 1 ? (s / (e.shoot.spread - 1) - 0.5) * arc : 0);
           state.projectiles.push({
             owner: 'enemy', id: state.nextId++, moveId: e.shoot.move,
             x: e.x, y: e.y, px: e.x, py: e.y,
-            vx: Math.cos(a) * mv.speed, vy: Math.sin(a) * mv.speed,
-            life: mv.range / mv.speed, radius: mv.radius,
+            vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+            life: mv.range / spd, radius: mv.radius,
           });
         }
         e.shootCd = e.shoot.cooldown * (0.85 + state.rand() * 0.3);
@@ -720,6 +914,8 @@ export function stepEnemies(state, input, data) {
       }
     }
 
+    // 束缚带减速
+    if (e.slowT > 0) { vx *= 0.5; vy *= 0.5; }
     if (e.passWalls) {
       // 鬼斯穿墙：超界从另一侧回卷
       e.x = ((e.x + vx * state.dt) % state.roomW + state.roomW) % state.roomW;
@@ -734,9 +930,24 @@ export function stepEnemies(state, input, data) {
 
     e.touchCd -= state.dt;
     if (p.alive && e.touchCd <= 0) {
+      // 桃桃果：接触伤害免疫期
+      if (p.buffs && p.buffs.contact > 0) continue;
       const rr = e.radius + 0.45;
       if (dist2(e.x, e.y, p.x, p.y) < rr * rr) {
-        if (state.hurtPlayer(e.touchDmg)) e.touchCd = bal.contactCooldown;
+        const hurt = state.hurtPlayer(e.touchDmg);
+        if (hurt) {
+          e.touchCd = bal.contactCooldown;
+          // 凸凸头盔：接触反伤 + 击退
+          const m = p.mods;
+          if (m && m.retaliate > 0) {
+            e.hp -= m.retaliate;
+            e.flash = 0.12;
+            const kd = Math.hypot(e.x - p.x, e.y - p.y) || 1;
+            e.kx = (e.x - p.x) / kd * 7; e.ky = (e.y - p.y) / kd * 7;
+            state.events.push({ t: 'retaliate', x: p.x, y: p.y, dmg: m.retaliate });
+            if (e.hp <= 0) killEnemy(state, e, 'normal');
+          }
+        }
       }
     }
   }
@@ -767,8 +978,11 @@ export function spawnWave(state, data) {
   const cell = state.map.get(state.cellKey);
   const waves = state.waves || data.waves;
   const waveDef = waves[Math.min(Math.max(state.room.waveIdx, 0), waves.length - 1)];
+  const eMul = state.player.mods ? state.player.mods.enemyMul : 1;   // 白银喷雾
   for (const { id, n } of waveDef) {
-    for (let k = 0; k < n; k++) {
+    let count = n;
+    if (eMul < 1 && n > 1) count = n - (state.rand() < (1 - eMul) * n ? 1 : 0);
+    for (let k = 0; k < count; k++) {
       const spec = data.enemies[id];
       let x = 0, y = 0, ok = false;
       for (let tries = 0; tries < 24 && !ok; tries++) {
@@ -822,7 +1036,16 @@ export function stepRoom(state, input, data) {
   for (const d of state.pedestals) {
     if (d.taken) continue;
     if (dist2(p.x, p.y, d.x, d.y) < 0.85 * 0.85 && p.alive) {
-      if (d.price > 0) {
+      if (d.priceHp > 0) {
+        // 黑市：用亲密度上限交易（至少保留 2 格）
+        if (p.maxHp - d.priceHp >= 2) {
+          p.hpPaid = (p.hpPaid || 0) + d.priceHp;
+          engine_recompute(state, data);
+          p.hp = Math.min(p.hp, p.maxHp);
+          state.events.push({ t: 'bm-deal', itemId: d.itemId, hpCost: d.priceHp });
+          takePedestal(state, data, d);
+        }
+      } else if (d.price > 0) {
         if (p.money >= d.price) {
           p.money -= d.price;
           state.stats.spent = (state.stats.spent || 0) + d.price;
@@ -865,6 +1088,8 @@ function clearRoom(state, data, cell) {
   state.room.doorOpen = true;
   cell.cleared = true;
   state.stats.roomsCleared += 1;
+  // 电气种子：清房奖励连锁弹，下一间战斗房生效
+  if (state.bm && state.player.mods.chainShots > 0) state.bm.pendChain = state.player.mods.chainShots;
   // 剩饭：每清一房回血
   const m = state.player.mods;
   if (m.regenRoom > 0 && state.player.hp < state.player.maxHp) {
@@ -880,7 +1105,7 @@ function clearRoom(state, data, cell) {
 }
 
 function rollDrop(state, data) {
-  const luck = state.player.luckBase || 0;               // 伊布：运气流掉落加成
+  const luck = (state.player.luckBase || 0) + (state.player.mods && state.player.mods.luckAdd || 0);   // 伊布 + 幸运蛋
   const roll = state.rand() + luck * 0.1;
   for (const [limit, kind] of data.balance.pickup.dropBands) {
     if (roll < limit) {
@@ -912,8 +1137,12 @@ function stepPickups(state, data) {
         case 'stairs':
           goNextFloor(state, data);
           return;                                     // 房间已重建，拾取列表已清
-        case 'coin': p.money += 1; state.stats.coins += 1; break;
-        case 'coin2': p.money += 2; state.stats.coins += 2; break;
+        case 'coin':
+          p.money += 1 + ((m.moneyMul > 1 && state.rand() < (m.moneyMul - 1)) ? 1 : 0);   // 护符金币
+          state.stats.coins += 1; break;
+        case 'coin2':
+          p.money += 2 + ((m.moneyMul > 1 && state.rand() < (m.moneyMul - 1)) ? 1 : 0);
+          state.stats.coins += 2; break;
         case 'heart':
           if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + data.balance.pickup.heartHeal); state.events.push({ t: 'heal', heal: data.balance.pickup.heartHeal }); }
           else taken = false;
@@ -1001,4 +1230,4 @@ function takePedestal(state, data, d) {
 }
 
 // 规避循环 import：engine.recompute 通过事件总线由调用方重算——这里直接内联等价逻辑
-import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m4h';
+import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m5b';

@@ -10,7 +10,7 @@ export function createBgm({ ensureCtx, onLog } = {}) {
   let started = false;
   let muted = false;
   try { muted = localStorage.getItem('depths-bgm-muted') === '1'; } catch (e) { /* ignore */ }
-  let scene = { floorNo: 1, combat: false, boss: false };
+  let scene = { floorNo: 1, combat: false, boss: false, roomType: null };
 
   const midi = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -25,8 +25,21 @@ export function createBgm({ ensureCtx, onLog } = {}) {
     3: { bpm: 84, wave: 'triangle', cutoff: 900,
       prog: [[50, 53, 57], [53, 58, 62], [53, 57, 60], [57, 61, 64]],      // Dm Bb F A(和声小调V)
       motif: [50, 53, 57, 60, 62, 65, 69] },                                // D 多利安
+    4: { bpm: 64, wave: 'sine', cutoff: 2400,                               // 晶核之间：空灵梦幻
+      prog: [[56, 59, 63], [52, 56, 59], [47, 51, 54], [54, 57, 61]],      // G#m E B F#
+      motif: [68, 71, 73, 75, 78, 80, 83] },                                // 高八度泛音感
   };
-  const theme = () => THEMES[scene.floorNo] || THEMES[1];
+  // 房间变奏（覆盖楼层主题）：黑市=阴冷小二度 / 祭坛=钟磬圣咏
+  const ROOM_THEMES = {
+    blackmarket: { bpm: 60, wave: 'square', cutoff: 520,
+      prog: [[50, 53, 57], [51, 54, 58], [50, 53, 57], [49, 53, 56]],      // Dm Eb(m) Dm Cm——b2 阴影
+      motif: [50, 51, 53, 56, 57, 58] },
+    altar: { bpm: 58, wave: 'sine', cutoff: 1600,
+      prog: [[48, 52, 55], [55, 59, 62], [57, 60, 64], [53, 57, 60]],      // C G Am F
+      motif: [72, 76, 79, 81, 84] },                                        // 高音钟磬
+  };
+  const theme = () => (scene.roomType && ROOM_THEMES[scene.roomType])
+    || THEMES[scene.floorNo] || THEMES[1];
   const bpm = () => theme().bpm * (scene.boss ? 1.22 : 1);
 
   function buildGraph() {
@@ -156,7 +169,8 @@ export function createBgm({ ensureCtx, onLog } = {}) {
     },
     setScene(patch) {
       const next = { ...scene, ...patch };
-      const changed = next.floorNo !== scene.floorNo || next.combat !== scene.combat || next.boss !== scene.boss;
+      const changed = next.floorNo !== scene.floorNo || next.combat !== scene.combat
+        || next.boss !== scene.boss || next.roomType !== scene.roomType;
       scene = next;
       if (changed) applyGains();
     },

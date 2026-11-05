@@ -1,20 +1,30 @@
 // 道具效果系统（纯函数）：背包 → 数值修饰 mods。引擎与测试共用。
-import { damageStat, fireInterval } from './combat.js?v=m4h';
+import { damageStat, fireInterval } from './combat.js?v=m5b';
 
 export const BASE_MODS = () => ({
   dmgUps: 0, dmgFlat: 0, dmgMul: 1,
   tears: 0, speedAdd: 0,
-  rangeMul: 1, shotSpeedMul: 1, sizeMul: 1,
+  rangeMul: 1, shotSpeedMul: 1, shotSpeedAdd: 0, sizeMul: 1,
   crit: 0, pierce: 0, split: false, homing: 0, bounce: 0,
   knockMul: 1, typeMul: {}, superBonus: 0,
   magnet: 0, killHeal: 0, flinch: 0, dodge: 0,
   regenRoom: 0, maxHpAdd: 0, blockChance: 0, hurtResist: 0,
   ppMul: 1, ppCost: 1, lethalGuard: false,
   lockB: false, tm: null,           // tm = B 槽招式 id
+  // M5 第二批扩展
+  burnChance: 0, poisonChance: 0, freezeChance: 0, slowOnHit: 0,
+  auraDps: 0, auraR: 0, auraSelfHurt: 0, toxicSelf: 0,
+  retaliate: 0, flyingMul: 1, hitRamp: 0,
+  speciesDmgMul: [],                // [{species, mul}] 专属件（进化后 species 变化自动失效）
+  enemyShotMul: 1,                  // 金色徽章：普通敌弹减速
+  moneyMul: 1, luckAdd: 0, enemyMul: 1, iframesAdd: 0, echoHeal: 0,
+  compass: false, bmSlots: 0,
+  bossFullHeal: false, floorPp: false, chainShots: 0,
 });
 
-/** 背包 → mods。inv = { passives:[], trinket, badges:[] } */
-export function applyItems(items, inv) {
+/** 背包 → mods。inv = { passives:[], trinket, badges:[] }
+ *  ctx = { species, evolved }：专属件/进化奇石的条件上下文（缺省时条件件按已进化=不生效处理）。 */
+export function applyItems(items, inv, ctx = {}) {
   const m = BASE_MODS();
   const all = [
     ...inv.passives.map((id) => items[id]).filter(Boolean),
@@ -51,6 +61,37 @@ export function applyItems(items, inv) {
     if (e.typeMul) for (const k of Object.keys(e.typeMul)) {
       m.typeMul[k] = (m.typeMul[k] || 1) * e.typeMul[k];
     }
+    // M5 第二批
+    if (e.burnChance) m.burnChance += e.burnChance;
+    if (e.poisonChance) m.poisonChance += e.poisonChance;
+    if (e.freezeChance) m.freezeChance += e.freezeChance;
+    if (e.slowOnHit) m.slowOnHit = Math.max(m.slowOnHit, e.slowOnHit);
+    if (e.auraDps) m.auraDps += e.auraDps;
+    if (e.auraR) m.auraR = Math.max(m.auraR, e.auraR);
+    if (e.auraSelfHurt) m.auraSelfHurt += e.auraSelfHurt;
+    if (e.toxicSelf) m.toxicSelf = Math.max(m.toxicSelf, e.toxicSelf);
+    if (e.retaliate) m.retaliate += e.retaliate;
+    if (e.flyingMul) m.flyingMul *= e.flyingMul;
+    if (e.hitRamp) m.hitRamp = Math.max(m.hitRamp, e.hitRamp);
+    if (e.shotSpeedAdd) m.shotSpeedAdd += e.shotSpeedAdd;
+    if (e.enemyShotMul) m.enemyShotMul *= e.enemyShotMul;
+    if (e.moneyMul) m.moneyMul *= e.moneyMul;
+    if (e.luckAdd) m.luckAdd += e.luckAdd;
+    if (e.enemyMul) m.enemyMul *= e.enemyMul;
+    if (e.iframesAdd) m.iframesAdd += e.iframesAdd;
+    if (e.echoHeal) m.echoHeal = m.echoHeal ? Math.min(m.echoHeal, e.echoHeal) : e.echoHeal;
+    if (e.compass) m.compass = true;
+    if (e.bmSlots) m.bmSlots += e.bmSlots;
+    if (e.bossFullHeal) m.bossFullHeal = true;
+    if (e.floorPp) m.floorPp = true;
+    if (e.chainShots) m.chainShots += e.chainShots;
+    if (e.speciesDmgMul) m.speciesDmgMul.push(e.speciesDmgMul);
+    // 进化奇石：未进化才有格挡
+    if (e.unevolvedBlock && !ctx.evolved) m.blockChance += e.unevolvedBlock;
+  }
+  // 专属件：species 匹配才乘（皮卡丘的电气球进化成雷丘后失效——经典梗同款）
+  for (const sd of m.speciesDmgMul) {
+    if (ctx.species && sd.species === ctx.species) m.dmgMul *= sd.mul;
   }
   return m;
 }

@@ -115,22 +115,26 @@ export function buildRoom(THREE, scene, tex, lights, tier, cfg) {
   // ---- 火把 ×2（北墙两侧）----
   const torches = [];
   const poleMat = new THREE.MeshStandardMaterial({ color: 0x5a4630, roughness: 0.9 });
+  // 黑市=暗红氛围 / 祭坛=暖金氛围（水晶簇颜色同步替换）
+  const isBm = type === 'blackmarket', isAltar = type === 'altar';
+  const torchColor = isBm ? 0xff5a5a : isAltar ? 0xffe9a0 : 0xffb36b;
+  const crystalColor = isBm ? 0xff3860 : isAltar ? 0xffd570 : 0x4fc3ff;
   [W * 0.22, W * 0.78].forEach((x) => {
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 0.6, 6), poleMat);
     pole.position.set(x, 0.3, 0.42);
     pole.castShadow = true;
     group.add(pole);
     const flame = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.75),
-      new THREE.MeshBasicMaterial({ map: tex.flame, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+      new THREE.MeshBasicMaterial({ map: tex.flame, transparent: true, depthWrite: false, side: THREE.DoubleSide, color: torchColor }));
     flame.position.set(x, 0.78, 0.42);
     group.add(flame);
-    const light = lights.acquire(0xffb36b, 80, x, 1.0, 0.9);
+    const light = lights.acquire(torchColor, 80, x, 1.0, 0.9);
     torches.push({ flame, light, phase: Math.random() * 10, base: 80 });
   });
 
-  // ---- 水晶簇（Boss 房四周 4 簇，普通房 3 簇）----
+  // ---- 水晶簇（Boss 房四周 4 簇，普通房 3 簇；黑市暗红 / 祭坛暖金）----
   const crystalMat = new THREE.MeshStandardMaterial({
-    color: 0x9fdcff, emissive: 0x4fc3ff, emissiveIntensity: 1.8, roughness: 0.25,
+    color: 0x9fdcff, emissive: crystalColor, emissiveIntensity: 1.8, roughness: 0.25,
   });
   const spots = isBoss
     ? [[2.2, 2.2], [W - 2.2, 2.2], [2.2, H - 2.2], [W - 2.2, H - 2.2]]
@@ -147,7 +151,7 @@ export function buildRoom(THREE, scene, tex, lights, tier, cfg) {
     }
     g.position.set(x, 0, z);
     group.add(g);
-    lights.acquire(0x4fc3ff, 60, x, 1.1, z);
+    lights.acquire(crystalColor, 60, x, 1.1, z);
   });
 
   // ---- 浮尘 ----

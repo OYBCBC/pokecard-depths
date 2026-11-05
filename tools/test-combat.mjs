@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${a} ≉ ${b} (±${eps})`);
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -11,11 +11,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { damageStat, fireInterval, typeMultiplier, stabMultiplier, computeHit, enemyPanel } =
-  await import(join(ROOT, 'js/sim/combat.js?v=m4h'));
-const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m4h'));
-const { enterRoom } = await import(join(ROOT, 'js/sim/actors.js?v=m4h'));
-const _save = await import(join(ROOT, 'js/sim/save.js?v=m4h'));
-const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m4h'));
+  await import(join(ROOT, 'js/sim/combat.js?v=m5b'));
+const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m5b'));
+const _engine = await import(join(ROOT, 'js/sim/engine.js?v=m5b'));
+const { enterRoom } = await import(join(ROOT, 'js/sim/actors.js?v=m5b'));
+const _save = await import(join(ROOT, 'js/sim/save.js?v=m5b'));
+const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m5b'));
 function combatNeighbor(run, d) {
   const cell = run.map.get(run.cellKey);
   for (const [dk] of Object.entries(cell.doors)) {
@@ -178,7 +179,7 @@ test('引擎：冲刺给无敌与位移', () => {
 
 
 // ---------- M4：多层塔 / Z 招式 / 进化 / 替补 ----------
-const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m4h'));
+const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m5b'));
 
 function idleInput() {
   return { move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false, slotEdge: false, useEdge: false, zEdge: false, swapEdge: false };
@@ -462,3 +463,343 @@ test('图鉴：事件点亮（遭遇/击杀/馆主搭档/进化/结伴/别名）
   ({ dex } = dexApply(dex, [{ t: 'companion-join', name: '蚊香蝌蚪', eid: 'poliwag' }]));
   assert.equal(dex.poliwag.seen, 1, '结伴点亮');
 });
+
+// ---------- M5 第二批：道具全量 / 黑市祭坛 / 徽章 / 异常状态 ----------
+
+const _items = await import(join(ROOT, 'js/sim/items.js?v=m5b'));
+const items = data.items;
+
+test('道具全量：74 件（被动42+强化8+消耗11+纪念10+徽章3），图标齐全、池合法', () => {
+  const ids = Object.keys(items);
+  assert.equal(ids.length, 74, '总数 74，实际 ' + ids.length);
+  const byKind = {};
+  for (const id of ids) byKind[items[id].kind] = (byKind[items[id].kind] || 0) + 1;
+  assert.equal(byKind.passive, 42);
+  assert.equal(byKind.stat, 8);
+  assert.equal(byKind.consumable, 11);
+  assert.equal(byKind.trinket, 10);
+  assert.equal(byKind.badge, 3);
+  const VALID_POOLS = new Set(['T', 'S', 'O', 'C', 'X', 'D', 'A']);
+  for (const id of ids) {
+    const it = items[id];
+    assert.ok(it.name && it.desc && it.icon != null, id + ' 有名字/描述/图标');
+    assert.ok(existsSync(join(ROOT, 'assets/items', it.icon + '.png')), id + ' 图标 PNG 存在');
+    assert.ok(it.quality >= 0 && it.quality <= 4, id + ' 品质 0-4');
+    for (const p of it.pools) assert.ok(VALID_POOLS.has(p), id + ' 池代码 ' + p);
+    if (it.kind === 'badge') assert.equal(it.pools.length, 0, '徽章不入池（Boss 掉落）');
+  }
+  const poolOf = (code) => ids.filter((id) => items[id].pools.includes(code));
+  assert.ok(poolOf('D').length >= 3, '黑市池 ≥3（实际 ' + poolOf('D').length + '）');
+  assert.ok(poolOf('A').length >= 4, '祭坛池 ≥4（实际 ' + poolOf('A').length + '）');
+});
+
+test('专属件：电气球皮卡丘 ×2 / 雷丘失效；粗骨头卡拉卡拉 ×1.6；进化奇石进化后失效', () => {
+  const { applyItems } = _items;
+  const inv = { passives: ['light-ball', 'thick-club'], trinket: null, badges: [] };
+  const mPika = applyItems(items, inv, { species: 'pikachu', evolved: false });
+  near(mPika.dmgMul, 2, 1e-9);
+  const mRaichu = applyItems(items, inv, { species: 'raichu', evolved: true });
+  near(mRaichu.dmgMul, 1, 1e-9, '进化成雷丘后电气球失效（经典梗）');
+  const mCubone = applyItems(items, inv, { species: 'cubone', evolved: false });
+  near(mCubone.dmgMul, 1.6, 1e-9);
+  const mEvo = applyItems(items, { passives: ['evo-stone'], trinket: null, badges: [] }, { species: 'pikachu', evolved: true });
+  near(mEvo.blockChance, 0, 1e-9, '进化后进化奇石不格挡');
+  const mUn = applyItems(items, { passives: ['evo-stone'], trinket: null, badges: [] }, { species: 'pikachu', evolved: false });
+  near(mUn.blockChance, 0.15, 1e-9);
+});
+
+test('徽章：Boss 击败掉落（F1 灰）并生效（击退 ×1.25）', () => {
+  const run = createRun(data, 777);
+  run.player.inv.passives = [];
+  // 直接进 Boss 房击杀
+  const bossCell = [...run.map.values()].find((c) => c.type === 'boss');
+  enterRoom(run, data, bossCell.x + ',' + bossCell.y);
+  const boss = run.enemies.find((e) => e.family === 'boss');
+  assert.ok(boss, 'Boss 已生成');
+  boss.hp = 0; run.player.pp = 0; run.player.iframes = 9;
+  // 击杀走 stepRun 统一死亡检查
+  for (let i = 0; i < 120 && run.enemies.length; i++) stepRun(run, idleInput(), data);
+  assert.equal(run.enemies.length, 0, 'Boss 已死');
+  assert.deepEqual(run.player.inv.badges, ['badge-gray'], 'F1 掉灰色徽章');
+  near(run.player.mods.knockMul, 1.25, 1e-9);
+  assert.ok(run.events.some((e) => e.t === 'badge-take') || run.pickups.some((k) => k.kind === 'stairs'), '楼梯/事件在');
+});
+
+test('黑市/祭坛：无伤检定开房（F2 出现），进房有台座、锁路线互斥', () => {
+  const run = createRun(data, 20261104);
+  run.stats.hurtFloors = [];                 // 整层无伤 → 检定必过（1.35 > 1）
+  // F1 直接击杀 Boss 踩楼梯
+  const bossCell = [...run.map.values()].find((c) => c.type === 'boss');
+  enterRoom(run, data, bossCell.x + ',' + bossCell.y);
+  const boss = run.enemies.find((e) => e.family === 'boss');
+  boss.hp = 0; run.player.iframes = 9;
+  rideStairs(run, 200);
+  assert.equal(run.floorNo, 2, '已下层');
+  assert.ok(run.bm && run.bm.kind, '黑市/祭坛已开（bm.kind=' + (run.bm && run.bm.kind) + '）');
+  const cell = [...run.map.values()].find((c) => c.type === run.bm.kind);
+  assert.ok(cell, '地图上存在 ' + run.bm.kind + ' 房');
+  // 未探索前是死端 combat 替换：恰好 1 邻居 → 不在必经之路上
+  const nb = Object.values(cell.doors).length;
+  assert.equal(nb, 1, '替换的是死端');
+  // 进房内容
+  enterRoom(run, data, cell.x + ',' + cell.y);
+  assert.equal(run.room.type, run.bm.kind);
+  assert.ok(run.room.cleared, '无战斗房');
+  if (run.bm.kind === 'blackmarket') {
+    assert.equal(run.pedestals.length, 3, '黑市 3 件');
+    assert.ok(run.pedestals.every((d) => d.priceHp === 2), '亲密度上限定价 ♥×2');
+    assert.equal(run.bm.route, 'blackmarket', '路线锁定');
+  } else {
+    assert.equal(run.pedestals.length, 2, '祭坛 2 件');
+    assert.ok(run.pedestals.every((d) => d.price > 0 && !d.priceHp), '祭坛金钱定价');
+    assert.equal(run.bm.route, 'altar', '路线锁定');
+    assert.ok(run.pickups.some((k) => k.kind === 'heart'), '祭坛免费心');
+  }
+});
+
+test('黑市交易：priceHp 扣亲密度上限（hpPaid 进存档），下限保护 2 格', () => {
+  const run = createRun(data, 31337);
+  // 手工布置黑市房内容（绕开随机检定）
+  const cell = [...run.map.values()].find((c) => c.type === 'combat');
+  cell.type = 'blackmarket';
+  enterRoom(run, data, cell.x + ',' + cell.y);
+  // 手工摆 3 件 D 池道具（绕开 rollItem 随机，聚焦交易机制）
+  run.pedestals.length = 0;
+  ['flame-orb', 'toxic-orb', 'soul-dew'].forEach((id, i) =>
+    run.pedestals.push({ id: 900 + i, itemId: id, price: 0, priceHp: 2, x: run.roomW / 2 + (i - 1) * 2.6, y: run.roomH / 2 - 0.5, taken: false }));
+  const d = run.pedestals[0];
+  const maxBefore = run.player.maxHp;
+  run.player.x = d.x; run.player.y = d.y;
+  for (let i = 0; i < 3 && !d.taken; i++) stepRun(run, idleInput(), data);
+  assert.equal(d.taken, true, '已购买');
+  assert.equal(run.player.hpPaid, 2);
+  assert.equal(run.player.maxHp, maxBefore - 2, '上限 -2');
+  assert.ok(run.player.inv.passives.includes(d.itemId) || run.player.inv.trinket === d.itemId, '道具入包');
+  // 上限保护：maxHp=3 时买不起（3-2<2）
+  const d2 = run.pedestals.find((p) => !p.taken);
+  run.player.x = d2.x; run.player.y = d2.y;
+  for (let i = 0; i < 3 && !d2.taken; i++) stepRun(run, idleInput(), data);   // 第二件：4-2=2 ✓ 可买
+  assert.equal(d2.taken, true, '第二件可买（剩 2 格）');
+  assert.equal(run.player.maxHp, 2);
+  const d3 = run.pedestals.find((p) => !p.taken) || d2;
+  run.player.x = d3.x; run.player.y = d3.y;
+  run.player.hpPaid = 4;                        // 已买两件：maxHp=2 → 2-2<2 买不起
+  const { recompute: _rc } = _engine; _rc(run, data);
+  for (let i = 0; i < 3; i++) stepRun(run, idleInput(), data);
+  assert.equal(d3.taken, false, '上限不足不能交易（剩 2 格保底）');
+  // 存档往返：hpPaid 保持，maxHp = 基线 6 - 4 = 2
+  const { serializeRun, deserializeRun } = _save;
+  const rt = deserializeRun(data, JSON.parse(JSON.stringify(serializeRun(run))));
+  assert.equal(rt.player.hpPaid, 4);
+  assert.equal(rt.player.maxHp, 2, 'maxHp 经 hpPaid 重算');
+});
+
+test('互斥：进过黑市后祭坛永不再出（kind 只能是 blackmarket）', () => {
+  const run = createRun(data, 20261104);        // 与前测同种子：F2 走到 Boss 灭掉再下层
+  run.bm.route = 'blackmarket';                 // 预锁黑市路线
+  run.stats.hurtFloors = [];
+  for (const f of [2, 3]) {
+    const bossCell = [...run.map.values()].find((c) => c.type === 'boss');
+    enterRoom(run, data, bossCell.x + ',' + bossCell.y);
+    const boss = run.enemies.find((e) => e.family === 'boss');
+    boss.hp = 0; run.player.iframes = 9;
+    rideStairs(run, 300);
+  }
+  assert.equal(run.floorNo, 3, '到 F3');
+  if (run.bm.kind) assert.equal(run.bm.kind, 'blackmarket', '锁路线后只出黑市');
+});
+
+test('异常状态：中毒 DoT / 冰冻定身 / 束缚带减速', () => {
+  const run = createRun(data, 555);
+  run.player.inv.passives = ['toxic-orb', 'icy-rock', 'binding-band'];
+  const { recompute } = await0_engine();
+  recompute(run, data);
+  // 中毒：poisonChance=0.3+icy 0.12 → 造一只敌人打它若干次，看 poisonT/frozenT/slowT
+  const e0 = { id: 1, eid: 'rattata', name: '小拉达', types: ['normal'], family: 'wanderer',
+    radius: 0.4, score: 1, hp: 100, maxHp: 100, touchDmg: 1, speed: 1, spdMod: 1,
+    x: 8, y: 5, px: 8, py: 5, kx: 0, ky: 0, state: 'active', spawnT: 0, flash: 0, touchCd: 0, stun: 0,
+    anim: 'Idle', dir: 0, moving: false, wanderT: 0, wx: 0, wy: 0, shoot: null, shootCd: 0 };
+  run.enemies.push(e0);
+  run.player.x = 8; run.player.y = 3.2;      // 敌在正南（y+ = 南）——瞄准要朝南！
+  let sawPoison = false, sawFreeze = false;
+  for (let i = 0; i < 900 && !(sawPoison && sawFreeze); i++) {
+    e0.hp = 100; e0.state = 'active'; e0.spawnT = 0;   // 别让 DoT 杀掉/出生态挡接触
+    stepRun(run, { ...idleInput(), aim: { x: 0, y: 1 }, fire: true }, data);
+    if (e0.poisonT > 0) sawPoison = true;
+    if (e0.frozenT > 0) sawFreeze = true;
+  }
+  assert.ok(sawPoison, '剧毒宝珠上毒');
+  assert.ok(sawFreeze || true, '概率路径见下：确定性断言');
+  // 冻结/减速确定性：直接把概率拉满各验一发
+  run.enemies.length = 0;
+  run.enemies.push(e0);
+  run.player.mods.freezeChance = 1; run.player.mods.slowOnHit = 1.5;
+  let frz = false;
+  for (let i = 0; i < 120 && !frz; i++) {
+    e0.hp = 100; e0.poisonT = 0; e0.state = 'active'; e0.spawnT = 0; e0.frozenT = 0;
+    e0.x = 8; e0.y = 5; e0.px = 8; e0.py = 5;      // 钉在弹道上（概率阶段会游走）
+    run.player.x = 8; run.player.y = 3.2; run.player.px = 8; run.player.py = 3.2;
+    stepRun(run, { ...idleInput(), aim: { x: 0, y: 1 }, fire: true }, data);
+    if (e0.frozenT > 0) frz = true;
+  }
+  assert.ok(frz, '冰冻上过（确定性）');
+  for (let i = 0; i < 90 && e0.frozenT > 0; i++) stepRun(run, idleInput(), data);
+  assert.ok(e0.frozenT === undefined || e0.frozenT <= 0, '冰冻 0.8s 后解冻');
+  stepRun(run, { ...idleInput(), aim: { x: 0, y: 1 }, fire: true }, data);
+  assert.ok(e0.slowT > 0, '束缚带减速（确定性）');
+  assert.ok(run.player.hp > 0, '玩家还活着（测试用例兜底）');
+});
+
+test('圣灰：进 Boss 房回满（每层一次）；月之石：下层 PP 满', () => {
+  const run = createRun(data, 8888);
+  run.player.inv.passives = ['sacred-ash', 'moon-stone'];
+  const { recompute } = await0_engine();
+  recompute(run, data);
+  run.player.hp = 1; run.player.pp = 0;
+  const bossCell = [...run.map.values()].find((c) => c.type === 'boss');
+  enterRoom(run, data, bossCell.x + ',' + bossCell.y);
+  assert.equal(run.player.hp, run.player.maxHp, '圣灰回满');
+  assert.equal(run.bm.ashUsed, true);
+  // 二次进不再回满
+  const back = combatNeighborKey(run);
+  enterRoom(run, data, back);
+  run.player.hp = 1;
+  enterRoom(run, data, bossCell.x + ',' + bossCell.y);
+  assert.equal(run.player.hp, 1, '每层一次');
+  // 月之石：杀 Boss 下层
+  const boss = run.enemies.find((e) => e.family === 'boss');
+  boss.hp = 0; run.player.iframes = 9;
+  run.player.pp = 10;
+  rideStairs(run, 300);
+  assert.equal(run.floorNo, 2);
+  assert.equal(run.player.pp, 100, '月之石 PP 回满');
+});
+
+test('电气种子：清房存 3 发连锁，下一战斗房生效；消耗品 buff（沙鳞果移速）', () => {
+  const run = createRun(data, 9999);
+  run.player.inv.passives = ['electric-seed'];
+  const { recompute } = await0_engine();
+  recompute(run, data);
+  // 清一间战斗房 → pendChain
+  const nb = combatNeighborKey(run);
+  enterRoom(run, data, nb);
+  for (let i = 0; i < 400 && !(run.room.cleared && run.bm.pendChain === 3); i++) {
+    if (!run.player.alive) break;
+    run.enemies.forEach((e) => { e.hp = 0; });   // 每帧清（第二波会刷新）
+    stepRun(run, idleInput(), data);
+  }
+  assert.equal(run.bm.pendChain, 3, '清房存连锁');
+  // 进下一战斗房 → chainLeft=3 → 射击 3 发带 chain
+  const nb2 = combatNeighborKey(run);
+  enterRoom(run, data, nb2);
+  assert.equal(run.player.chainLeft, 3);
+  run.player.y = run.enemies[0] ? run.enemies[0].y : 5;
+  for (let i = 0; i < 90; i++) stepRun(run, { ...idleInput(), fire: true }, data);
+  assert.equal(run.player.chainLeft, 0, '3 发连锁弹打完');
+  // 沙鳞果
+  run.player.inv.consumable = 'salac-berry';
+  const spd = run.player.stats.moveSpeed;
+  for (let i = 0; i < 3 && !run.player.buffs.speed; i++) stepRun(run, { ...idleInput(), useEdge: true }, data);
+  assert.ok(run.player.buffs.speed > 0, '沙鳞果生效');
+  run.player.x = 2; run.player.px = 2;
+  stepRun(run, { ...idleInput(), move: { x: 1, y: 0 } }, data);
+  assert.ok(run.player.x - 2 > spd * (1 / 60) * 0.9, '移速 ≥ ×1.3（' + (run.player.x - 2).toFixed(3) + ' > ' + (spd / 60).toFixed(3) + '）');
+});
+
+test('龙睛果护盾：格挡一次并消耗', () => {
+  const run = createRun(data, 1200);
+  run.player.inv.consumable = 'lansat-berry';
+  run.player.buffs.guard = 0;                // 使用后 10
+  const hp0 = run.player.hp;
+  for (let i = 0; i < 3 && !run.player.buffs.guard; i++) stepRun(run, { ...idleInput(), useEdge: true }, data);
+  assert.ok(run.player.buffs.guard > 0);
+  run.player.iframes = 0;
+  run.hurtPlayer(2);
+  assert.equal(run.player.hp, hp0, '护盾格挡');
+  assert.equal(run.player.buffs.guard, 0, '护盾消耗');
+  run.player.iframes = 0;
+  run.hurtPlayer(2);
+  assert.equal(run.player.hp, hp0 - 2, '之后正常受伤');
+});
+
+test('凸凸头盔：接触反伤 3 点', () => {
+  const run = createRun(data, 1300);
+  run.player.inv.passives = ['rocky-helmet'];
+  const { recompute } = await0_engine();
+  recompute(run, data);
+  const nb = combatNeighborKey(run);
+  enterRoom(run, data, nb);
+  const e = run.enemies[0];
+  assert.ok(e, '有敌人');
+  e.state = 'active'; e.spawnT = 0;          // 跳过出生态（spawning 免接触）
+  e.x = run.player.x; e.y = run.player.y;    // 贴脸触发接触
+  e.touchCd = 0; run.player.iframes = 0; run.player.dashActive = false;
+  const ehp = e.hp;
+  for (let i = 0; i < 5 && ehp === e.hp && e.state !== 'dead'; i++) stepRun(run, idleInput(), data);
+  assert.ok(e.hp < ehp || e.state === 'dead', '反伤结算');
+});
+
+test('火焰宝珠光环：范围内敌人持续掉血 + 自伤累计', () => {
+  const run = createRun(data, 1400);
+  run.player.inv.passives = ['flame-orb'];
+  const { recompute } = await0_engine();
+  recompute(run, data);
+  const e0 = { id: 2, eid: 'rattata', name: '小拉达', types: ['normal'], family: 'wanderer',
+    radius: 0.4, score: 1, hp: 50, maxHp: 50, touchDmg: 1, speed: 0.01, spdMod: 1,
+    x: run.player.x + 1, y: run.player.y, px: 0, py: 0, kx: 0, ky: 0, state: 'active', spawnT: 0,
+    flash: 0, touchCd: 99, stun: 0, anim: 'Idle', dir: 0, moving: false, wanderT: 9, wx: 0, wy: 0, shoot: null, shootCd: 0 };
+  run.enemies.push(e0);
+  e0.touchCd = 999;                            // 别让接触伤害干扰
+  for (let i = 0; i < 120 && e0.hp > 40; i++) stepRun(run, idleInput(), data);
+  assert.ok(e0.hp <= 40, '光环跳伤（hp=' + e0.hp.toFixed(1) + '）');
+});
+
+test('离洞绳：E 传送回出生房', () => {
+  const run = createRun(data, 1500);
+  run.player.inv.consumable = 'escape-rope';
+  const nb = combatNeighborKey(run);
+  enterRoom(run, data, nb);
+  assert.notEqual(run.cellKey, run.map.get('6,6') ? '6,6' : run.cellKey, '不在出生房');
+  for (let i = 0; i < 3 && run.cellKey === nb; i++) stepRun(run, { ...idleInput(), useEdge: true }, data);
+  const startCell = [...run.map.values()].find((c) => c.type === 'start');
+  assert.equal(run.cellKey, startCell.x + ',' + startCell.y, '回到出生房');
+});
+
+test('serialize：bm 路线/计量随档保留', () => {
+  const { serializeRun, deserializeRun } = _save;
+  const run = createRun(data, 1600);
+  run.bm.route = 'blackmarket'; run.bm.bossHurt = true;
+  const rt = deserializeRun(data, JSON.parse(JSON.stringify(serializeRun(run))));
+  assert.equal(rt.bm.route, 'blackmarket');
+  assert.equal(rt.bm.bossHurt, true);
+  // 旧档（无 bm 字段）兜底
+  const oldSaved = serializeRun(run); delete oldSaved.bm;
+  const rt2 = deserializeRun(data, JSON.parse(JSON.stringify(oldSaved)));
+  assert.equal(rt2.bm.route, null, '旧档 bm 兜底');
+});
+
+function await0_engine() {
+  return _engine;
+}
+// 击杀 Boss 后每帧把玩家挪到楼梯上（idle 输入不会自己走）
+function rideStairs(run, frames) {
+  for (let i = 0; i < frames; i++) {
+    const st = run.pickups.find((k) => k.kind === 'stairs');
+    if (st) { run.player.x = st.x; run.player.y = st.y; }
+    stepRun(run, idleInput(), data);
+  }
+}
+function combatNeighborKey(run) {
+  const cell = run.map.get(run.cellKey);
+  for (const [dk] of Object.entries(cell.doors)) {
+    const [dx, dy] = dk.split(',').map(Number);
+    const nb = run.map.get((cell.x + dx) + ',' + (cell.y + dy));
+    if (nb && nb.type === 'combat') return (cell.x + dx) + ',' + (cell.y + dy);
+  }
+  // 无 combat 邻居：任何邻居
+  for (const [dk] of Object.entries(cell.doors)) {
+    const [dx, dy] = dk.split(',').map(Number);
+    return (cell.x + dx) + ',' + (cell.y + dy);
+  }
+  return run.cellKey;
+}

@@ -146,12 +146,13 @@ export function createHud() {
   let fpsFrames = 0, fpsTime = 0, fps = 0, frameMs = 0;
 
   // ---------- 地图 SVG（小地图 / Tab 大图共用） ----------
-  const MM_ICON = { boss: '☠', shop: '$', treasure: '▣', challenge: '⚔', secret: '?', start: '▲', camp: '♥' };
-  // 可见性（以撒式迷雾）：已访问；或紧邻已访问房（隐藏房须已揭示）
+  const MM_ICON = { boss: '☠', shop: '$', treasure: '▣', challenge: '⚔', secret: '?', start: '▲', camp: '♥', blackmarket: '✦', altar: '✚' };
+  let compassOn = false;                       // 洞窟罗盘：隐藏房直接可见
+  // 可见性（以撒式迷雾）：已访问；或紧邻已访问房（隐藏房须已揭示/罗盘）
   function visibleCells(cells) {
     const vis = new Set();
     for (const c of cells.values()) {
-      const revealed = c.type !== 'secret' || c.visited
+      const revealed = c.type !== 'secret' || c.visited || compassOn
         || !!(c.doors && Object.values(c.doors).includes('revealed'));
       if (!revealed) continue;
       if (c.visited) { vis.add(c.x + ',' + c.y); continue; }
@@ -245,22 +246,29 @@ export function createHud() {
     minimap(cells, cellKey, W) {
       minimapEl.innerHTML = mapSvg(cells, cellKey, { win: 5, size: 20, gap: 5 });
     },
+    setCompass(on) { compassOn = !!on; },
     // 台座详情（靠近时显示）
     peek(info) {
       if (!info) { peekEl.classList.add('hidden'); return; }
       const q = info.quality || 0;
       const pips = `<span class="pk-q q${q}">${q ? '◆'.repeat(q) : '◇'}</span>`;
-      const price = info.price > 0
-        ? `<span class="pk-p">¥${info.price}</span>`
-        : `<span class="pk-p free">${info.free ? '免费' : '踏上拾取'}</span>`;
+      const price = info.priceHp
+        ? `<span class="pk-p${info.hpShort ? ' short' : ''}">${info.hpShort ? '上限不足' : '♥'.repeat(info.priceHp)}</span>`
+        : info.price > 0
+          ? `<span class="pk-p">¥${info.price}</span>`
+          : `<span class="pk-p free">${info.free ? '免费' : '踏上拾取'}</span>`;
       peekEl.innerHTML = `<div class="pk">${info.icon ? `<img src="assets/items/${info.icon}.png">` : ''}` +
         `<div><div class="pk-n">${info.name} ${pips}</div><div class="pk-d">${info.desc || ''}</div></div>${price}</div>`;
       peekEl.classList.remove('hidden');
     },
     hidePeek() { peekEl.classList.add('hidden'); },
-    // 开始界面：继续存档 / 新开 / 每日挑战 / 图鉴 / 成就 / 存档管理 + 本机榜
-    startScreen({ save, board, onContinue, onNew, onDaily, onDex, onAchv, onExport, onImport, achvCount }) {
+    // 开始界面：继续存档 / 新开 / 每日挑战 / 图鉴 / 成就 / 画质 / 存档管理 + 本机榜
+    startScreen({ save, board, onContinue, onNew, onDaily, onDex, onAchv, onExport, onImport, achvCount, quality, onQuality }) {
       const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+      const qRow = quality ? '<div class="st-title">画质</div><div class="st-row">' +
+        [['high', '高（景深）'], ['med', '中（推荐）'], ['low', '低（老设备）']].map(([id, label]) =>
+          `<button class="st-btn st-sub-btn${quality === id ? ' primary' : ''}" data-q="${id}">${label}</button>`).join('') +
+        '</div>' : '';
       const btns = [
         save ? `<button class="st-btn primary" id="st-continue">继续探险 · 第 ${save.floorNo} 层 ${save.name}</button>` : '',
         `<button class="st-btn" id="st-new">${save ? '新的探险' : '开始探险'}</button>`,
@@ -270,7 +278,7 @@ export function createHud() {
           `<button class="st-btn st-sub-btn" id="st-achv">成就${achvCount != null ? ' ' + achvCount : ''}</button>` +
           (save ? '<button class="st-btn st-sub-btn" id="st-export">导出存档</button>' : '') +
           '<button class="st-btn st-sub-btn" id="st-import">导入存档</button>' +
-        '</div>',
+        '</div>' + qRow,
       ].join('');
       const boardHtml = board.length
         ? '<div class="st-title">本机榜</div><div class="st-board">' + board.map((b, i) =>
@@ -290,6 +298,9 @@ export function createHud() {
       const primary = (save && q('st-continue')) || q('st-new');
       if (save && q('st-continue')) q('st-continue').onclick = () => { hide(); onContinue(); };
       q('st-new').onclick = () => { hide(); onNew(); };
+      if (onQuality) startEl.querySelectorAll('[data-q]').forEach((b) => {
+        b.onclick = () => onQuality(b.dataset.q);
+      });
       q('st-daily').onclick = () => { hide(); onDaily(); };
       if (q('st-dex')) q('st-dex').onclick = () => { onDex(); };
       if (q('st-achv')) q('st-achv').onclick = () => { onAchv && onAchv(); };
@@ -466,11 +477,11 @@ export function createHud() {
       if (d.taken) { if (el) el.remove(); return; }
       if (!el) {
         el = document.createElement('span');
-        el.className = 'price' + (d.price ? '' : ' free');
+        el.className = 'price' + (d.price || d.priceHp ? '' : ' free');
         el.dataset.pid = d.id;
         pricesEl.appendChild(el);
       }
-      el.textContent = d.price ? `¥${d.price}` : '免费';
+      el.textContent = d.priceHp ? '♥'.repeat(d.priceHp) : (d.price ? `¥${d.price}` : '免费');
       el.style.left = sx + 'px';
       el.style.top = sy + 'px';
     },

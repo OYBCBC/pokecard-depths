@@ -1,22 +1,22 @@
 // 启动入口 M3：楼层/多房间/道具/Boss 全链路。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m4h';
-import { createLights } from './gfx/lights.js?v=m4h';
-import { createCamera } from './gfx/camera.js?v=m4h';
-import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m4h';
-import { createBillboard } from './gfx/sprites.js?v=m4h';
-import { createEffects } from './gfx/effects.js?v=m4h';
-import { createPostfx } from './gfx/postfx.js?v=m4h';
-import { createHud } from './ui/hud.js?v=m4h';
-import { createCries } from './audio/cries.js?v=m4h';
-import { createBgm } from './audio/bgm.js?v=m4h';
-import { createSfx } from './audio/sfx.js?v=m4h';
-import { createInput } from './core/input.js?v=m4h';
-import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m4h';
-import { enterRoom } from './sim/actors.js?v=m4h';
-import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m4h';
-import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m4h';
-import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m4h';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m5b';
+import { createLights } from './gfx/lights.js?v=m5b';
+import { createCamera } from './gfx/camera.js?v=m5b';
+import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m5b';
+import { createBillboard } from './gfx/sprites.js?v=m5b';
+import { createEffects } from './gfx/effects.js?v=m5b';
+import { createPostfx } from './gfx/postfx.js?v=m5b';
+import { createHud } from './ui/hud.js?v=m5b';
+import { createCries } from './audio/cries.js?v=m5b';
+import { createBgm } from './audio/bgm.js?v=m5b';
+import { createSfx } from './audio/sfx.js?v=m5b';
+import { createInput } from './core/input.js?v=m5b';
+import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m5b';
+import { enterRoom } from './sim/actors.js?v=m5b';
+import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m5b';
+import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m5b';
+import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m5b';
 
 const hud = createHud();
 const tier = detectTier();
@@ -91,7 +91,7 @@ function composerWorks(renderer, composer, canvas) {
   }
 }
 
-const ROOM_NAMES = { start: '出生房', combat: '洞窟', treasure: '宝箱房', shop: '友好商店', challenge: '挑战房', secret: '？？？', boss: '道馆' };
+const ROOM_NAMES = { start: '出生房', combat: '洞窟', treasure: '宝箱房', shop: '友好商店', challenge: '挑战房', secret: '？？？', boss: '道馆', blackmarket: '火箭队黑市', altar: '吉利蛋祭坛', camp: '救援营地' };
 
 async function boot() {
   hud.progress(0.05, '读取数据…');
@@ -328,6 +328,12 @@ async function boot() {
   hud.progress(1, '出发！');
   hud.ready();
 
+  // ---- Service Worker（M5）：离线缓存；selfcheck/调试不注册防旧缓存挡新代码 ----
+  if ('serviceWorker' in navigator && !selfcheckOn && !params.has('nosw')) {
+    try { navigator.serviceWorker.register('sw.js').catch((e) => console.info('[sw] 注册失败（不影响游戏）', e)); }
+    catch (e) { /* ignore */ }
+  }
+
   // ---- 成就 / 跨局 meta（M4）----
   let achvSet = achvStore.read();
   let meta = metaStore.read();
@@ -410,6 +416,11 @@ async function boot() {
       save: ok ? { floorNo: ok.floorNo, name: data.floors[ok.floorNo].name } : null,
       board: readBoard(),
       achvCount: `${achvSet.size}/${ACHVS.length}`,
+      quality: tier,
+      onQuality: (q) => {
+        try { localStorage.setItem('depths-quality', q); } catch (e) { /* ignore */ }
+        location.reload();                                     // 渲染器/后处理链随档位重建
+      },
       onContinue: () => beginRun(ok),
       onNew: () => pickStarter(false),
       onDaily: () => pickStarter(true),
@@ -477,7 +488,12 @@ async function boot() {
     }
     const it = data.items[d.itemId];
     if (!it) return null;
-    return { name: it.name, desc: it.desc, quality: it.quality, icon: it.icon, price: d.price, free: d.price === 0 };
+    const priceHp = d.priceHp > 0 ? '♥'.repeat(d.priceHp) : null;
+    return {
+      name: it.name, desc: it.desc, quality: it.quality, icon: it.icon,
+      price: d.price, free: d.price === 0 && !d.priceHp, priceHp,
+      hpShort: d.priceHp > 0 && run.player.maxHp - d.priceHp < 2,   // 上限不足
+    };
   }
 
   const fading = [];
@@ -499,6 +515,8 @@ async function boot() {
           else if (ev.type === 'treasure') hud.banner('宝箱房', '免费的强化在等你', 1600);
           else if (ev.type === 'secret') hud.banner('隐藏房！', '你发现了秘密', 2000);
           else if (ev.type === 'camp') hud.banner('救援营地', '受困的宝可梦在等你（免费结伴）', 2200);
+          else if (ev.type === 'blackmarket') hud.banner('火箭队黑市', '用亲密度上限交易高级货（♥×2 一件）', 2600);
+          else if (ev.type === 'altar') hud.banner('吉利蛋祭坛', '捐献金钱换取守护 · 还有免费回复', 2600);
           break;
         }
         case 'room-transition': hud.flash(); splay('door'); break;
@@ -597,10 +615,58 @@ async function boot() {
           roomView && roomView.revealSecret();
           hud.banner('墙上有裂缝……开了！', '', 1800);
           break;
-        case 'boss-clear':
-          hud.banner(`第 ${ev.floor} 枚徽章 GET！`, '楼梯出现了——去下一层', 3000);
+        case 'boss-clear': {
+          const bSpec = data.enemies[data.floors[ev.floor].boss];
+          hud.banner(`${bSpec.name} 被击败了！`, '楼梯出现了——去下一层', 3000);
           hud.hideBossBar();
+          const aceCry = (DEX_EXTRA[bSpec.anim] || {}).dex;      // 馆主搭档弱化叫声
+          if (aceCry) cry(aceCry, { volume: 0.35 });
           break;
+        }
+        case 'badge-take':
+          splay('item');
+          hud.banner(`${ev.name} GET！`, '馆主徽章：本局全程生效', 2600);
+          hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB);
+          break;
+        case 'bm-open':
+          hud.toast(ev.kind === 'blackmarket' ? '黑市的门开着……' : '祭坛的光在召唤……',
+            ev.kind === 'blackmarket' ? '本层某处出现了火箭队黑市' : '本层某处出现了吉利蛋祭坛');
+          break;
+        case 'bm-deal':
+          damageNum(run.player.x, run.player.y, '-♥' + ev.hpCost, 'weak');
+          splay('coin');
+          break;
+        case 'ash-heal':
+          hud.banner('圣灰的恩泽', '亲密度回满了！', 1800);
+          splay('heart');
+          break;
+        case 'toxic-selfhurt': case 'aura-selfhurt':
+          damageNum(ev.x, ev.y, '-1', 'poison');
+          player.flash(0.08);
+          break;
+        case 'enemy-freeze':
+          fx.burst(ev.x, ev.y, 6, 0xa8dcf5);
+          damageNum(ev.x, ev.y, '冰冻', 'weak');
+          splay('freeze');
+          break;
+        case 'enemy-burn': fx.burst(ev.x, ev.y, 3, 0xff9a4a); break;
+        case 'enemy-poison':
+          fx.burst(ev.x, ev.y, 3, 0xb478d8);
+          splay('poison');
+          break;
+        case 'retaliate':
+          damageNum(ev.x, ev.y, ev.dmg, 'super');
+          splay('hit');
+          break;
+        case 'chain-hit':
+          fx.bolt(ev.from[0], ev.from[1], ev.to[0], ev.to[1]);
+          splay('chain');
+          break;
+        case 'chain-ready': hud.toast('电气种子', `本房前 ${ev.n} 发弹带连锁闪电`); break;
+        case 'pp-full': splay('heart'); break;
+        case 'teleport': hud.flash(); splay('door'); break;
+        case 'cured': hud.toast('木子果', '异常状态全部解除'); break;
+        case 'regen': if (ev.echo) damageNum(run.player.x, run.player.y, '+1', 'super'); break;
         case 'floor-next':
           saveNow();
           hud.banner(ev.name, '回 2 格亲密度 · 敌人更强了', 3200);
@@ -622,9 +688,12 @@ async function boot() {
           fx.burst(ev.x, ev.y, 26, 0xffe24a);
           damageNum(ev.x, ev.y, ev.name + '！', 'super');
           break;
-        case 'companion-join':
+        case 'companion-join': {
           hud.banner(`${ev.name} 加入了同行！`, '按 F 随时切换', 2600);
+          const cSpec = data.enemies[ev.eid];                    // 结伴叫声
+          if (cSpec && cSpec.dex) cry(cSpec.dex, { volume: 0.55 });
           break;
+        }
         case 'companion-swap':
           hud.banner(ev.name + '，就决定是你了！', '', 1400);
           break;
@@ -659,10 +728,6 @@ async function boot() {
               sub: '被净化的梦幻，在光中对你眨了眨眼——下次冒险再见。',
               difficultyLabel: dl,
             }), 2000);
-          } else {
-            splay('win');
-          hud.banner('灰色徽章 GET！', '《晶穴深处·第一章》完', 4000);
-            setTimeout(() => hud.showVictory(run.stats, run.seed), 1800);
           }
           break;
         case 'clear': hud.minimap(run.map, run.cellKey); saveNow(); break;
@@ -767,11 +832,12 @@ async function boot() {
     input.endFrame();
     consumeEvents();
     stepFading(dt);
-    // BGM 场景驱动：探索（默认）/战斗（房内有敌）/Boss（馆主在场）
+    // BGM 场景驱动：探索（默认）/战斗（房内有敌）/Boss（馆主在场）/黑市祭坛（房间变奏）
     bgm.setScene({
       floorNo: run.floorNo,
       combat: started && !hud.dexOpen && !hud.achvOpen && run.player.alive && !run.over && run.enemies.length > 0,
       boss: started && !run.over && run.player.alive && run.enemies.some((e) => e.family === 'boss'),
+      roomType: run.room ? run.room.type : null,
     });
 
     const alpha = acc / STEP;
@@ -824,9 +890,10 @@ async function boot() {
     fx.syncProjectiles(run.projectiles, alpha);
     teleFx.sync(run.telegraphs);
     fx.update(dt);
+    hud.setCompass(!!(run.player.mods && run.player.mods.compass));   // 洞窟罗盘：隐藏房上图
     if (roomView) {
       roomView.update(dt, clock.t);
-      const open = run.room.cleared || ['shop', 'secret', 'start'].includes(run.room.type);
+      const open = run.room.cleared || ['shop', 'secret', 'start', 'blackmarket', 'altar', 'camp'].includes(run.room.type);
       if (open !== doorOpenSeen) { doorOpenSeen = open; roomView.setDoorOpen(open); }
     }
     if (props) {

@@ -80,7 +80,37 @@ export function createEffects(THREE, scene, orbTex) {
       c.mesh.position.z += c.vz * dt;
       c.mesh.material.opacity = Math.max(0, c.life / 0.45);
     }
+    for (const b of bolts) {
+      if (b.life <= 0) { b.mesh.visible = false; continue; }
+      b.life -= dt;
+      b.mesh.material.opacity = Math.max(0, b.life / 0.18);
+    }
   }
 
-  return { syncProjectiles, burst, update };
+  // ---- 连锁闪电：两点间水平细条（0.18s 淡出）----
+  const bolts = [];
+  const boltGeo = new THREE.PlaneGeometry(1, 0.07);
+  for (let i = 0; i < 6; i++) {
+    const m = new THREE.Mesh(boltGeo, new THREE.MeshBasicMaterial({
+      color: 0xbfe4ff, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    }));
+    m.visible = false;
+    scene.add(m);
+    bolts.push({ mesh: m, life: 0 });
+  }
+  let boltCursor = 0;
+  function bolt(x0, z0, x1, z1) {
+    const b = bolts[boltCursor];
+    boltCursor = (boltCursor + 1) % bolts.length;
+    const dx = x1 - x0, dz = z1 - z0;
+    const len = Math.hypot(dx, dz);
+    b.mesh.visible = true;
+    b.mesh.scale.set(len, 1, 1);
+    b.mesh.position.set((x0 + x1) / 2, 0.55, (z0 + z1) / 2);
+    b.mesh.rotation.set(-Math.PI / 2, 0, -Math.atan2(dz, dx));
+    b.mesh.material.opacity = 1;
+    b.life = 0.18;
+  }
+
+  return { syncProjectiles, burst, bolt, update };
 }

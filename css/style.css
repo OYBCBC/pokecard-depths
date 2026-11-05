@@ -131,6 +131,7 @@ html, body {
 .mmr.t-boss { --tc: #ff5a6e; } .mmr.t-shop { --tc: #ffd24a; } .mmr.t-treasure { --tc: #7fd4ff; }
 .mmr.t-challenge { --tc: #ff9a4a; } .mmr.t-secret { --tc: #c79fff; } .mmr.t-start { --tc: #9fe070; }
 .mmr.t-camp { --tc: #9fe070; } .mmr.t-combat { --tc: #aab8d0; }
+.mmr.t-blackmarket { --tc: #ff5a8a; } .mmr.t-altar { --tc: #ffe9b0; }
 .mmr.seen .body { fill: color-mix(in srgb, var(--tc, #aab8d0) 30%, #141b2c); stroke: var(--tc, #aab8d0); stroke-width: 2; }
 .mmr.cleared .body { fill: #1c2438; stroke: color-mix(in srgb, var(--tc, #aab8d0) 55%, #1c2438); }
 .mmr text { fill: #eef3fb; font-size: 12px; text-anchor: middle; dominant-baseline: central; font-family: inherit; }
@@ -147,6 +148,7 @@ html, body {
 #peek .pk-d { font-size: 11px; color: #b8cbe8; margin-top: 2px; max-width: 320px; }
 #peek .pk-p { font-size: 13px; color: #ffd24a; margin-left: 6px; white-space: nowrap; }
 #peek .pk-p.free { color: #9fe070; }
+#peek .pk-p.short { color: #ff5a6e; }
 .pk-q { font-size: 10px; letter-spacing: 2px; margin-left: 6px; }
 .pk-q.q0 { color: #7d8aa5; } .pk-q.q1 { color: #9fe070; } .pk-q.q2 { color: #7fd4ff; }
 .pk-q.q3 { color: #c79fff; } .pk-q.q4 { color: #ffd24a; }

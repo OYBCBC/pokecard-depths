@@ -25,7 +25,8 @@ function tryGen(rand, floorNo) {
   // F4 晶核之间：迷你层（直奔梦幻终战），死端下限放宽、房数容差收紧（必须够 4 房）
   if (floorNo >= 4) return tryGenCore(rand, 4, 1, 0);
   const target = Math.min(20, 5 + Math.floor(10 * floorNo / 3) + (rand() < 0.5 ? 0 : 1));
-  return tryGenCore(rand, target, 5, 2);
+  // 死端 ≥6：Boss/商店/宝箱/挑战/营地占 5 个后，仍剩 1 个战斗死端供黑市/祭坛替换（M5）
+  return tryGenCore(rand, target, 6, 2);
 }
 
 function tryGenCore(rand, target, minDead, tol) {

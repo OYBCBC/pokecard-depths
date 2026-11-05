@@ -8,6 +8,11 @@ export const TIERS = {
 export function detectTier() {
   const q = new URLSearchParams(location.search).get('q');
   if (q === 'high' || q === 'med' || q === 'low') return q;
+  // 用户在开始界面选过画质（M5）：优先于自动检测
+  try {
+    const saved = localStorage.getItem('depths-quality');
+    if (saved === 'high' || saved === 'med' || saved === 'low') return saved;
+  } catch (e) { /* ignore */ }
   return (navigator.hardwareConcurrency || 4) >= 8 ? 'high' : 'med';
 }
 
