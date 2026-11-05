@@ -1,22 +1,22 @@
 // 启动入口 M3：楼层/多房间/道具/Boss 全链路。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m5b';
-import { createLights } from './gfx/lights.js?v=m5b';
-import { createCamera } from './gfx/camera.js?v=m5b';
-import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m5b';
-import { createBillboard } from './gfx/sprites.js?v=m5b';
-import { createEffects } from './gfx/effects.js?v=m5b';
-import { createPostfx } from './gfx/postfx.js?v=m5b';
-import { createHud } from './ui/hud.js?v=m5b';
-import { createCries } from './audio/cries.js?v=m5b';
-import { createBgm } from './audio/bgm.js?v=m5b';
-import { createSfx } from './audio/sfx.js?v=m5b';
-import { createInput } from './core/input.js?v=m5b';
-import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m5b';
-import { enterRoom } from './sim/actors.js?v=m5b';
-import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m5b';
-import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m5b';
-import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m5b';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m5c';
+import { createLights } from './gfx/lights.js?v=m5c';
+import { createCamera } from './gfx/camera.js?v=m5c';
+import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m5c';
+import { createBillboard } from './gfx/sprites.js?v=m5c';
+import { createEffects } from './gfx/effects.js?v=m5c';
+import { createPostfx } from './gfx/postfx.js?v=m5c';
+import { createHud } from './ui/hud.js?v=m5c';
+import { createCries } from './audio/cries.js?v=m5c';
+import { createBgm } from './audio/bgm.js?v=m5c';
+import { createSfx } from './audio/sfx.js?v=m5c';
+import { createInput } from './core/input.js?v=m5c';
+import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m5c';
+import { enterRoom } from './sim/actors.js?v=m5c';
+import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m5c';
+import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m5c';
+import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m5c';
 
 const hud = createHud();
 const tier = detectTier();
@@ -897,10 +897,11 @@ async function boot() {
       if (open !== doorOpenSeen) { doorOpenSeen = open; roomView.setDoorOpen(open); }
     }
     if (props) {
-      // 台座/拾取同步
+      // 台座/拾取同步（taken 也要过一遍 hud.price——它的 taken 分支负责删价格牌 DOM，
+      // 否则被拿走的"免费/♥♥/¥"标签残留在旧屏幕坐标上随相机漂移）
       const pedLive = new Set(run.pedestals.filter((d) => !d.taken).map((d) => d.id));
       for (const d of run.pedestals) {
-        if (d.taken) { props.removePedestal(d.id); continue; }
+        if (d.taken) { props.removePedestal(d.id); hud.price(d, 0, 0); continue; }
         v3.set(d.x, 1.0, d.y).project(camCtl.camera);
         hud.price(d, (v3.x + 1) / 2 * window.innerWidth, (1 - (v3.y + 1) / 2) * window.innerHeight);
       }

@@ -1,9 +1,9 @@
 // 战斗与房间行为系统：玩家/弹体/敌人三族/波次/多房间楼层/拾取经济/台座。
 // 全部纯数据变换；事件写进 state.events 供表现层消费。
-import { computeHit } from './combat.js?v=m5b';
-import { fireInterval } from './combat.js?v=m5b';
-import { rollItem } from './items.js?v=m5b';
-import { spawnBoss, stepBoss } from './boss.js?v=m5b';
+import { computeHit } from './combat.js?v=m5c';
+import { fireInterval } from './combat.js?v=m5c';
+import { rollItem } from './items.js?v=m5c';
+import { spawnBoss, stepBoss } from './boss.js?v=m5c';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -1177,6 +1177,14 @@ function takePedestal(state, data, d) {
       state.events.push({ t: 'companion-join', name: spec.name, eid });
     }
     d.taken = true;
+    // 三选一：结伴一只，其余结伴台座一起消失（再选会静默顶替旧搭档，与提示矛盾）
+    for (let i = state.pedestals.length - 1; i >= 0; i--) {
+      const o = state.pedestals[i];
+      if (o !== d && !o.taken && o.itemId && o.itemId.startsWith('companion:')) {
+        o.taken = true;
+        state.events.push({ t: 'choice-vanish', id: o.id, itemId: o.itemId });
+      }
+    }
     return;
   }
   const it = data.items[d.itemId];
@@ -1230,4 +1238,4 @@ function takePedestal(state, data, d) {
 }
 
 // 规避循环 import：engine.recompute 通过事件总线由调用方重算——这里直接内联等价逻辑
-import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m5b';
+import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m5c';

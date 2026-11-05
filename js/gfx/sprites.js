@@ -5,7 +5,7 @@
 //   4) 法线朝天倾斜 60°（被环境光打亮）
 //   5) 脚下椭圆假阴影 + 真实投影并存
 // M2 增补：受击闪白（emissive 脉冲）、出生缩放、单例 dispose。
-import { DIRS } from '../sim/engine.js?v=m5b';
+import { DIRS } from '../sim/engine.js?v=m5c';
 
 const TEXEL = 16;                     // 16 texel = 1 世界单位
 const NORMAL_TILT = 0.866;            // 法线 y 分量（60° 朝天倾斜）

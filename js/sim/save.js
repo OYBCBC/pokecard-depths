@@ -1,8 +1,8 @@
 // 存档系统：任意时刻把 run 序列化成纯 JSON（localStorage 友好）。
 // 约定：函数字段（rand/dirOf/hurtPlayer）与数据引用（boss cfg、waves）不序列化，复活时重绑。
-import { makeRng, rngNext } from './rng.js?v=m5b';
-import { STEP, dirOf, recompute } from './engine.js?v=m5b';
-import { hurtPlayer } from './actors.js?v=m5b';
+import { makeRng, rngNext } from './rng.js?v=m5c';
+import { STEP, dirOf, recompute } from './engine.js?v=m5c';
+import { hurtPlayer } from './actors.js?v=m5c';
 
 export const SAVE_KEY = 'depths-save';
 export const SAVE_VERSION = 1;

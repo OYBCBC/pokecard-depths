@@ -1,10 +1,12 @@
 // 战斗特效池：弹体面片 + 命中碎屑 + 出生烟尘。全部对象池，无运行时分配。
 export function createEffects(THREE, scene, orbTex) {
-  // ---- 弹体池：按招式分材质（配色 tint）----
+  // ---- 弹体池：按招式分材质（配色 tint）——玩家全部招式都要有，缺了弹体直接隐形 ----
   const POOL = 48;
   const TINTS = {
     'thunder-shock': 0xffffff, 'water-gun': 0x7fd4ff, 'fire-spin': 0xffa04a,
-    'grass-knot': 0x9fe070, 'acid': null,
+    'grass-knot': 0x9fe070, 'swift': 0xffe24a, 'bone-club': 0xe8e0cc,
+    'bubble': 0xa8e8ff, 'tri-attack': 0xfff0b0, 'aerial-ace': 0xdff6ff,
+    'hyper-beam': 0xffb0c8, 'fire-punch': 0xff8844, 'acid': null,
   };
   const mats = { acid: new THREE.MeshBasicMaterial({ map: orbTex.acid, transparent: true, depthWrite: false, side: THREE.DoubleSide }) };
   for (const [mv, tint] of Object.entries(TINTS)) {
@@ -30,7 +32,8 @@ export function createEffects(THREE, scene, orbTex) {
     for (const b of projectiles) {
       if (used >= POOL) break;
       const slot = projPool[used++];
-      const key = b.owner === 'player' ? (b.moveId || 'thunder-shock') : 'acid';
+      let key = b.owner === 'player' ? (b.moveId || 'thunder-shock') : 'acid';
+      if (!slot[key]) key = 'thunder-shock';               // 兜底：新招式漏配 tint 也不隐形
       for (const k of Object.keys(slot)) slot[k].visible = k === key;
       const m = slot[key];
       if (m) {

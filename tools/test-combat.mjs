@@ -11,12 +11,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { damageStat, fireInterval, typeMultiplier, stabMultiplier, computeHit, enemyPanel } =
-  await import(join(ROOT, 'js/sim/combat.js?v=m5b'));
-const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m5b'));
-const _engine = await import(join(ROOT, 'js/sim/engine.js?v=m5b'));
-const { enterRoom } = await import(join(ROOT, 'js/sim/actors.js?v=m5b'));
-const _save = await import(join(ROOT, 'js/sim/save.js?v=m5b'));
-const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m5b'));
+  await import(join(ROOT, 'js/sim/combat.js?v=m5c'));
+const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m5c'));
+const _engine = await import(join(ROOT, 'js/sim/engine.js?v=m5c'));
+const { enterRoom } = await import(join(ROOT, 'js/sim/actors.js?v=m5c'));
+const _save = await import(join(ROOT, 'js/sim/save.js?v=m5c'));
+const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m5c'));
 function combatNeighbor(run, d) {
   const cell = run.map.get(run.cellKey);
   for (const [dk] of Object.entries(cell.doors)) {
@@ -179,7 +179,7 @@ test('引擎：冲刺给无敌与位移', () => {
 
 
 // ---------- M4：多层塔 / Z 招式 / 进化 / 替补 ----------
-const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m5b'));
+const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m5c'));
 
 function idleInput() {
   return { move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false, slotEdge: false, useEdge: false, zEdge: false, swapEdge: false };
@@ -466,7 +466,7 @@ test('图鉴：事件点亮（遭遇/击杀/馆主搭档/进化/结伴/别名）
 
 // ---------- M5 第二批：道具全量 / 黑市祭坛 / 徽章 / 异常状态 ----------
 
-const _items = await import(join(ROOT, 'js/sim/items.js?v=m5b'));
+const _items = await import(join(ROOT, 'js/sim/items.js?v=m5c'));
 const items = data.items;
 
 test('道具全量：74 件（被动42+强化8+消耗11+纪念10+徽章3），图标齐全、池合法', () => {
@@ -803,3 +803,18 @@ function combatNeighborKey(run) {
   }
   return run.cellKey;
 }
+
+test('营地结伴三选一：拿一只，其余结伴台座消失', () => {
+  const run = createRun(data, 1717);
+  const camp = [...run.map.values()].find((c) => c.type === 'camp');
+  enterRoom(run, data, camp.x + ',' + camp.y);
+  const peds = run.pedestals.filter((d) => d.itemId.startsWith('companion:'));
+  assert.equal(peds.length, 3, '营地 3 只');
+  const d = peds[0];
+  run.player.x = d.x; run.player.y = d.y;
+  for (let i = 0; i < 3 && !d.taken; i++) stepRun(run, idleInput(), data);
+  assert.equal(d.taken, true, '已结伴');
+  assert.ok(run.player.companion, '搭档在');
+  assert.ok(peds.every((p) => p.taken), '其余结伴台座全部消失（三选一）');
+  assert.ok(run.events.some((e) => e.t === 'choice-vanish'), 'vanish 事件发出');
+});
