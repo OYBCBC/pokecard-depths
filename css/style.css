@@ -149,6 +149,14 @@ html, body {
 #peek .pk-p { font-size: 13px; color: #ffd24a; margin-left: 6px; white-space: nowrap; }
 #peek .pk-p.free { color: #9fe070; }
 #peek .pk-p.short { color: #ff5a6e; }
+
+/* ---------- 挑战码（胜负页行 + 开始界面输入行） ---------- */
+.d-chal { display: block; margin-top: 6px; font-size: 12px; color: #9fe070; }
+.d-chal code { font-size: 11px; color: #d7e6ff; background: rgba(22, 28, 44, .9); border: 1px solid #2c3958; border-radius: 3px; padding: 2px 6px; margin: 0 4px; user-select: all; word-break: break-all; }
+.d-chal button { font: inherit; font-size: 11px; color: #ffd24a; background: rgba(10, 14, 24, .9); border: 1px solid #574a20; border-radius: 3px; padding: 2px 8px; cursor: pointer; margin-left: 4px; }
+.st-code-row { display: flex; gap: 8px; }
+.st-code-row input { flex: 1; min-width: 0; font: inherit; font-size: 13px; color: #ffe9a0; background: rgba(10, 14, 24, .9); border: 1px solid #3a4a6c; border-radius: 3px; padding: 8px 10px; outline: none; }
+.st-code-row input:focus { border-color: #7fd4ff; }
 .pk-q { font-size: 10px; letter-spacing: 2px; margin-left: 6px; }
 .pk-q.q0 { color: #7d8aa5; } .pk-q.q1 { color: #9fe070; } .pk-q.q2 { color: #7fd4ff; }
 .pk-q.q3 { color: #c79fff; } .pk-q.q4 { color: #ffd24a; }

@@ -55,6 +55,7 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
       hp: baseHp, maxHp: baseHp, hpPaid: 0,              // hpPaid = 黑市交易支付的亲密度上限
       alive: true, deathT: 0,
       species: (speciesId && data.species[speciesId] && !data.species[speciesId].evolved) ? speciesId : 'pikachu',
+      species0: (speciesId && data.species[speciesId] && !data.species[speciesId].evolved) ? speciesId : 'pikachu',   // 开局物种（挑战码用，进化不变）
       types: spec.types,                                 // STAB 用（攻击方属性）
       evolveTo: spec.evolveTo || null,                   // 进化目标（皮卡丘→雷丘；其余 null）
       zmove: spec.zmove || 'thunderbolt-z',

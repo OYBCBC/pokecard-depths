@@ -14,7 +14,7 @@ import { createSfx } from './audio/sfx.js?v=m5c';
 import { createInput } from './core/input.js?v=m5c';
 import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m5c';
 import { enterRoom } from './sim/actors.js?v=m5c';
-import { saveStore, deserializeRun, dailySeed } from './sim/save.js?v=m5c';
+import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m5c';
 import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m5c';
 import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m5c';
 
@@ -424,6 +424,19 @@ async function boot() {
       onContinue: () => beginRun(ok),
       onNew: () => pickStarter(false),
       onDaily: () => pickStarter(true),
+      onChallenge: (code) => {
+        const ch = decodeChallenge(code);
+        if (!ch || !data.species[ch.species]) {
+          hud.toast('挑战码无效', '格式应如 DPT1.xxxx（胜负页可复制本局码）');
+          showStart();
+          return;
+        }
+        saveStore.clear();
+        const r = createRun(data, ch.seed, ch.species, ch.difficulty);
+        beginRun(r);
+        const dn = (data.balance.difficulty[ch.difficulty] || {}).label || '';
+        hud.banner('挑战码开局', `${data.species[ch.species].name} · 种子 ${ch.seed >>> 0}${dn !== '普通' ? ' · ' + dn : ''}`, 3000);
+      },
       onDex: () => refreshDex(),
       onAchv: () => refreshAchv(),
       onExport: () => {
@@ -595,7 +608,9 @@ async function boot() {
           cry((data.species[run.player.species] || {}).cry ?? 25, { volume: 0.7, rateJitter: false });
           run.stats.tRun = run.t;
           run.stats.floorNo = run.floorNo;
-          hud.showDeath(run.stats, run.seed, (data.species[run.player.species] || {}).name || '搭档');
+          hud.showDeath(run.stats, run.seed, (data.species[run.player.species] || {}).name || '搭档', {
+            challenge: encodeChallenge({ seed: run.seed, difficulty: run.difficulty, species: run.player.species0 || run.player.species }),
+          });
           break;
         case 'item-take':
           splay(ev.kind === 'passive' && ev.id && ev.id.startsWith('tm-') ? 'tm' : 'item');
@@ -727,6 +742,7 @@ async function boot() {
               title: '晶穴的传说，落下帷幕',
               sub: '被净化的梦幻，在光中对你眨了眨眼——下次冒险再见。',
               difficultyLabel: dl,
+              challenge: encodeChallenge({ seed: run.seed, difficulty: run.difficulty, species: run.player.species0 || run.player.species }),
             }), 2000);
           }
           break;

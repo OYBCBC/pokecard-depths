@@ -18,3 +18,4 @@ __pycache__/
 
 # 本地临时
 *.log
+.tmp-frames/

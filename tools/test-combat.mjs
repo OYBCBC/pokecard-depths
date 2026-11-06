@@ -818,3 +818,26 @@ test('营地结伴三选一：拿一只，其余结伴台座消失', () => {
   assert.ok(peds.every((p) => p.taken), '其余结伴台座全部消失（三选一）');
   assert.ok(run.events.some((e) => e.t === 'choice-vanish'), 'vanish 事件发出');
 });
+
+// ---------- M6：挑战码 DPT1. ----------
+test('挑战码：编解码往返（种子/难度/搭档），坏码返回 null', () => {
+  const { encodeChallenge, decodeChallenge } = _save;
+  const code = encodeChallenge({ seed: 3735928559, difficulty: 'abyss', species: 'eevee' });
+  assert.ok(code.startsWith('DPT1.'), 'ADR-13 前缀');
+  const ch = decodeChallenge(code);
+  assert.deepEqual(ch, { seed: 3735928559, difficulty: 'abyss', species: 'eevee' });
+  // 同码开局逐位一致（前 600 帧）
+  const r1 = createRun(data, ch.seed, ch.species, ch.difficulty);
+  const r2 = createRun(data, ch.seed, ch.species, ch.difficulty);
+  const input = () => ({ move: { x: 0, y: 0 }, aim: { x: 0.3, y: -0.9 }, fire: true, dashEdge: false, slotEdge: false, useEdge: false });
+  for (let i = 0; i < 600; i++) { stepRun(r1, input(), data); stepRun(r2, input(), data); }
+  assert.equal(JSON.stringify(r1.player.inv), JSON.stringify(r2.player.inv), '同码同局');
+  // 坏码
+  assert.equal(decodeChallenge(''), null);
+  assert.equal(decodeChallenge('GYM1.xxxx'), null, '别作前缀');
+  assert.equal(decodeChallenge('DPT1.!!!'), null);
+  assert.equal(decodeChallenge('DPT1.' + Buffer.from('{"s":-1}').toString('base64')), null, '负种子');
+  // 非法难度/搭档回落默认
+  const loose = decodeChallenge('DPT1.' + Buffer.from('{"s":42,"d":"hell","sp":"mewtwo"}').toString('base64'));
+  assert.deepEqual(loose, { seed: 42, difficulty: 'normal', species: 'mewtwo' }, '难度回落 normal、搭档原样（开局校验兜底）');
+});

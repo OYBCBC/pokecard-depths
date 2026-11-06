@@ -80,3 +80,30 @@ export const saveStore = {
 export function dailySeed(d = new Date()) {
   return ((d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) * 2654435761) >>> 0;
 }
+
+// ---------- 挑战码（seed + 难度 + 搭档编码，分享复现同一局；ADR-13 前缀 DPT1.） ----------
+// node 与浏览器共用：btoa/atob 在 node 用 Buffer 兜底
+const _b64encode = (s) => typeof btoa === 'function'
+  ? btoa(s) : Buffer.from(s, 'binary').toString('base64');
+const _b64decode = (s) => typeof atob === 'function'
+  ? atob(s) : Buffer.from(s, 'base64').toString('binary');
+
+export function encodeChallenge({ seed, difficulty = 'normal', species = 'pikachu' }) {
+  const payload = { v: 1, s: seed >>> 0, d: difficulty, sp: species };
+  return 'DPT1.' + _b64encode(JSON.stringify(payload));
+}
+
+export function decodeChallenge(code) {
+  try {
+    const str = String(code || '').trim();
+    if (!str.startsWith('DPT1.')) return null;
+    const payload = JSON.parse(_b64decode(str.slice(5)));
+    if (typeof payload.s !== 'number' || payload.s < 0 || payload.s > 0xffffffff) return null;
+    const DIFFS = ['normal', 'hard', 'abyss'];
+    return {
+      seed: payload.s >>> 0,
+      difficulty: DIFFS.includes(payload.d) ? payload.d : 'normal',
+      species: typeof payload.sp === 'string' ? payload.sp.slice(0, 24) : 'pikachu',
+    };
+  } catch (e) { return null; }
+}

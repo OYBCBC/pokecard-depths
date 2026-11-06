@@ -1,5 +1,22 @@
 // HUD / 加载页 / debug 面板 / 战斗 UI（血量、PP、波次、伤害飘字、死亡页）
 
+// 复制文本到剪贴板（挑战码等）：成功后按钮短暂变"已复制"
+function copyText(text, btn) {
+  const done = () => { if (btn) { const old = btn.textContent; btn.textContent = '已复制'; setTimeout(() => { btn.textContent = old; }, 1400); } };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    ta.remove(); done();
+  } catch (e) { /* 剪贴板不可用静默 */ }
+}
+
 // 分享图（Canvas 合成 → PNG 下载）：胜负页共用
 function shareImage({ title, stats, seed, difficultyLabel, dead }) {
   const c = document.createElement('canvas');
@@ -262,8 +279,8 @@ export function createHud() {
       peekEl.classList.remove('hidden');
     },
     hidePeek() { peekEl.classList.add('hidden'); },
-    // 开始界面：继续存档 / 新开 / 每日挑战 / 图鉴 / 成就 / 画质 / 存档管理 + 本机榜
-    startScreen({ save, board, onContinue, onNew, onDaily, onDex, onAchv, onExport, onImport, achvCount, quality, onQuality }) {
+    // 开始界面：继续存档 / 新开 / 每日挑战 / 挑战码 / 图鉴 / 成就 / 画质 / 存档管理 + 本机榜
+    startScreen({ save, board, onContinue, onNew, onDaily, onChallenge, onDex, onAchv, onExport, onImport, achvCount, quality, onQuality }) {
       const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
       const qRow = quality ? '<div class="st-title">画质</div><div class="st-row">' +
         [['high', '高（景深）'], ['med', '中（推荐）'], ['low', '低（老设备）']].map(([id, label]) =>
@@ -273,6 +290,7 @@ export function createHud() {
         save ? `<button class="st-btn primary" id="st-continue">继续探险 · 第 ${save.floorNo} 层 ${save.name}</button>` : '',
         `<button class="st-btn" id="st-new">${save ? '新的探险' : '开始探险'}</button>`,
         '<button class="st-btn" id="st-daily">每日挑战 · 今日同图</button>',
+        '<button class="st-btn" id="st-code">挑战码 · 玩朋友的局</button>',
         '<div class="st-row">' +
           '<button class="st-btn st-sub-btn" id="st-dex">图鉴</button>' +
           `<button class="st-btn st-sub-btn" id="st-achv">成就${achvCount != null ? ' ' + achvCount : ''}</button>` +
@@ -302,6 +320,25 @@ export function createHud() {
         b.onclick = () => onQuality(b.dataset.q);
       });
       q('st-daily').onclick = () => { hide(); onDaily(); };
+      q('st-code').onclick = () => {
+        // 展开内联输入：粘贴 DPT1.xxx → 校验后开同一局
+        const codeBtn = q('st-code');
+        if (codeBtn.dataset.open) return;
+        codeBtn.dataset.open = '1';
+        codeBtn.outerHTML = '<div class="st-code-row" id="st-code-row">' +
+          '<input id="st-code-input" placeholder="粘贴 DPT1.xxxx…" spellcheck="false" autocomplete="off">' +
+          '<button class="st-btn st-sub-btn" id="st-code-go">进入</button></div>';
+        const input = q('st-code-input');
+        const go = () => {
+          const v = input.value;
+          if (!v) { input.focus(); return; }
+          hide();
+          onChallenge && onChallenge(v);
+        };
+        q('st-code-go').onclick = go;
+        input.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+        input.focus();
+      };
       if (q('st-dex')) q('st-dex').onclick = () => { onDex(); };
       if (q('st-achv')) q('st-achv').onclick = () => { onAchv && onAchv(); };
       if (q('st-export')) q('st-export').onclick = () => { onExport && onExport(); };
@@ -517,8 +554,11 @@ export function createHud() {
         `用时 ${Math.round(stats.tRun)} 秒 · 清房 ${stats.roomsCleared} · 击倒 ${stats.kills}${dn}<br>` +
         `道具 ${stats.items} 件 · 克制命中 ${stats.superHits} · 赚钱 ¥${stats.coins}<br>` +
         `<span class="d-seed">种子 ${seed >>> 0}</span>` +
+        (opts.challenge ? `<span class="d-chal">挑战码 <code>${opts.challenge}</code><button id="v-code">复制</button></span>` : '') +
         `<div class="d-share"><button id="v-share">生成分享图</button></div>`;
       victoryEl.classList.remove('hidden');
+      const cbtn = victoryEl.querySelector('#v-code');
+      if (cbtn) cbtn.onclick = () => copyText(opts.challenge, cbtn);
       const btn = victoryEl.querySelector('#v-share');
       if (btn) btn.onclick = () => shareImage({
         title: victoryEl.querySelector('.v-title').textContent,
@@ -537,14 +577,17 @@ export function createHud() {
       setTimeout(() => el.remove(), 750);
     },
     hideDeath() { deathEl.classList.add('hidden'); },
-    showDeath(stats, seed, name = '搭档') {
+    showDeath(stats, seed, name = '搭档', opts = {}) {
       deathEl.querySelector('.d-sub').textContent = `${name}被护送撤出了洞窟`;
       deathStats.innerHTML =
         `击倒 ${stats.kills} 只 · 总伤害 ${Math.round(stats.dmgDealt)}<br>` +
         `克制命中 ${stats.superHits} 次 · 发射 ${stats.shots} 发<br>` +
         `<span class="d-seed">种子 ${seed >>> 0}</span>` +
+        (opts.challenge ? `<span class="d-chal">挑战码 <code>${opts.challenge}</code><button id="d-code">复制</button></span>` : '') +
         `<div class="d-share"><button id="d-share">生成分享图</button></div>`;
       deathEl.classList.remove('hidden');
+      const cbtn = deathEl.querySelector('#d-code');
+      if (cbtn) cbtn.onclick = () => copyText(opts.challenge, cbtn);
       const btn = deathEl.querySelector('#d-share');
       if (btn) btn.onclick = () => shareImage({
         title: `${name}的探险`, stats: { ...stats, floorNo: window.__depths && window.__depths.run ? window.__depths.run.floorNo : '?' },
