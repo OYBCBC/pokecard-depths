@@ -1,9 +1,9 @@
 // 战斗与房间行为系统：玩家/弹体/敌人三族/波次/多房间楼层/拾取经济/台座。
 // 全部纯数据变换；事件写进 state.events 供表现层消费。
-import { computeHit } from './combat.js?v=m5c';
-import { fireInterval } from './combat.js?v=m5c';
-import { rollItem } from './items.js?v=m5c';
-import { spawnBoss, stepBoss } from './boss.js?v=m5c';
+import { computeHit } from './combat.js?v=m6a';
+import { fireInterval } from './combat.js?v=m6a';
+import { rollItem } from './items.js?v=m6a';
+import { spawnBoss, stepBoss } from './boss.js?v=m6a';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -1238,4 +1238,4 @@ function takePedestal(state, data, d) {
 }
 
 // 规避循环 import：engine.recompute 通过事件总线由调用方重算——这里直接内联等价逻辑
-import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m5c';
+import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m6a';

@@ -10,11 +10,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { ACHVS, achvApply, metaApply, starterUnlocked, UNLOCK_SPECIES, achvProgress } =
-  await import(join(ROOT, 'js/sim/achv.js?v=m5c'));
-const { createRun, stepRun, recompute } = await import(join(ROOT, 'js/sim/engine.js?v=m5c'));
-const { enterRoom, combatNeighborNotNeeded } = await import(join(ROOT, 'js/sim/actors.js?v=m5c'));
-const { serializeRun, deserializeRun } = await import(join(ROOT, 'js/sim/save.js?v=m5c'));
-const { dexSpecies, dexApply } = await import(join(ROOT, 'js/sim/dex.js?v=m5c'));
+  await import(join(ROOT, 'js/sim/achv.js?v=m6a'));
+const { createRun, stepRun, recompute } = await import(join(ROOT, 'js/sim/engine.js?v=m6a'));
+const { enterRoom, combatNeighborNotNeeded } = await import(join(ROOT, 'js/sim/actors.js?v=m6a'));
+const { serializeRun, deserializeRun } = await import(join(ROOT, 'js/sim/save.js?v=m6a'));
+const { dexSpecies, dexApply } = await import(join(ROOT, 'js/sim/dex.js?v=m6a'));
 
 const tc = D('typechart.json');
 const ed = D('enemies.json');
@@ -381,7 +381,7 @@ test('弹型技能机：燕返强追踪（homing 0.22）', () => {
 });
 
 test('可学性：rollItem learnBy 过滤（皮卡丘抽不到水枪/火焰拳，能抽到打草结/燕返）', async () => {
-  const { rollItem } = await import(join(ROOT, 'js/sim/items.js?v=m5c'));
+  const { rollItem } = await import(join(ROOT, 'js/sim/items.js?v=m6a'));
   const items = data.items, pools = data.itemPools;
   let sawWater = false, sawFirepunch = false, sawLearnable = false;
   for (let i = 0; i < 400; i++) {

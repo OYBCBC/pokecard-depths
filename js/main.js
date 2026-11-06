@@ -1,22 +1,22 @@
 // 启动入口 M3：楼层/多房间/道具/Boss 全链路。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m5c';
-import { createLights } from './gfx/lights.js?v=m5c';
-import { createCamera } from './gfx/camera.js?v=m5c';
-import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m5c';
-import { createBillboard } from './gfx/sprites.js?v=m5c';
-import { createEffects } from './gfx/effects.js?v=m5c';
-import { createPostfx } from './gfx/postfx.js?v=m5c';
-import { createHud } from './ui/hud.js?v=m5c';
-import { createCries } from './audio/cries.js?v=m5c';
-import { createBgm } from './audio/bgm.js?v=m5c';
-import { createSfx } from './audio/sfx.js?v=m5c';
-import { createInput } from './core/input.js?v=m5c';
-import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m5c';
-import { enterRoom } from './sim/actors.js?v=m5c';
-import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m5c';
-import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m5c';
-import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m5c';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m6a';
+import { createLights } from './gfx/lights.js?v=m6a';
+import { createCamera } from './gfx/camera.js?v=m6a';
+import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m6a';
+import { createBillboard } from './gfx/sprites.js?v=m6a';
+import { createEffects } from './gfx/effects.js?v=m6a';
+import { createPostfx } from './gfx/postfx.js?v=m6a';
+import { createHud } from './ui/hud.js?v=m6a';
+import { createCries } from './audio/cries.js?v=m6a';
+import { createBgm } from './audio/bgm.js?v=m6a';
+import { createSfx } from './audio/sfx.js?v=m6a';
+import { createInput } from './core/input.js?v=m6a';
+import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m6a';
+import { enterRoom } from './sim/actors.js?v=m6a';
+import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m6a';
+import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m6a';
+import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m6a';
 
 const hud = createHud();
 const tier = detectTier();
@@ -173,7 +173,14 @@ async function boot() {
     scene.fog.color.set(bg);
   }
   const camCtl = createCamera(THREE);
-  resize(THREE, renderer, camCtl.camera);
+  // 视口适配（M6）：渲染尺寸 + 窄屏相机（放宽 fov/拉远）+ 雾随相机多拉的距离补偿
+  function fitView() {
+    resize(THREE, renderer, camCtl.camera);
+    const extra = camCtl.fit(camCtl.camera.aspect);
+    scene.fog.near = 26 + extra;
+    scene.fog.far = 60 + extra;
+  }
+  fitView();
 
   const curTheme = () => data.floors[run.floorNo].theme;
   const tex = {
@@ -207,11 +214,47 @@ async function boot() {
   const cry = (id, opts) => { if (criesOn) cries.play(id, opts); };
   const bgm = createBgm({ ensureCtx: () => cries.ensureCtx(), onLog: (m) => console.info(m) });
   const sfx = createSfx({ ensureCtx: () => cries.ensureCtx() });
+  sfx.setMuted(bgm.muted);                                     // 静音跨局记忆：音效与 BGM 同步（原来只记住了 BGM）
   const sfxOn = !(manifest && manifest.cries === false);      // 换皮推演关叫声时静音
   const splay = (n) => { if (sfxOn && !selfcheckOn) sfx.play(n); };
   const input = createInput();
   input.onFirstInteraction(() => { cries.ensureCtx(); if (!selfcheckOn) bgm.start(); });
   input.onPadConnect((id) => hud.toast('手柄已连接', (id || '').slice(0, 30)));
+  // 音频解锁（M6）：touchend/click/keydown 才算浏览器认可的"用户激活"（touchstart 不算）；
+  // 每次都试到 BGM 真正跑起来为止（iOS 来电/切后台后 ctx 变 interrupted 也靠这里恢复）
+  const unlockAudio = () => { cries.ensureCtx(); if (!selfcheckOn && !bgm.running) bgm.start(); };
+  for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, unlockAudio, { capture: true, passive: true });
+  document.addEventListener('gesturestart', (e) => e.preventDefault());   // iOS Safari 双指缩放
+  // 按键提示随输入方式切换（触屏没有 Q/F/E 键）
+  const KEY_HINT = { KeyQ: ['按 Q ', '点「切招」'], KeyF: ['按 F ', '点「换队」'], KeyE: ['按 E ', '点「道具」'] };
+  const keyHint = (code) => (KEY_HINT[code] || ['', ''])[input.touchMode ? 1 : 0];
+  const buzz = (ms) => {                                       // 触屏震动反馈（安卓；iOS 无此 API 静默）
+    if (input.touchMode && navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { /* ignore */ } }
+  };
+  // 全屏（安卓 Chrome 等；iPhone Safari 不支持元素全屏 → 改提示"添加到主屏幕"）
+  const fsRoot = document.documentElement;
+  const fsActive = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+  const fsAvailable = () => input.touchMode
+    && !!(fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen || document.exitFullscreen || document.webkitExitFullscreen);
+  function goFullscreen() {
+    if (fsActive()) {
+      const ex = document.exitFullscreen || document.webkitExitFullscreen;
+      if (ex) { try { const pr = ex.call(document); if (pr && pr.catch) pr.catch(() => {}); } catch (e) { /* ignore */ } }
+      return;
+    }
+    const req = fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen;
+    if (!req) return;
+    const lock = () => {
+      try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch (e) { /* ignore */ }
+    };
+    try {
+      const pr = req.call(fsRoot, { navigationUI: 'hide' });
+      if (pr && pr.then) pr.then(lock, () => {}); else lock();
+    } catch (e) { /* 不支持静默 */ }
+  }
+  const isIPhone = /iPhone|iPod/.test(navigator.userAgent || '');
+  const standalone = navigator.standalone === true
+    || !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 
   // ---- 局与视图 ----
   let run = createRun(data);
@@ -301,13 +344,14 @@ async function boot() {
     get views() { return enemyViews; },          // selfcheck 按 id 精确取面片
     get player() { return player; }, pump: null,
     get dexState() { return dexState; },
-    restart: () => { saveStore.clear(); hud.hideVictory(); hud.hideDeath(); beginRun(createRun(data, undefined, run.player.species)); },   // 走 beginRun：started/精灵/横幅齐全
+    restart: () => restartRun(),                  // 与胜负页"重新出发"同一路径（beginRun：started/精灵/横幅齐全）
     goRoom: (key) => { enterRoom(run, data, key); window.__depths.run = run; rebuildRoom(); },   // ?debug 传送
     give: (id) => { run.player.inv.passives.push(id); recompute(run, data); hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB); } };
 
   // ---- 存档与本机榜 ----
   const BOARD_KEY = 'depths-board';
   function saveNow() { if (!selfcheckOn && started && !run.over && run.player.alive) saveStore.write(run); }
+  const clearSave = () => { if (!selfcheckOn) saveStore.clear(); };   // selfcheck 会走死亡/重开路径：不许清掉玩家真存档
   function recordBoard() {
     if (selfcheckOn) return;
     try {
@@ -417,6 +461,8 @@ async function boot() {
       board: readBoard(),
       achvCount: `${achvSet.size}/${ACHVS.length}`,
       quality: tier,
+      fullscreen: fsAvailable(), onFullscreen: () => { goFullscreen(); },
+      iosTip: isIPhone && !standalone,
       onQuality: (q) => {
         try { localStorage.setItem('depths-quality', q); } catch (e) { /* ignore */ }
         location.reload();                                     // 渲染器/后处理链随档位重建
@@ -467,13 +513,92 @@ async function boot() {
   }
   showStart();
 
+  // ---- 重开 / 回标题 / 暂停（M6：手机没有 R/Esc，全部要有按钮路径） ----
+  // 重开沿用开局物种 species0（进化后 species=raichu，原 R 路径会拿雷丘面板开一只皮卡丘）与本局难度
+  function restartRun() {
+    clearSave();
+    hud.hideVictory(); hud.hideDeath();
+    setPaused(false);
+    beginRun(createRun(data, undefined, run.player.species0 || run.player.species, run.difficulty || 'normal'));
+  }
+  function backToTitle() {
+    saveNow();                                     // 局中返回：存档，标题页出现"继续探险"
+    paused = false; sheetToggle = false;
+    hud.pauseMenu(false); hud.hideDex(); hud.hideAchv();
+    hud.hideDeath(); hud.hideVictory(); hud.hideBossBar();
+    started = false;
+    showStart();
+  }
+  hud.bindEnd({ retry: restartRun, title: backToTitle });
+
+  let paused = false, sheetToggle = false;
+  const canPause = () => started && run.player.alive && !run.over;
+  function toggleMute() {
+    const m = bgm.toggleMute();
+    sfx.setMuted(m);
+    hud.toast('声音 ' + (m ? '已静音' : '开启'), input.touchMode ? '暂停菜单可再切换' : 'M 键或暂停菜单切换（BGM 与音效一起）');
+  }
+  function showPauseMenu() {
+    hud.pauseMenu(true, {
+      muted: bgm.muted, quality: tier, fullscreen: fsAvailable(), fullscreenOn: fsActive(),
+      on: (a) => {
+        if (a === 'resume') setPaused(false);
+        else if (a === 'mute') { toggleMute(); showPauseMenu(); }
+        else if (a === 'dex') refreshDex();
+        else if (a === 'achv') refreshAchv();
+        else if (a === 'fs') { goFullscreen(); setPaused(false); }
+        else if (a === 'restart') { restartRun(); }
+        else if (a === 'title') backToTitle();
+      },
+      onQuality: (q) => {
+        if (q === tier) return;
+        saveNow();                                 // 重载前存档：回来点"继续探险"接着打
+        try { localStorage.setItem('depths-quality', q); } catch (e) { /* ignore */ }
+        location.reload();
+      },
+    });
+  }
+  function setPaused(on) {
+    paused = !!on && canPause();
+    if (paused) { saveNow(); showPauseMenu(); }
+    else hud.pauseMenu(false);
+  }
+
+  // 竖屏提示（触屏 + 竖屏）：可"仍然竖屏玩"（相机 fit 会放宽视野）
+  let rotateDismissed = false;
+  function updateRotate() {
+    const [w, h] = viewportSize();
+    hud.rotateHint(input.touchMode && h > w * 1.05 && !rotateDismissed, () => { rotateDismissed = true; updateRotate(); });
+  }
+  updateRotate();
+  input.onModeChange(() => updateRotate());
+
   // A 槽显示：替补上场时显示替补招式
   const effMoveA = (r) => (r.player.activeSide === 'companion' && r.player.companion)
     ? r.player.companion.moveA : r.player.moveA;
 
+  // 触屏瞄准辅助（M6）：右摇杆方向 ±10° 内有敌人就对准它——拇指推方向的精度远不如鼠标
+  const ASSIST_COS = Math.cos(10 * Math.PI / 180);
+  function assistAim(v) {
+    const p = run.player;
+    const l = Math.hypot(v.x, v.y) || 1;
+    const ux = v.x / l, uy = v.y / l;
+    let best = null, bestScore = Infinity;
+    for (const e of run.enemies) {
+      if (e.state !== 'active' || e.hidden) continue;
+      const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
+      if (d < 0.3 || d > 10) continue;
+      const cos = (dx * ux + dy * uy) / d;
+      if (cos < ASSIST_COS) continue;
+      const score = (1 - cos) * 60 + d * 0.02;      // 角度优先，距离次之
+      if (score < bestScore) { bestScore = score; best = { x: dx, y: dy }; }
+    }
+    return best || { x: v.x, y: v.y };
+  }
+
   function aimVector() {
     const ta = input.touchAim();
-    if (ta) return { x: ta.x, y: ta.y };            // 触屏右摇杆：朝推动方向射击
+    if (ta) return assistAim(ta);                   // 触屏右摇杆：朝推动方向射击（带轻度吸附）
     const pa = input.padAim();
     if (pa) return { x: pa.x, y: pa.y };            // 手柄右摇杆：朝推动方向射击
     raycaster.setFromCamera(input.mouse, camCtl.camera);
@@ -496,7 +621,7 @@ async function boot() {
       const spec = data.enemies[d.itemId.slice('companion:'.length)];
       return spec ? {
         name: spec.name + '（受困）', quality: 1, icon: null, price: 0, free: true,
-        desc: '踏上台座免费结伴：按 F 换它上场，替你承受伤害',
+        desc: `踏上台座免费结伴：${keyHint('KeyF')}换它上场，替你承受伤害`,
       } : null;
     }
     const it = data.items[d.itemId];
@@ -522,7 +647,7 @@ async function boot() {
             hud.banner(`${data.floors[run.floorNo].name} · ${bSpec.name}`, bSpec.intro || '馆主的试炼！', 3000);
           }
           else if (ev.type === 'start' && run.pedestals.some((d) => d.choice === 'start-tm' && !d.taken)) {
-            hud.banner('免费技能机 · 三选一', '踏上台座装填 B 槽 · 按 Q 随时切换招式', 3400);
+            hud.banner('免费技能机 · 三选一', `踏上台座装填 B 槽 · ${keyHint('KeyQ')}随时切换招式`, 3400);
           }
           else if (ev.type === 'shop') hud.banner('友好商店', '踩上商品即可购买', 1800);
           else if (ev.type === 'treasure') hud.banner('宝箱房', '免费的强化在等你', 1600);
@@ -593,6 +718,7 @@ async function boot() {
         case 'telegraph-hit': fx.burst(ev.x, ev.y, 10, 0xc88a70); break;
         case 'player-hurt':
           splay('hurt');
+          buzz(35);
           hitStopT = Math.max(hitStopT, feel.hitStopHurt);
           camCtl.shake(feel.shakeHurt, 0.3);
           player.flash(0.1);
@@ -601,7 +727,8 @@ async function boot() {
         case 'player-block': damageNum(ev.x, ev.y, '格挡', 'super'); break;
         case 'lethal-guard': hud.banner('气势披带！', '保住了一命', 1400); break;
         case 'player-die':
-          saveStore.clear();
+          buzz(160);
+          clearSave();
           recordBoard();
           splay('death');
           camCtl.shake(0.5, 0.5);
@@ -697,6 +824,7 @@ async function boot() {
           break;
         case 'zmove':
           splay('zmove');
+          buzz(60);
           hud.flash();
           camCtl.shake(0.5, 0.5);
           hitStopT = Math.max(hitStopT, 0.18);
@@ -704,7 +832,7 @@ async function boot() {
           damageNum(ev.x, ev.y, ev.name + '！', 'super');
           break;
         case 'companion-join': {
-          hud.banner(`${ev.name} 加入了同行！`, '按 F 随时切换', 2600);
+          hud.banner(`${ev.name} 加入了同行！`, `${keyHint('KeyF')}随时切换`, 2600);
           const cSpec = data.enemies[ev.eid];                    // 结伴叫声
           if (cSpec && cSpec.dex) cry(cSpec.dex, { volume: 0.55 });
           break;
@@ -731,7 +859,7 @@ async function boot() {
           break;
         case 'floor-clear':
           run.stats.tRun = run.t;
-          saveStore.clear();
+          clearSave();
           recordBoard();
           hud.hideBossBar();
           if (run.floorNo >= 4) {
@@ -773,25 +901,73 @@ async function boot() {
   let last = performance.now(), acc = 0, steps = 0;
   const clock = { t: 0 };
   let doorOpenSeen = null;
-  let peekPedId = -1, sheetOn = false, sheetT = 0;
+  let peekPedId = -1, sheetOn = false, sheetT = 0, ingameSeen = null;
+  // 边沿输入跨帧暂存（M6）：一帧可能跑 0 个模拟步（120/144Hz 高刷屏；60Hz 的 rAF 时间抖动）或多步（掉帧）。
+  // 原来边沿直接塞给本帧所有步：0 步帧按键被吞（冲刺/切招"偶尔没反应"），2 步帧 Q/F 切两次=没切。
+  // 现在边沿先进 pend，只交给下一个真正执行的模拟步，消费即清。
+  const pend = { dash: false, slot: false, use: false, z: false, swap: false };
+  const clearPend = () => { pend.dash = pend.slot = pend.use = pend.z = pend.swap = false; };
+  // 触屏引导：幽灵底座附文字，直到两根摇杆都用够 6 秒
+  let touchTut = (() => { try { return localStorage.getItem('depths-touch-tut') !== '1'; } catch (e) { return true; } })();
+  const tutUse = { l: 0, r: 0 };
+  // 动态分辨率（M6，仅触屏）：2.5s 平均帧率 <45 就逐级降像素比（不重载、不丢局）；
+  // 降了不见效（系统省电锁 30 帧等）就回退一级并停用，免得白糊
+  const DRS_STEPS = [1, 0.8, 0.67, 0.55];
+  const drs = { base: renderer.getPixelRatio(), lv: 0, t: 0, n: 0, cool: 4, prevFps: 0, off: selfcheckOn || params.has('nodrs'), warned: false };
+  function drsApply() {
+    renderer.setPixelRatio(Math.max(0.6, drs.base * DRS_STEPS[drs.lv]));
+    fitView();
+    if (postfx) postfx.setSize(...viewportSize());
+  }
+  function drsTick(rawDt, simPaused) {
+    // 无焦点（后台标签/内嵌浏览器未激活）时 rAF 会被节流，慢帧不是性能信号
+    if (drs.off || !input.touchMode || !started || simPaused || document.hidden || !document.hasFocus()) return;
+    if (rawDt > 0.2) return;
+    if (drs.cool > 0) { drs.cool -= rawDt; return; }
+    drs.t += rawDt; drs.n++;
+    if (drs.t < 2.5) return;
+    const fps = drs.n / drs.t;
+    drs.t = 0; drs.n = 0;
+    if (drs.prevFps) {
+      const helped = fps >= drs.prevFps * 1.08;
+      drs.prevFps = 0;
+      if (!helped) { drs.lv--; drsApply(); drs.off = true; return; }
+    }
+    if (fps >= 45) return;
+    if (drs.lv >= DRS_STEPS.length - 1) {
+      if (fps < 32 && !drs.warned) { drs.warned = true; hud.toast('画面仍然吃力', '暂停菜单里把画质切到「低」会流畅很多'); }
+      return;
+    }
+    drs.prevFps = fps;
+    drs.lv++;
+    drsApply();
+    drs.cool = 2;
+    if (drs.lv === 1) hud.toast('已自动降低渲染分辨率', '保持流畅（暂停菜单可切画质）');
+  }
 
   function frame(now, forcedDt) {
     requestAnimationFrame(frame);
-    if (!Number.isFinite(camCtl.camera.aspect)) resize(THREE, renderer, camCtl.camera);
+    if (!Number.isFinite(camCtl.camera.aspect)) fitView();
     let dt = forcedDt ?? (now - last) / 1000;
     if (dt < 0) dt = 0;
     if (dt > 0.25) dt = 0.25;
     last = now;
+    const rawDt = dt;
     if (hitStopT > 0) { hitStopT -= dt; dt *= 0.08; }
 
     input.poll();                                             // 手柄：帧首统一轮询
     if (input.consumePress('KeyC')) cry((data.species[run.player.species] || {}).cry ?? 25);
-    if (input.consumePress('KeyM')) {
-      const m = bgm.toggleMute();
-      sfx.setMuted(m);
-      hud.toast('声音 ' + (m ? '已静音（M 恢复）' : '开启'), 'BGM 与音效一起切换');
+    if (input.consumePress('KeyM')) toggleMute();
+    // Esc：先关浮层（图鉴/成就/触屏面板），都没开就切暂停；B 仍是图鉴，P 也能暂停
+    if (input.consumePress('Escape')) {
+      if (hud.dexOpen) hud.hideDex();
+      else if (hud.achvOpen) hud.hideAchv();
+      else if (sheetToggle) sheetToggle = false;
+      else if (paused) setPaused(false);
+      else if (canPause()) setPaused(true);
     }
-    if (input.consumePress('KeyB') || input.consumePress('Escape')) {
+    if (input.consumePress('KeyP')) setPaused(!paused);
+    if (input.consumePress('KeyB')) {
       if (hud.dexOpen) hud.hideDex();
       else if (hud.achvOpen) hud.hideAchv();
       else refreshDex();
@@ -800,46 +976,49 @@ async function boot() {
       if (hud.achvOpen) hud.hideAchv();
       else refreshAchv();
     }
-    const dexPaused = hud.dexOpen || hud.achvOpen;
     const digit = ['Digit1', 'Digit2', 'Digit3'].find((c) => input.consumePress(c));
     if (digit) {
       const map = { Digit1: 'high', Digit2: 'med', Digit3: 'low' };
       const u = new URL(location.href);
       u.searchParams.set('q', map[digit]);
+      saveNow();
       location.replace(u);
     }
     if (debugOn) {
       if (input.consumePress('KeyK')) for (const e of run.enemies) e.hp = 0;
     }
+    // R：活着=Z 招式；胜负页显示中=重开（只认页面已弹出——死亡当帧连按 Z 不会跳过战绩页）。
+    // 触屏 Z 按钮发 ZMove，永远不触发重开
     const rPressed = input.consumePress('KeyR');
-    if (rPressed && (!run.player.alive || run.over)) {
-      saveStore.clear();
-      run = createRun(data, undefined, run.player.species);   // 重开沿用本局搭档（进化形回退基线）
-      window.__depths.run = run;
-      hud.hideVictory(); hud.hideDeath();
-      playerSlug = '';
-      setPlayerSprite(run.player.species);
-      rebuildRoom();
-      hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB);
-    }
+    const zPressed = input.consumePress('ZMove');
+    if (rPressed && started && hud.endOpen) restartRun();
+    const live = run.player.alive && !run.over;
+    if (!started || !live) sheetToggle = false;
 
+    if (input.consumePress('Space')) pend.dash = true;
+    if (input.consumePress('KeyQ')) pend.slot = true;
+    if (input.consumePress('KeyE')) pend.use = true;
+    if (input.consumePress('KeyF')) pend.swap = true;
+    if ((rPressed || zPressed) && live) pend.z = true;
     const gameInput = {
       move: input.getMove(),
       aim: aimVector(),
-      fire: (input.fire || !!input.touchAim() || !!input.padAim() || input.padFire()) && run.player.alive && !run.over,
-      dashEdge: input.consumePress('Space'),
-      slotEdge: input.consumePress('KeyQ'),
-      useEdge: input.consumePress('KeyE'),
-      zEdge: rPressed && run.player.alive && !run.over,
-      swapEdge: input.consumePress('KeyF'),
+      fire: (input.fire || !!input.touchAim() || !!input.padAim() || input.padFire()) && live,
+      dashEdge: pend.dash, slotEdge: pend.slot, useEdge: pend.use, zEdge: pend.z, swapEdge: pend.swap,
     };
 
-    if (!started || dexPaused) { acc = 0; steps = 0; }
+    // 模拟暂停：开始界面 / 图鉴 / 成就 / 暂停菜单 / 竖屏提示 / 触屏地图面板（Tab 长按的以撒式面板不停）
+    const simPaused = !started || hud.dexOpen || hud.achvOpen || paused || hud.rotateOpen || sheetToggle;
+    if (simPaused) { acc = 0; steps = 0; clearPend(); }
     else {
       acc += dt;
       steps = 0;
       while (acc >= STEP && steps < 4) {
         stepRun(run, gameInput, data);
+        if (steps === 0) {                                    // 边沿只交给第一步
+          clearPend();
+          gameInput.dashEdge = gameInput.slotEdge = gameInput.useEdge = gameInput.zEdge = gameInput.swapEdge = false;
+        }
         acc -= STEP;
         steps++;
       }
@@ -848,10 +1027,11 @@ async function boot() {
     input.endFrame();
     consumeEvents();
     stepFading(dt);
+    drsTick(rawDt, simPaused);
     // BGM 场景驱动：探索（默认）/战斗（房内有敌）/Boss（馆主在场）/黑市祭坛（房间变奏）
     bgm.setScene({
       floorNo: run.floorNo,
-      combat: started && !hud.dexOpen && !hud.achvOpen && run.player.alive && !run.over && run.enemies.length > 0,
+      combat: !simPaused && run.player.alive && !run.over && run.enemies.length > 0,
       boss: started && !run.over && run.player.alive && run.enemies.some((e) => e.family === 'boss'),
       roomType: run.room ? run.room.type : null,
     });
@@ -891,8 +1071,8 @@ async function boot() {
       bb.update(dt);
       bb.place(e.px + (e.x - e.px) * alpha, e.py + (e.y - e.py) * alpha);
     }
-    const live = new Set(run.enemies.map((e) => e.id));
-    for (const [id, bb] of enemyViews) if (!live.has(id) && !fading.some((f) => f.bb === bb)) { scene.remove(bb.group); bb.dispose(); enemyViews.delete(id); }
+    const liveIds = new Set(run.enemies.map((e) => e.id));
+    for (const [id, bb] of enemyViews) if (!liveIds.has(id) && !fading.some((f) => f.bb === bb)) { scene.remove(bb.group); bb.dispose(); enemyViews.delete(id); }
 
     // Boss 条（馆主名 · 搭档物种名）
     const boss = run.enemies.find((e) => e.family === 'boss');
@@ -908,7 +1088,7 @@ async function boot() {
     fx.update(dt);
     hud.setCompass(!!(run.player.mods && run.player.mods.compass));   // 洞窟罗盘：隐藏房上图
     if (roomView) {
-      roomView.update(dt, clock.t);
+      roomView.update(dt, clock.t, simPaused || hud.endOpen || !p.alive);   // 浮层打开时火光不频闪
       const open = run.room.cleared || ['shop', 'secret', 'start', 'blackmarket', 'altar', 'camp'].includes(run.room.type);
       if (open !== doorOpenSeen) { doorOpenSeen = open; roomView.setDoorOpen(open); }
     }
@@ -943,24 +1123,31 @@ async function boot() {
       }
     }
 
-    // 触屏虚拟摇杆同步
-    {
+    // 触屏层（M6）：ingame 类控制按键/幽灵底座显隐；摇杆跟手；按键状态（冲刺格/PP 环/B 槽/道具图标/替补）
+    const ingame = started && p.alive && !run.over && !paused && !hud.dexOpen && !hud.achvOpen;
+    if (ingame !== ingameSeen) { ingameSeen = ingame; document.body.classList.toggle('ingame', ingame); }
+    if (input.touchMode) {
       const stks = input.sticks();
-      for (const [id, key] of [['stick-l', 'l'], ['stick-r', 'r']]) {
-        const el = document.getElementById(id);
-        if (!el) continue;
-        const o = stks[key];
-        if (o) {
-          el.style.display = 'block';
-          el.style.left = o.ox + 'px';
-          el.style.top = o.oy + 'px';
-          el.firstElementChild.style.transform = `translate(${Math.round(o.kx * 34)}px, ${Math.round(o.ky * 34)}px)`;
-        } else el.style.display = 'none';
+      if (touchTut && ingame) {
+        if (stks.l) tutUse.l += rawDt;
+        if (stks.r) tutUse.r += rawDt;
+        if (tutUse.l > 6 && tutUse.r > 6) {
+          touchTut = false;
+          if (!selfcheckOn) { try { localStorage.setItem('depths-touch-tut', '1'); } catch (e) { /* ignore */ } }
+        }
       }
+      hud.sticks(stks, touchTut);
+      if (ingame) hud.touchPad({
+        dash: p.dashCharges, dashMax: data.balance.player.dashCharges,
+        pp: p.pp / (100 * p.mods.ppCost), zReady: p.pp >= 100 * p.mods.ppCost,
+        hasB: !!p.moveB, slot: p.slot, lockB: !!p.mods.lockB,
+        useIcon: p.inv.consumable ? ((data.items[p.inv.consumable] || {}).icon || 'kings-rock') : null,
+        hasComp: !!(p.companion && p.companion.hp > 0), compActive: p.activeSide === 'companion',
+      });
     }
 
-    // Tab 长按：数据面板（全层地图 + 面板 + 道具收藏）
-    const sheetWant = input.held('Tab') && !run.over && p.alive;
+    // Tab 长按（键鼠/手柄 Start）或触屏「地图」开关：数据面板（全层地图 + 面板 + 道具收藏）
+    const sheetWant = (input.held('Tab') || sheetToggle) && started && !run.over && p.alive;
     if (sheetWant !== sheetOn) {
       sheetOn = sheetWant;
       hud.sheet(sheetOn, run, data);
@@ -999,16 +1186,36 @@ async function boot() {
     });
   }
   requestAnimationFrame(frame);
-  window.addEventListener('resize', () => {
-    resize(THREE, renderer, camCtl.camera);
+  const onViewport = () => {
+    fitView();
     if (postfx) postfx.setSize(...viewportSize());
-  });
+    updateRotate();
+  };
+  window.addEventListener('resize', onViewport);
+  window.addEventListener('orientationchange', () => setTimeout(onViewport, 120));   // iOS 转屏后尺寸晚一拍
   window.addEventListener('beforeunload', saveNow);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
-  for (const [id, code] of [['btn-dash', 'Space'], ['btn-dex', 'KeyB'], ['btn-sheet', 'Tab']]) {
+  window.addEventListener('pagehide', saveNow);              // iOS Safari 不可靠触发 beforeunload
+  // 切后台：存档 + 自动暂停（回来先看到菜单，不会一回来就挨打）；?debug 下不自动停（帧泵测试会被打断）
+  const autoPause = !selfcheckOn && (!debugOn || params.has('autopause'));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      saveNow();
+      if (autoPause && canPause() && !paused) setPaused(true);
+    } else cries.ensureCtx();
+  });
+  // 触屏按键（M6）：pointerdown 即触发（不等 click 抬手），按住不连发；地图=开关、暂停=菜单
+  const padBtn = (id, fn) => {
     const el = document.getElementById(id);
-    if (el) el.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); input.pressButton(code); }, { passive: false });
-  }
+    if (el) el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); fn(); });
+  };
+  padBtn('tb-dash', () => input.pressButton('Space'));
+  padBtn('tb-z', () => input.pressButton('ZMove'));
+  padBtn('tb-slot', () => input.pressButton('KeyQ'));
+  padBtn('tb-use', () => input.pressButton('KeyE'));
+  padBtn('tb-swap', () => input.pressButton('KeyF'));
+  padBtn('tb-map', () => { sheetToggle = !sheetToggle; });
+  padBtn('tb-pause', () => setPaused(true));
+  hud.onSheetTap(() => { sheetToggle = false; });
   window.__depths.pump = (n = 1, dtMs = 1000 / 60) => {
     let t = performance.now();
     for (let i = 0; i < n; i++) { t += dtMs; frame(t, dtMs / 1000); input.endFrame(); }
@@ -1053,7 +1260,49 @@ async function boot() {
       }
       out.calls = renderer.info.render.calls;
       out.tris = renderer.info.render.triangles;
-      out.ok = out.enemiesCombat > 0 && out.viewsCombat > 0 && out.combatCleared && out.playerAlive && out.playerAlive2 && out.bossSpawned && out.bossMeshOk && out.calls > 0;
+
+      // ---- M6 输入/流程回归（出生房无敌人，不受 Boss 干扰） ----
+      window.__depths.goRoom(keyOf('start'));
+      window.__depths.pump(5);
+      const p0 = run.player;
+      p0.moveB = p0.moveB || 'water-gun';
+      p0.slot = 'A';
+      // ① 边沿不丢不重：144Hz（多数帧 0 步）与 40ms 掉帧（一帧 2 步）下按 Q 必须恰好切一次
+      out.edgesOk = true;
+      for (const dtMs of [1000 / 144, 1000 / 144, 1000 / 144, 40, 40, 1000 / 60]) {
+        const before = p0.slot;
+        input.pressButton('KeyQ');
+        window.__depths.pump(1, dtMs);
+        window.__depths.pump(3, 1000 / 144);              // 0 步帧暂存的边沿在这里兑现
+        if (p0.slot === before) out.edgesOk = false;
+      }
+      // ② 触屏按键路径：pointerdown → 模拟按键边沿（隐藏状态下事件照常派发）
+      const slotBefore = p0.slot;
+      document.getElementById('tb-slot').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      window.__depths.pump(2);
+      out.padOk = p0.slot !== slotBefore;
+      // ③ 暂停冻结模拟、继续恢复
+      setPaused(true);
+      const t0 = run.t;
+      window.__depths.pump(20);
+      out.pauseOk = paused && hud.pauseOpen && run.t === t0;
+      setPaused(false);
+      window.__depths.pump(5);
+      out.pauseOk = out.pauseOk && !hud.pauseOpen && run.t > t0;
+      // ④ 死亡 → 胜负页"重新出发"按钮（手机没有 R 键）→ 新局开打
+      p0.iframes = 0;
+      run.hurtPlayer(99);
+      consumeEvents();                                      // 步外注入的事件要立刻消费（下一步 stepRun 会清 events）
+      window.__depths.pump(3);
+      out.deathShown = hud.endOpen;
+      const deadRun = run;
+      document.querySelector('#death [data-end="retry"]').click();
+      window.__depths.pump(5);
+      out.retryOk = run !== deadRun && window.__depths.run === run && run.player.alive && !hud.endOpen
+        && run.difficulty === deadRun.difficulty && run.player.species === deadRun.player.species0;
+
+      out.ok = out.enemiesCombat > 0 && out.viewsCombat > 0 && out.combatCleared && out.playerAlive && out.playerAlive2 && out.bossSpawned && out.bossMeshOk && out.calls > 0
+        && out.edgesOk && out.padOk && out.pauseOk && out.deathShown && out.retryOk;
     } catch (e) {
       out.ok = false;
       out.errors.push(String((e && e.stack) || e));

@@ -1,4 +1,6 @@
-// 输入层 M2→M4：键盘移动 + 鼠标瞄准/射击 + 冲刺 + 触屏虚拟双摇杆 + 手柄（标准映射）。
+// 输入层 M2→M6：键盘移动 + 鼠标瞄准/射击 + 冲刺 + 触屏虚拟双摇杆 + 手柄（标准映射）。
+// M6 触屏：开机识别触屏设备直接进触屏 UI（不必等第一下触摸）；摇杆浮动且跟手（拖出半径时底座跟随，
+// 反向不用回拉）；第二根手指落在已占用的半屏时自动接管空闲摇杆；外接键盘按游戏键回键鼠 UI。
 const GAME_KEYS = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
   'Space', 'Tab',
@@ -6,11 +8,26 @@ const GAME_KEYS = new Set([
 
 const STICK_R = 52;          // 虚拟摇杆半径（px）
 const STICK_DEAD = 0.14;     // 死区
+// 这些元素上的触摸走默认行为（合成 click），不进摇杆；浮层容器统一挂 .ui-touch
+const UI_SEL = 'button, input, a, label, .ui-touch';
 
 // 手柄标准映射（Gamepad API "standard" 布局）：
 // 左摇杆=移动，右摇杆=瞄准+射击，RT=射击，A=冲刺，B=图鉴，X=消耗品，Y=切槽，LB=换替补，RB=Z 招式，Start=面板
 const PAD_BTN = { 0: 'Space', 1: 'KeyB', 2: 'KeyE', 3: 'KeyQ', 4: 'KeyF', 5: 'KeyR', 9: 'Tab' };
 const PAD_AXIS_DEAD = 0.18;
+
+function urlFlag(name) {
+  try { return new URLSearchParams(location.search).get(name) === '1'; } catch (e) { return false; }
+}
+
+// 触屏为主的设备（手机/平板）：无悬停 + 粗指针；?touch=1 强制（布局调试/桌面验收用）
+export function touchPreferred() {
+  if (urlFlag('touch')) return true;
+  try {
+    return !!(typeof window !== 'undefined' && window.matchMedia
+      && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
+  } catch (e) { return false; }
+}
 
 export function createInput(target = window) {
   const down = new Set();
@@ -18,12 +35,32 @@ export function createInput(target = window) {
   const onFirstKey = [];
   const mouse = { x: 0.5, y: 0.5, down: false };   // NDC (-1..1)；down=左键
   const touches = new Map();                        // touchId -> { side:'l'|'r', ox, oy, x, y }
+  const forcedTouch = urlFlag('touch');
+  const modeFns = [];
+  let touchMode = false;
 
+  function setTouchMode(on) {
+    on = !!on;
+    if (on === touchMode) return;
+    touchMode = on;
+    if (typeof document !== 'undefined' && document.body) document.body.classList.toggle('touchmode', on);
+    modeFns.forEach((fn) => fn(on));
+  }
+  if (touchPreferred()) setTouchMode(true);
+
+  function fireFirst() {
+    if (!onFirstKey.length) return;
+    onFirstKey.forEach((fn) => fn());
+    onFirstKey.length = 0;
+  }
   function keydown(e) {
-    if (GAME_KEYS.has(e.code)) e.preventDefault();
+    if (GAME_KEYS.has(e.code)) {
+      e.preventDefault();
+      if (touchMode && !forcedTouch) setTouchMode(false);    // 外接键盘玩家：切回键鼠 UI
+    }
     if (!down.has(e.code)) {
       pressedOnce.add(e.code);
-      if (down.size === 0) { onFirstKey.forEach((fn) => fn()); onFirstKey.length = 0; }
+      if (down.size === 0) fireFirst();
     }
     down.add(e.code);
   }
@@ -36,48 +73,55 @@ export function createInput(target = window) {
   function mousedown(e) {
     if (e.button === 0) {
       mouse.down = true;
-      if (down.size === 0) { onFirstKey.forEach((fn) => fn()); onFirstKey.length = 0; }
+      if (down.size === 0) fireFirst();
     }
   }
   function mouseup(e) { if (e.button === 0) mouse.down = false; }
   function contextmenu(e) { e.preventDefault(); }
 
-  // ---- 触屏：左半屏=移动摇杆，右半屏=瞄准+射击摇杆 ----
+  // ---- 触屏：左半屏=移动摇杆，右半屏=瞄准+射击摇杆（浮动：按下处即摇杆中心） ----
   function stickVec(o) {
     let dx = (o.x - o.ox) / STICK_R, dy = (o.y - o.oy) / STICK_R;
     const l = Math.hypot(dx, dy);
     if (l > 1) { dx /= l; dy /= l; }
     return { x: dx, y: dy, l };
   }
-  function firstTouch() {
-    if (down.size === 0 && touches.size === 0) { onFirstKey.forEach((fn) => fn()); onFirstKey.length = 0; }
-  }
-  function onButtons(e) {
-    // 按钮与浮层上的触摸走默认行为（合成 click），不进摇杆
+  function onUI(e) {
     const t = e.target;
-    return !!(t.closest && t.closest('button, #start, #dex, .tbtn'));
+    return !!(t && t.closest && t.closest(UI_SEL));
+  }
+  function sideBusy(side) {
+    for (const o of touches.values()) if (o.side === side) return true;
+    return false;
   }
   function touchstart(e) {
-    if (onButtons(e)) return;
+    if (onUI(e)) return;
     e.preventDefault();
-    document.body.classList.add('touchmode');
-    firstTouch();                                    // 在登记触点前判空
+    setTouchMode(true);
+    if (down.size === 0 && touches.size === 0) fireFirst();   // 在登记触点前判空
+    const W = window.innerWidth || 1;
     for (const t of e.changedTouches) {
-      const side = t.clientX < window.innerWidth / 2 ? 'l' : 'r';
+      let side = t.clientX < W / 2 ? 'l' : 'r';
+      const other = side === 'l' ? 'r' : 'l';
+      if (sideBusy(side) && !sideBusy(other)) side = other;   // 两指落同侧：后到的接管空闲摇杆
       touches.set(t.identifier, { side, ox: t.clientX, oy: t.clientY, x: t.clientX, y: t.clientY });
     }
   }
   function touchmove(e) {
-    if (onButtons(e)) return;
+    if (onUI(e)) return;                             // 浮层内滑动=滚动，不拦
     e.preventDefault();
     for (const t of e.changedTouches) {
       const o = touches.get(t.identifier);
-      if (o) { o.x = t.clientX; o.y = t.clientY; }
+      if (!o) continue;
+      o.x = t.clientX; o.y = t.clientY;
+      const dx = o.x - o.ox, dy = o.y - o.oy, l = Math.hypot(dx, dy);
+      if (l > STICK_R) { o.ox = o.x - dx / l * STICK_R; o.oy = o.y - dy / l * STICK_R; }   // 底座跟手
     }
   }
   function touchend(e) {
     for (const t of e.changedTouches) touches.delete(t.identifier);
   }
+  function visibility() { if (typeof document !== 'undefined' && document.hidden) blur(); }   // 切后台可能收不到 touchend
 
   target.addEventListener('keydown', keydown);
   target.addEventListener('keyup', keyup);
@@ -90,6 +134,7 @@ export function createInput(target = window) {
   target.addEventListener('touchmove', touchmove, { passive: false });
   target.addEventListener('touchend', touchend, { passive: false });
   target.addEventListener('touchcancel', touchend, { passive: false });
+  if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('visibilitychange', visibility);
 
   function keyboardMove() {
     let x = 0, y = 0;
@@ -127,7 +172,7 @@ export function createInput(target = window) {
       if (!code) return;
       if (b.pressed && !padPrev[i]) {
         pressedOnce.add(code);
-        if (down.size === 0) { onFirstKey.forEach((fn) => fn()); onFirstKey.length = 0; }
+        if (down.size === 0) fireFirst();
       }
       if (b.pressed) down.add(code);
       else down.delete(code);
@@ -159,7 +204,7 @@ export function createInput(target = window) {
       }
       return out;
     },
-    pressButton(code) { pressedOnce.add(code); },  // 触屏按钮 → 模拟按键（冲刺/图鉴）
+    pressButton(code) { pressedOnce.add(code); },  // 触屏按钮 → 模拟按键边沿（冲刺/切招/道具/换队/Z）
     held(code) { return down.has(code); },
     mouse,
     get fire() { return mouse.down; },
@@ -168,6 +213,9 @@ export function createInput(target = window) {
       for (const p of pads) if (p && p.connected) return true;
       return false;
     },
+    get touchMode() { return touchMode; },
+    setTouchMode,
+    onModeChange(fn) { modeFns.push(fn); },
     consumePress(code) {
       if (pressedOnce.has(code)) { pressedOnce.delete(code); return true; }
       return false;

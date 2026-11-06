@@ -7,7 +7,7 @@ export function createBgm({ ensureCtx, onLog } = {}) {
   let ctx = null, master = null, padGain = null, combatGain = null, bossGain = null;
   let noiseBuf = null, delay = null;
   let timer = null, step = 0, nextT = 0;
-  let started = false;
+  let started = false, pending = false;
   let muted = false;
   try { muted = localStorage.getItem('depths-bgm-muted') === '1'; } catch (e) { /* ignore */ }
   let scene = { floorNo: 1, combat: false, boss: false, roomType: null };
@@ -159,7 +159,17 @@ export function createBgm({ ensureCtx, onLog } = {}) {
       if (started) return;
       try {
         ctx = ensureCtx ? ensureCtx() : new (window.AudioContext || window.webkitAudioContext)();
-        if (!ctx || ctx.state !== 'running') return;  // 手势未解锁前不启动
+        if (!ctx) return;
+        if (ctx.state !== 'running') {
+          // 手势解锁中：resume 是异步的（Safari/iOS 尤其），等真正 running 再起；
+          // 原来这里直接 return 且只在首次交互调一次——那一次没赶上就整局无 BGM
+          if (!pending && ctx.resume) {
+            pending = true;
+            ctx.resume().then(() => { pending = false; if (ctx.state === 'running') this.start(); },
+              () => { pending = false; });
+          }
+          return;
+        }
         buildGraph();
         applyGains();
         nextT = ctx.currentTime + 0.1;

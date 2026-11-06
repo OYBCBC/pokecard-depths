@@ -174,8 +174,11 @@ export function buildRoom(THREE, scene, tex, lights, tier, cfg) {
   let openState = false;
   return {
     group,
-    update(dt, t) {
+    update(dt, t, calm) {
+      // calm=全屏 UI 浮层打开（开始界面/暂停/图鉴/胜负页）：火光定在基准亮度、火焰停帧。
+      // 频闪的火把在游戏里是氛围，透过 80% 透明的浮层就是背景一明一暗晃眼（M6 用户反馈）。
       torches.forEach(({ flame, light, phase, base }) => {
+        if (calm) { light.intensity = base; return; }
         const frame = Math.floor((t * 8 + phase) % 4);
         tex.flame.offset.x = frame / 4;
         light.intensity = base + Math.sin(t * 9 + phase) * 14 + Math.sin(t * 23 + phase * 2) * 7;

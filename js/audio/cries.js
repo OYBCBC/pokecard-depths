@@ -8,7 +8,10 @@ export function createCries() {
 
   function ensureCtx() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
+    // suspended（未解锁）/ interrupted（iOS 来电、切后台）都要 resume；未获用户激活时会 reject，吞掉
+    if (ctx.state !== 'running' && ctx.state !== 'closed' && ctx.resume) {
+      try { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ignore */ }
+    }
     return ctx;
   }
 

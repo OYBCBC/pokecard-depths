@@ -105,25 +105,35 @@ export function createHud() {
     <div id="prices"></div>
     <div id="itemcard" class="hidden"></div>
     <div id="peek" class="hidden"></div>
-    <div id="sheet" class="hidden"></div>
-    <div id="start" class="hidden"></div>
-    <div id="dex" class="hidden"></div>
-    <div id="achv" class="hidden"></div>
     <div id="toasts"></div>
+    <div id="ghost-l" class="ghost"><span>拖动 · 移动</span></div>
+    <div id="ghost-r" class="ghost"><span>拖动 · 瞄准射击</span></div>
     <div id="stick-l" class="stick"><div class="knob"></div></div>
     <div id="stick-r" class="stick"><div class="knob"></div></div>
-    <button id="btn-dash" class="tbtn" style="right: 132px; bottom: 34px;">冲刺</button>
-    <button id="btn-dex" class="tbtn" style="right: 30px; bottom: 96px;">图鉴</button>
-    <button id="btn-sheet" class="tbtn" style="right: 30px; bottom: 176px;">面板</button>
+    <div id="tpad">
+      <button id="tb-dash" class="tb tb-dash" aria-label="冲刺"><b>冲刺</b><i class="tb-pips"></i></button>
+      <button id="tb-z" class="tb tb-z" aria-label="Z 招式"><b>Z</b></button>
+      <button id="tb-slot" class="tb tb-slot" aria-label="切换招式"><b>A</b><small>切招</small></button>
+      <button id="tb-use" class="tb tb-use" aria-label="使用道具"><img alt=""><small>道具</small></button>
+      <button id="tb-swap" class="tb tb-swap" aria-label="换队友"><b>⇄</b><small>换队</small></button>
+    </div>
+    <div id="tbar">
+      <button id="tb-map" class="tb-s" aria-label="地图与面板">地图</button>
+      <button id="tb-pause" class="tb-s" aria-label="暂停">❚❚</button>
+    </div>
     <div id="bossbar" class="hidden"><div id="boss-fill"></div><span id="boss-name"></span></div>
     <div id="banner" class="hidden"></div>
+    <div id="sheet" class="hidden ui-touch"></div>
     <div id="flashmask"></div>
     <div id="death" class="hidden">
       <div class="box">
         <div class="d-title">体力不支……</div>
         <div class="d-sub">皮卡丘被护送撤出了洞窟</div>
         <div id="d-stats"></div>
-        <div class="d-hint">按 R 重新出发</div>
+        <div class="d-actions">
+          <button class="st-btn primary" data-end="retry">重新出发<span class="kb-only">（R）</span></button>
+          <button class="st-btn" data-end="title">回到标题</button>
+        </div>
       </div>
     </div>
     <div id="victory" class="hidden">
@@ -131,9 +141,17 @@ export function createHud() {
         <div class="v-title">三枚徽章集齐！</div>
         <div class="d-sub">娜姿：……你的羁绊，比我的念力更强。晶穴的故事，等你续写下一章。</div>
         <div id="v-stats"></div>
-        <div class="d-hint">按 R 再来一局</div>
+        <div class="d-actions">
+          <button class="st-btn primary" data-end="retry">再来一局<span class="kb-only">（R）</span></button>
+          <button class="st-btn" data-end="title">回到标题</button>
+        </div>
       </div>
-    </div>`);
+    </div>
+    <div id="start" class="hidden ui-touch"></div>
+    <div id="pause" class="hidden ui-touch"></div>
+    <div id="dex" class="hidden ui-touch"></div>
+    <div id="achv" class="hidden ui-touch"></div>
+    <div id="rotate" class="hidden ui-touch"></div>`);
 
   const hpEl = $('hp'), ppFill = $('pp-fill'), ppText = $('pp-text');
   const waveEl = $('wave'), dashEl = $('dash'), numsEl = $('nums');
@@ -146,7 +164,13 @@ export function createHud() {
   const bannerEl = $('banner'), flashEl = $('flashmask');
   const deathEl = $('death'), deathStats = $('d-stats');
   const victoryEl = $('victory'), victoryStats = $('v-stats');
-  let itemcardTimer = null, bannerTimer = null;
+  const pauseEl = $('pause'), rotateEl = $('rotate');
+  const tb = { dash: $('tb-dash'), z: $('tb-z'), slot: $('tb-slot'), use: $('tb-use'), swap: $('tb-swap') };
+  const ghostL = $('ghost-l'), ghostR = $('ghost-r'), stickL = $('stick-l'), stickR = $('stick-r');
+  let itemcardTimer = null, bannerTimer = null, padKey = '', gameKey = '', slotsKey = '';
+  const isTouch = () => document.body.classList.contains('touchmode');
+  // 图鉴/成就：点浮层空白处关闭（手机上没有 B/J/Esc）
+  for (const el of [dexEl, achvEl]) el.addEventListener('click', (e) => { if (e.target === el) el.classList.add('hidden'); });
 
   const errors = [];
   window.addEventListener('error', (e) => {
@@ -241,9 +265,13 @@ export function createHud() {
       if (debugOn) debug.classList.remove('hidden');
     },
     game(hp, maxHp, pp, dashCharges, dashMax, roomLabel, money, companion, zReady) {
+      // 每帧调用：状态不变就不碰 DOM（原来 60 次/秒重写 innerHTML，手机上白白吃帧）
+      const key = [hp, maxHp, Math.round(pp), dashCharges, dashMax, roomLabel, money, companion, zReady, isTouch()].join('|');
+      if (key === gameKey) return;
+      gameKey = key;
       hpEl.innerHTML = hearts(hp, maxHp) + (companion ? `<span class="comp">${companion}</span>` : '');
       ppFill.style.width = `${Math.round(pp / (zReady ? 1 : 1) * 1)}%`;
-      ppText.textContent = zReady ? 'PP 满！按 R 放 Z' : `PP ${Math.round(pp)}`;
+      ppText.textContent = zReady ? (isTouch() ? 'PP 满！点 Z 按钮' : 'PP 满！按 R 放 Z') : `PP ${Math.round(pp)}`;
       waveEl.textContent = roomLabel;
       moneyEl.textContent = `¥ ${money}`;
       document.getElementById('pp').classList.toggle('zready', !!zReady);
@@ -251,6 +279,9 @@ export function createHud() {
         Array.from({ length: dashMax }, (_, i) => `<span class="d-dot ${i < dashCharges ? 'on' : ''}"></span>`).join('');
     },
     slots(slotA, slotB, active, lockB) {
+      const key = [slotA, slotB, active, lockB].join('|');
+      if (key === slotsKey) return;
+      slotsKey = key;
       const nm = {
         'thunder-shock': '电击', 'water-gun': '水枪', 'fire-spin': '火焰漩涡', 'grass-knot': '打草结',
         'swift': '高速星星', 'bone-club': '骨棒', 'bubble': '泡沫',
@@ -280,7 +311,7 @@ export function createHud() {
     },
     hidePeek() { peekEl.classList.add('hidden'); },
     // 开始界面：继续存档 / 新开 / 每日挑战 / 挑战码 / 图鉴 / 成就 / 画质 / 存档管理 + 本机榜
-    startScreen({ save, board, onContinue, onNew, onDaily, onChallenge, onDex, onAchv, onExport, onImport, achvCount, quality, onQuality }) {
+    startScreen({ save, board, onContinue, onNew, onDaily, onChallenge, onDex, onAchv, onExport, onImport, achvCount, quality, onQuality, fullscreen, onFullscreen, iosTip }) {
       const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
       const qRow = quality ? '<div class="st-title">画质</div><div class="st-row">' +
         [['high', '高（景深）'], ['med', '中（推荐）'], ['low', '低（老设备）']].map(([id, label]) =>
@@ -302,18 +333,20 @@ export function createHud() {
         ? '<div class="st-title">本机榜</div><div class="st-board">' + board.map((b, i) =>
           `<div>${i + 1}. ${b.win ? '🏆 通关' : '第 ' + b.floor + ' 层'} · ${fmt(b.time)} · 击倒 ${b.kills} · 道具 ${b.items} · 种子 ${b.seed}${b.difficulty && b.difficulty !== 'normal' ? ' ·' + (b.difficulty === 'abyss' ? '深渊' : '困难') : ''}${b.daily ? ' ·每日' : ''}</div>`).join('') + '</div>'
         : '';
+      // 短屏（手机横屏）时 .st-cols 变左右两栏：按钮 | 本机榜（CSS 媒体查询）
+      const fsBtn = fullscreen ? '<button class="st-btn st-sub-btn" id="st-fs">全屏游玩（锁定横屏）</button>' : '';
       startEl.innerHTML = `<div class="st-box">
           <div class="st-logo">宝可梦 · 晶穴深处</div>
           <div class="st-sub">Pokémon: Crystal Depths</div>
-          ${btns}
-          ${boardHtml}
-          <div class="st-hint">WASD 移动 · 鼠标射击 · 空格冲刺 · Q 切招式 · 长按 Tab 面板 · M 静音 · 手柄直插即用</div>
+          <div class="st-cols"><div class="st-main">${btns}${fsBtn}</div>${boardHtml ? `<div class="st-side">${boardHtml}</div>` : ''}</div>
+          <div class="st-hint"><span class="kb-only">WASD 移动 · 鼠标射击 · 空格冲刺 · Q 切招式 · 长按 Tab 面板 · Esc 暂停 · M 静音 · 手柄直插即用</span><span class="touch-only">左半屏拖动=移动 · 右半屏拖动=瞄准射击 · 右下角按钮：冲刺 / Z 招式 / 切招 / 道具 / 换队${iosTip ? '<br>iPhone：Safari「分享 → 添加到主屏幕」可全屏游玩' : ''}</span></div>
           <input type="file" id="st-file" accept=".json,application/json" style="display:none">
         </div>`;
       startEl.classList.remove('hidden');
       const hide = () => startEl.classList.add('hidden');
       const q = (id) => startEl.querySelector('#' + id);
       const primary = (save && q('st-continue')) || q('st-new');
+      if (q('st-fs')) q('st-fs').onclick = () => { onFullscreen && onFullscreen(); };
       if (save && q('st-continue')) q('st-continue').onclick = () => { hide(); onContinue(); };
       q('st-new').onclick = () => { hide(); onNew(); };
       if (onQuality) startEl.querySelectorAll('[data-q]').forEach((b) => {
@@ -353,7 +386,7 @@ export function createHud() {
         };
         inp.click();
       };
-      primary.focus();
+      if (!isTouch()) primary.focus();                // 触屏不抢焦点（免得常亮焦点框）
       startEl.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); primary.click(); } };
     },
     // 搭档选择（新的探险/每日挑战之后）：4 张卡 + 难度三档选择
@@ -406,11 +439,12 @@ export function createHud() {
         </div>`;
       }).join('');
       dexEl.innerHTML = `<div class="dx-box">
-        <div class="dx-head"><span>宝可梦图鉴</span><span class="dx-count">${unlocked} / ${species.length} 已点亮</span></div>
+        <div class="dx-head"><span>宝可梦图鉴</span><span class="dx-count">${unlocked} / ${species.length} 已点亮</span><button class="ov-close" aria-label="关闭">✕</button></div>
         <div class="dx-grid">${cells}</div>
-        <div class="dx-hint">点击已点亮的条目试听叫声 · B / Esc 关闭</div>
+        <div class="dx-hint">点击已点亮的条目试听叫声 · <span class="kb-only">B / Esc 关闭</span><span class="touch-only">点 ✕ 或空白处关闭</span></div>
       </div>`;
       dexEl.classList.remove('hidden');
+      dexEl.querySelector('.ov-close').onclick = () => dexEl.classList.add('hidden');
       dexEl.querySelectorAll('.dx-cell:not(.locked)').forEach((el) => {
         el.onclick = () => {
           dexEl.querySelectorAll('.dx-cell').forEach((x) => x.classList.remove('picked'));
@@ -437,11 +471,12 @@ export function createHud() {
         </div>`;
       }).join('');
       achvEl.innerHTML = `<div class="ac-box">
-        <div class="ac-head"><span>成就</span><span class="ac-count">${done} / ${achvs.length}</span></div>
+        <div class="ac-head"><span>成就</span><span class="ac-count">${done} / ${achvs.length}</span><button class="ov-close" aria-label="关闭">✕</button></div>
         <div class="ac-grid">${cells}</div>
-        <div class="ac-hint">J / Esc 关闭 · 成就跨局永久保存</div>
+        <div class="ac-hint"><span class="kb-only">J / Esc 关闭 · </span><span class="touch-only">点 ✕ 或空白处关闭 · </span>成就跨局永久保存</div>
       </div>`;
       achvEl.classList.remove('hidden');
+      achvEl.querySelector('.ov-close').onclick = () => achvEl.classList.add('hidden');
     },
     hideAchv() { achvEl.classList.add('hidden'); },
     get achvOpen() { return !achvEl.classList.contains('hidden'); },
@@ -518,7 +553,8 @@ export function createHud() {
         el.dataset.pid = d.id;
         pricesEl.appendChild(el);
       }
-      el.textContent = d.priceHp ? '♥'.repeat(d.priceHp) : (d.price ? `¥${d.price}` : '免费');
+      const txt = d.priceHp ? '♥'.repeat(d.priceHp) : (d.price ? `¥${d.price}` : '免费');
+      if (el.textContent !== txt) el.textContent = txt;
       el.style.left = sx + 'px';
       el.style.top = sy + 'px';
     },
@@ -532,7 +568,7 @@ export function createHud() {
     },
     bossBar(name, hpRatio) {
       bossbarEl.classList.remove('hidden');
-      bossName.textContent = name;
+      if (bossName.textContent !== name) bossName.textContent = name;
       bossFill.style.width = `${Math.max(0, Math.round(hpRatio * 100))}%`;
     },
     hideBossBar() { bossbarEl.classList.add('hidden'); },
@@ -566,6 +602,7 @@ export function createHud() {
       });
     },
     hideVictory() { victoryEl.classList.add('hidden'); },
+    get endOpen() { return !deathEl.classList.contains('hidden') || !victoryEl.classList.contains('hidden'); },
     damageNum(sx, sy, txt, kind) {
       if (numsEl.children.length > 40) numsEl.firstChild.remove();
       const el = document.createElement('span');
@@ -613,6 +650,90 @@ export function createHud() {
         }
       }
     },
+    // ---------- 触屏操作层（M6） ----------
+    // s = { dash, dashMax, pp(0..1), zReady, hasB, slot, lockB, useIcon, hasComp, compActive }
+    // 状态键不变就不碰 DOM（每帧调用）
+    touchPad(s) {
+      const key = [s.dash, s.dashMax, Math.round(s.pp * 50), s.zReady, s.hasB, s.slot, s.lockB,
+        s.useIcon, s.hasComp, s.compActive].join('|');
+      if (key === padKey) return;
+      padKey = key;
+      tb.dash.querySelector('.tb-pips').innerHTML =
+        Array.from({ length: s.dashMax }, (_, i) => `<u class="${i < s.dash ? 'on' : ''}"></u>`).join('');
+      tb.dash.classList.toggle('off', s.dash < 1);
+      tb.z.style.setProperty('--pp', Math.round(Math.min(1, s.pp) * 100) + '%');
+      tb.z.classList.toggle('ready', !!s.zReady);
+      tb.slot.querySelector('b').textContent = (s.slot === 'B' && s.hasB && !s.lockB) ? 'B' : 'A';
+      tb.slot.classList.toggle('off', !s.hasB || !!s.lockB);
+      const img = tb.use.querySelector('img');
+      if (s.useIcon && img.dataset.icon !== s.useIcon) { img.src = `assets/items/${s.useIcon}.png`; img.dataset.icon = s.useIcon; }
+      tb.use.classList.toggle('has', !!s.useIcon);
+      tb.use.classList.toggle('off', !s.useIcon);
+      tb.swap.classList.toggle('hidden', !s.hasComp);
+      tb.swap.classList.toggle('on', !!s.compActive);
+    },
+    // 触屏摇杆渲染：活动摇杆跟手；空闲侧显示虚线"幽灵"底座（tutorial=附文字说明）
+    sticks(stks, tutorial) {
+      for (const [el, ghost, o] of [[stickL, ghostL, stks.l], [stickR, ghostR, stks.r]]) {
+        if (o) {
+          el.style.display = 'block';
+          el.style.left = o.ox + 'px';
+          el.style.top = o.oy + 'px';
+          el.firstElementChild.style.transform = `translate(${Math.round(o.kx * 34)}px, ${Math.round(o.ky * 34)}px)`;
+        } else if (el.style.display !== 'none') el.style.display = 'none';
+        ghost.classList.toggle('busy', !!o);
+        ghost.classList.toggle('notut', !tutorial);
+      }
+    },
+    // 暂停菜单（Esc / P / 触屏 ❚❚）：o.on(action) 收 resume/mute/dex/achv/fs/restart/title，o.onQuality(q)
+    pauseMenu(show, o = {}) {
+      if (!show) { pauseEl.classList.add('hidden'); return; }
+      const qBtns = [['high', '高'], ['med', '中'], ['low', '低']].map(([id, label]) =>
+        `<button class="st-btn st-sub-btn${o.quality === id ? ' primary' : ''}" data-q="${id}">${label}</button>`).join('');
+      pauseEl.innerHTML = `<div class="pz-box">
+        <div class="st-logo pz-title">暂停</div>
+        <button class="st-btn primary" data-a="resume">继续游戏</button>
+        <div class="st-row">
+          <button class="st-btn st-sub-btn" data-a="mute">声音：${o.muted ? '关' : '开'}</button>
+          <button class="st-btn st-sub-btn" data-a="dex">图鉴</button>
+          <button class="st-btn st-sub-btn" data-a="achv">成就</button>
+          ${o.fullscreen ? `<button class="st-btn st-sub-btn" data-a="fs">${o.fullscreenOn ? '退出全屏' : '全屏'}</button>` : ''}
+        </div>
+        <div class="st-row">${qBtns}</div>
+        <button class="st-btn" data-a="restart">重新开始（本局作废）</button>
+        <button class="st-btn" data-a="title">存档并回到标题</button>
+        <div class="pz-help">${isTouch()
+          ? '左半屏拖动=移动 · 右半屏拖动=瞄准并射击<br>右下：冲刺 / Z 招式 / 切招 / 道具 / 换队 · 右上：地图 / 暂停'
+          : 'WASD 移动 · 鼠标瞄准射击 · 空格冲刺 · Q 切招 · E 道具 · F 换队 · R Z 招式<br>长按 Tab 地图 · B 图鉴 · J 成就 · M 静音 · Esc / P 暂停'}</div>
+      </div>`;
+      pauseEl.classList.remove('hidden');
+      pauseEl.querySelectorAll('[data-a]').forEach((b) => { b.onclick = () => o.on && o.on(b.dataset.a); });
+      pauseEl.querySelectorAll('[data-q]').forEach((b) => { b.onclick = () => o.onQuality && o.onQuality(b.dataset.q); });
+      if (!isTouch()) pauseEl.querySelector('[data-a="resume"]').focus();
+    },
+    get pauseOpen() { return !pauseEl.classList.contains('hidden'); },
+    // 竖屏提示（触屏 + 竖屏）：可选"仍然竖屏玩"（相机会拉远补视野）
+    rotateHint(show, onDismiss) {
+      if (!show) { rotateEl.classList.add('hidden'); return; }
+      if (rotateEl.classList.contains('hidden')) {
+        rotateEl.innerHTML = `<div class="rt-box">
+          <div class="rt-phone"></div>
+          <div class="rt-title">横过来玩更爽</div>
+          <div class="rt-sub">晶穴的房间是横向的，竖屏只看得到一半</div>
+          <button class="st-btn st-sub-btn" id="rt-go">仍然竖屏玩</button>
+        </div>`;
+        rotateEl.querySelector('#rt-go').onclick = () => onDismiss && onDismiss();
+      }
+      rotateEl.classList.remove('hidden');
+    },
+    get rotateOpen() { return !rotateEl.classList.contains('hidden'); },
+    // 胜负页按钮：{ retry, title }（手机没有 R 键——原来只写着"按 R"，死了只能刷新）
+    bindEnd(handlers) {
+      for (const el of [deathEl, victoryEl]) el.querySelectorAll('[data-end]').forEach((b) => {
+        b.onclick = () => handlers[b.dataset.end] && handlers[b.dataset.end]();
+      });
+    },
+    onSheetTap(fn) { sheetEl.onclick = fn; },
     get errors() { return errors; },
   };
 }

@@ -13,6 +13,10 @@ export function detectTier() {
     const saved = localStorage.getItem('depths-quality');
     if (saved === 'high' || saved === 'med' || saved === 'low') return saved;
   } catch (e) { /* ignore */ }
+  // 触屏设备（手机/平板）默认中档：移动 GPU 上景深 + 2048 阴影容易烫手掉帧；再由主循环动态分辨率兜底
+  try {
+    if (window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches) return 'med';
+  } catch (e) { /* ignore */ }
   return (navigator.hardwareConcurrency || 4) >= 8 ? 'high' : 'med';
 }
 
