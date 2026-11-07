@@ -147,6 +147,49 @@ test('触屏模式：触摸进入、外接键盘游戏键退出；?touch=1 强�
   assert.equal(inp.touchMode, true, '强制触屏不被键盘退出');
 });
 
+test('M7.1 检测兜底：媒体查询缺失/撒谎时，触屏硬件+UA 兜底', () => {
+  // ① matchMedia 完全不支持（老内核），但 maxTouchPoints>0 且 UA 是安卓 → 触屏
+  let s1 = setup({ coarse: false });
+  s1.win.matchMedia = undefined;                       // 模拟不支持
+  Object.defineProperty(globalThis, 'navigator', {
+    value: { getGamepads: () => [], maxTouchPoints: 5, userAgent: 'Mozilla/5.0 (Linux; Android 13; SM-G991B)' },
+    configurable: true, writable: true,
+  });
+  assert.equal(touchPreferred(), true, '安卓 UA 兜底');
+  // ② iPhone 桌面模式：matchMedia 报 fine（撒谎），maxTouchPoints=5 → 硬件兜底
+  let s2 = setup({ coarse: false });
+  s2.win.matchMedia = (q) => ({ matches: q.includes('fine') });   // pointer:fine 撒谎为真
+  Object.defineProperty(globalThis, 'navigator', {
+    value: { getGamepads: () => [], maxTouchPoints: 5, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)' },
+    configurable: true, writable: true,
+  });
+  assert.equal(touchPreferred(), true, '触屏硬件+无精细指针兜底');
+  // ③ 桌面 Chrome（无触屏）：全部不命中 → 键鼠
+  let s3 = setup({ coarse: false });
+  Object.defineProperty(globalThis, 'navigator', {
+    value: { getGamepads: () => [], maxTouchPoints: 0, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0' },
+    configurable: true, writable: true,
+  });
+  assert.equal(touchPreferred(), false, '桌面不误判');
+  // ④ 触屏笔记本（maxTouchPoints>0 但有鼠标）：硬件兜底不命中（pointer:fine 为真），UA 不命中 → 键鼠
+  let s4 = setup({ coarse: false });
+  s4.win.matchMedia = (q) => ({ matches: q.includes('fine') });
+  Object.defineProperty(globalThis, 'navigator', {
+    value: { getGamepads: () => [], maxTouchPoints: 10, userAgent: 'Mozilla/5.0 (Windows NT 10.0) Chrome/120.0' },
+    configurable: true, writable: true,
+  });
+  assert.equal(touchPreferred(), false, '触屏笔记本不误判');
+});
+
+test('M7.1 首次触摸按钮也切触屏 UI（开机检测失败也能秒纠正）', () => {
+  const { win, doc } = setup({ coarse: false });      // 检测失败的场景
+  const inp = createInput(win);
+  assert.equal(inp.touchMode, false);
+  win.emit('touchstart', tev(buttonEl, [[1, 700, 350]]));   // 摸的是按钮（onUI 分支）
+  assert.equal(inp.touchMode, true, '按钮上的触摸也要进触屏模式');
+  assert.ok(doc.body.classList.contains('touchmode'));
+});
+
 test('开机识别：粗指针无悬停设备直接进触屏 UI', () => {
   setup({ coarse: true });
   assert.equal(touchPreferred(), true);

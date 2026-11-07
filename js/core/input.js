@@ -20,13 +20,18 @@ function urlFlag(name) {
   try { return new URLSearchParams(location.search).get(name) === '1'; } catch (e) { return false; }
 }
 
-// 触屏为主的设备（手机/平板）：无悬停 + 粗指针；?touch=1 强制（布局调试/桌面验收用）
+// 触屏为主的设备（手机/平板）识别，三重兜底（M7.1：部分手机浏览器媒体查询会撒谎）：
+//   ① 经典媒体查询（无悬停+粗指针）；② 触屏硬件+无精细指针（matchMedia 缺失/桌面模式壳浏览器）；
+//   ③ UA 特征（安卓/iOS 壳浏览器最后防线）。?touch=1 强制（布局调试/桌面验收用）。
 export function touchPreferred() {
   if (urlFlag('touch')) return true;
   try {
-    return !!(typeof window !== 'undefined' && window.matchMedia
-      && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
-  } catch (e) { return false; }
+    if (typeof window === 'undefined') return false;
+    if (window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches) return true;
+    if ((navigator.maxTouchPoints || 0) > 0 && window.matchMedia && !window.matchMedia('(pointer: fine)').matches) return true;
+    if (/Android|iPhone|iPad|iPod|IEMobile|Mobile/i.test(navigator.userAgent || '')) return true;
+  } catch (e) { /* ignore */ }
+  return false;
 }
 
 export function createInput(target = window) {
@@ -95,9 +100,9 @@ export function createInput(target = window) {
     return false;
   }
   function touchstart(e) {
-    if (onUI(e)) return;
+    setTouchMode(true);                              // 真触摸（含按钮上的）即切触屏 UI：开机检测失败也能秒纠正
+    if (onUI(e)) return;                             // UI 元素走默认行为（合成 click），不进摇杆
     e.preventDefault();
-    setTouchMode(true);
     if (down.size === 0 && touches.size === 0) fireFirst();   // 在登记触点前判空
     const W = window.innerWidth || 1;
     for (const t of e.changedTouches) {
