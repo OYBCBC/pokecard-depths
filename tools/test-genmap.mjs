@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { genMap } from '../js/sim/genmap.js?v=m6a';
+import { genMap } from '../js/sim/genmap.js?v=m7a';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 void ROOT;
@@ -112,5 +112,98 @@ test('F4 晶核之间：迷你层（4-6 房）且必有 Boss', () => {
     assert.ok(m.cells.length >= 4 && m.cells.length <= 6, `seed ${seed} F4 房数 ${m.cells.length}`);
     assert.equal(m.cells.filter((c) => c.type === 'boss').length, 1, 'Boss 必有');
     assert.equal(m.cells.filter((c) => c.type === 'start').length, 1);
+  }
+});
+
+// ---------- M7：大房型 / 密室 / 裂缝房 ----------
+
+test('M7 密室：F2/F3 每层保底 1 间 vault，F1/F4 无；门两侧 locked', () => {
+  for (let seed = 1; seed <= 300; seed++) {
+    const m1 = genMap(makeRng(seed), 1);
+    assert.equal(m1.cells.filter((c) => c.type === 'vault').length, 0, `seed ${seed} F1 不应有 vault`);
+    for (const floorNo of [2, 3]) {
+      const m = genMap(makeRng(seed + floorNo * 1000), floorNo);
+      const vaults = m.cells.filter((c) => c.type === 'vault');
+      assert.equal(vaults.length, 1, `seed ${seed} F${floorNo} vault 数 ${vaults.length}`);
+      const byKey = new Map(m.cells.map((c) => [c.x + ',' + c.y, c]));
+      const v = vaults[0];
+      let lockedDoors = 0;
+      for (const [dk, dt] of Object.entries(v.doors)) {
+        const [dx, dy] = dk.split(',').map(Number);
+        const nb = byKey.get((v.x + dx) + ',' + (v.y + dy));
+        assert.ok(nb, 'vault 门必须通向存在的房');
+        assert.equal(dt, 'locked', 'vault 侧门必须 locked');
+        assert.equal(nb.doors[(-dx) + ',' + (-dy)], 'locked', '对侧门也必须 locked');
+        lockedDoors++;
+      }
+      assert.ok(lockedDoors >= 1, 'vault 至少有一个门');
+    }
+    const m4 = genMap(makeRng(seed), 4);
+    assert.equal(m4.cells.filter((c) => c.type === 'vault').length, 0, 'F4 无 vault');
+  }
+});
+
+test('M7 大房型：F1-F3 多数种子 ≥1 间 big；F4 无；big 只标在战斗房', () => {
+  let withBig = 0;
+  for (let seed = 1; seed <= 100; seed++) {
+    for (const floorNo of [1, 2, 3]) {
+      const m = genMap(makeRng(seed + floorNo * 777), floorNo);
+      const bigs = m.cells.filter((c) => c.big);
+      if (bigs.length) withBig++;
+      for (const b of bigs) {
+        assert.equal(b.type, 'combat', 'big 只标战斗房');
+        assert.ok(b.big === 'wide' || b.big === 'tall');
+      }
+    }
+    const m4 = genMap(makeRng(seed), 4);
+    assert.equal(m4.cells.filter((c) => c.big).length, 0, 'F4 无大房');
+  }
+  // ≥2 邻居的战斗房才放 big（防黑市/事件房替换吃掉大房），覆盖率 30%+ 即达标
+  assert.ok(withBig > 100, `大房覆盖率过低：${withBig}/300`);
+});
+
+test('M7 裂缝房：F4 必有 fissure，邻出生房，门两侧 fissure；其他层无', () => {
+  for (let seed = 1; seed <= 100; seed++) {
+    const m = genMap(makeRng(seed), 4);
+    const fis = m.cells.filter((c) => c.type === 'fissure');
+    assert.equal(fis.length, 1, `seed ${seed} F4 fissure 数 ${fis.length}`);
+    const byKey = new Map(m.cells.map((c) => [c.x + ',' + c.y, c]));
+    const start = m.start;
+    const isAdj = [[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => {
+      const nb = byKey.get((start.x + dx) + ',' + (start.y + dy));
+      return nb && nb.type === 'fissure';
+    });
+    assert.ok(isAdj, 'fissure 必须邻出生房');
+    const f = fis[0];
+    for (const [dk, dt] of Object.entries(f.doors)) {
+      const [dx, dy] = dk.split(',').map(Number);
+      const nb = byKey.get((f.x + dx) + ',' + (f.y + dy));
+      if (nb && nb.type === 'start') {
+        assert.equal(dt, 'fissure', 'fissure→start 门标记 fissure');
+        assert.equal(nb.doors[(-dx) + ',' + (-dy)], 'fissure');
+      }
+    }
+    for (const floorNo of [1, 2, 3]) {
+      assert.equal(genMap(makeRng(seed + floorNo), floorNo).cells.filter((c) => c.type === 'fissure').length, 0);
+    }
+  }
+});
+
+test('M7 连通性保持：vault/fissure 不产生孤岛（BFS 全可达）', () => {
+  for (let seed = 1; seed <= 300; seed++) {
+    for (const floorNo of [1, 2, 3, 4]) {
+      const m = genMap(makeRng(seed * 31 + floorNo), floorNo);
+      const byKey = new Map(m.cells.map((c) => [c.x + ',' + c.y, c]));
+      const seen = new Set([m.start.x + ',' + m.start.y]);
+      const q = [[m.start.x, m.start.y]];
+      while (q.length) {
+        const [x, y] = q.pop();
+        for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+          const k = (x + dx) + ',' + (y + dy);
+          if (byKey.has(k) && !seen.has(k)) { seen.add(k); q.push([x + dx, y + dy]); }
+        }
+      }
+      assert.equal(seen.size, m.cells.length, `seed ${seed} F${floorNo} 有孤岛`);
+    }
   }
 });

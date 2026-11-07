@@ -148,6 +148,7 @@ export function createHud() {
       </div>
     </div>
     <div id="start" class="hidden ui-touch"></div>
+    <div id="mods" class="hidden ui-touch"></div>
     <div id="pause" class="hidden ui-touch"></div>
     <div id="dex" class="hidden ui-touch"></div>
     <div id="achv" class="hidden ui-touch"></div>
@@ -164,7 +165,8 @@ export function createHud() {
   const bannerEl = $('banner'), flashEl = $('flashmask');
   const deathEl = $('death'), deathStats = $('d-stats');
   const victoryEl = $('victory'), victoryStats = $('v-stats');
-  const pauseEl = $('pause'), rotateEl = $('rotate');
+  const pauseEl = $('pause'), rotateEl = $('rotate'), modsEl = $('mods');
+  modsEl.addEventListener('click', (e) => { if (e.target === modsEl) modsEl.classList.add('hidden'); });
   const tb = { dash: $('tb-dash'), z: $('tb-z'), slot: $('tb-slot'), use: $('tb-use'), swap: $('tb-swap') };
   const ghostL = $('ghost-l'), ghostR = $('ghost-r'), stickL = $('stick-l'), stickR = $('stick-r');
   let itemcardTimer = null, bannerTimer = null, padKey = '', gameKey = '', slotsKey = '';
@@ -187,7 +189,7 @@ export function createHud() {
   let fpsFrames = 0, fpsTime = 0, fps = 0, frameMs = 0;
 
   // ---------- 地图 SVG（小地图 / Tab 大图共用） ----------
-  const MM_ICON = { boss: '☠', shop: '$', treasure: '▣', challenge: '⚔', secret: '?', start: '▲', camp: '♥', blackmarket: '✦', altar: '✚' };
+  const MM_ICON = { boss: '☠', shop: '$', treasure: '▣', challenge: '⚔', secret: '?', start: '▲', camp: '♥', blackmarket: '✦', altar: '✚', vault: '🔑', fissure: '✧', forge: '⚒', gacha: '◈', blood: '🩸', gift: '❁' };
   let compassOn = false;                       // 洞窟罗盘：隐藏房直接可见
   // 可见性（以撒式迷雾）：已访问；或紧邻已访问房（隐藏房须已揭示/罗盘）
   function visibleCells(cells) {
@@ -232,14 +234,15 @@ export function createHud() {
         out += `<line class="mmline" x1="${px(c.x) + size / 2}" y1="${py(c.y) + size / 2}" x2="${px(n.x) + size / 2}" y2="${py(n.y) + size / 2}"/>`;
       }
     }
-    // 房块
+    // 房块（大房型画大一号：网格 1 格，内部放大——Boss 房同模式）
     for (const c of shown) {
       if (!inWin(c)) continue;
       const cls = ['mmr', 't-' + c.type, c.visited ? (c.cleared ? 'cleared' : 'seen') : 'fog',
         c.x === cur.x && c.y === cur.y ? 'cur' : ''].filter(Boolean).join(' ');
       const icon = c.visited ? (MM_ICON[c.type] || '') : '';
-      out += `<g class="${cls}"><rect class="body" x="${px(c.x)}" y="${py(c.y)}" width="${size}" height="${size}" rx="${size * 0.16}"/>` +
-        (icon ? `<text x="${px(c.x) + size / 2}" y="${py(c.y) + size / 2}">${icon}</text>` : '') + '</g>';
+      const bw = c.big === 'wide' ? size * 1.55 : size, bh = c.big === 'tall' ? size * 1.55 : size;
+      out += `<g class="${cls}"><rect class="body" x="${px(c.x)}" y="${py(c.y)}" width="${bw}" height="${bh}" rx="${size * 0.16}"/>` +
+        (icon ? `<text x="${px(c.x) + bw / 2}" y="${py(c.y) + bh / 2}">${icon}</text>` : '') + '</g>';
     }
     const w = (x1 - x0 + 1) * pitch - gap, h = (y1 - y0 + 1) * pitch - gap;
     return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${out}</svg>`;
@@ -264,16 +267,16 @@ export function createHud() {
       hud.classList.remove('hidden');
       if (debugOn) debug.classList.remove('hidden');
     },
-    game(hp, maxHp, pp, dashCharges, dashMax, roomLabel, money, companion, zReady) {
+    game(hp, maxHp, pp, dashCharges, dashMax, roomLabel, money, companion, zReady, keys) {
       // 每帧调用：状态不变就不碰 DOM（原来 60 次/秒重写 innerHTML，手机上白白吃帧）
-      const key = [hp, maxHp, Math.round(pp), dashCharges, dashMax, roomLabel, money, companion, zReady, isTouch()].join('|');
+      const key = [hp, maxHp, Math.round(pp), dashCharges, dashMax, roomLabel, money, companion, zReady, keys, isTouch()].join('|');
       if (key === gameKey) return;
       gameKey = key;
       hpEl.innerHTML = hearts(hp, maxHp) + (companion ? `<span class="comp">${companion}</span>` : '');
       ppFill.style.width = `${Math.round(pp / (zReady ? 1 : 1) * 1)}%`;
       ppText.textContent = zReady ? (isTouch() ? 'PP 满！点 Z 按钮' : 'PP 满！按 R 放 Z') : `PP ${Math.round(pp)}`;
       waveEl.textContent = roomLabel;
-      moneyEl.textContent = `¥ ${money}`;
+      moneyEl.textContent = `¥ ${money}` + (keys ? `  🔑${keys}` : '');
       document.getElementById('pp').classList.toggle('zready', !!zReady);
       dashEl.innerHTML = '<span class="d-label">冲刺</span>' +
         Array.from({ length: dashMax }, (_, i) => `<span class="d-dot ${i < dashCharges ? 'on' : ''}"></span>`).join('');
@@ -311,7 +314,7 @@ export function createHud() {
     },
     hidePeek() { peekEl.classList.add('hidden'); },
     // 开始界面：继续存档 / 新开 / 每日挑战 / 挑战码 / 图鉴 / 成就 / 画质 / 存档管理 + 本机榜
-    startScreen({ save, board, onContinue, onNew, onDaily, onChallenge, onDex, onAchv, onExport, onImport, achvCount, quality, onQuality, fullscreen, onFullscreen, iosTip }) {
+    startScreen({ save, board, onContinue, onNew, onDaily, onChallenge, onDex, onAchv, onExport, onImport, achvCount, quality, onQuality, fullscreen, onFullscreen, iosTip, onMods, modName }) {
       const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
       const qRow = quality ? '<div class="st-title">画质</div><div class="st-row">' +
         [['high', '高（景深）'], ['med', '中（推荐）'], ['low', '低（老设备）']].map(([id, label]) =>
@@ -335,10 +338,12 @@ export function createHud() {
         : '';
       // 短屏（手机横屏）时 .st-cols 变左右两栏：按钮 | 本机榜（CSS 媒体查询）
       const fsBtn = fullscreen ? '<button class="st-btn st-sub-btn" id="st-fs">全屏游玩（锁定横屏）</button>' : '';
+      const modBtn = '<button class="st-btn st-sub-btn" id="st-mods">MOD 工房</button>';
+      const modChip = modName ? `<div class="mod-chip">MOD 生效中：<b>${modName}</b>（本局数值已被修改）</div>` : '';
       startEl.innerHTML = `<div class="st-box">
           <div class="st-logo">宝可梦 · 晶穴深处</div>
           <div class="st-sub">Pokémon: Crystal Depths</div>
-          <div class="st-cols"><div class="st-main">${btns}${fsBtn}</div>${boardHtml ? `<div class="st-side">${boardHtml}</div>` : ''}</div>
+          <div class="st-cols"><div class="st-main">${btns}${fsBtn}${modBtn}${modChip}</div>${boardHtml ? `<div class="st-side">${boardHtml}</div>` : ''}</div>
           <div class="st-hint"><span class="kb-only">WASD 移动 · 鼠标射击 · 空格冲刺 · Q 切招式 · 长按 Tab 面板 · Esc 暂停 · M 静音 · 手柄直插即用</span><span class="touch-only">左半屏拖动=移动 · 右半屏拖动=瞄准射击 · 右下角按钮：冲刺 / Z 招式 / 切招 / 道具 / 换队${iosTip ? '<br>iPhone：Safari「分享 → 添加到主屏幕」可全屏游玩' : ''}</span></div>
           <input type="file" id="st-file" accept=".json,application/json" style="display:none">
         </div>`;
@@ -347,6 +352,7 @@ export function createHud() {
       const q = (id) => startEl.querySelector('#' + id);
       const primary = (save && q('st-continue')) || q('st-new');
       if (q('st-fs')) q('st-fs').onclick = () => { onFullscreen && onFullscreen(); };
+      if (q('st-mods')) q('st-mods').onclick = () => { onMods && onMods(); };
       if (save && q('st-continue')) q('st-continue').onclick = () => { hide(); onContinue(); };
       q('st-new').onclick = () => { hide(); onNew(); };
       if (onQuality) startEl.querySelectorAll('[data-q]').forEach((b) => {
@@ -650,6 +656,77 @@ export function createHud() {
         }
       }
     },
+    // ---------- MOD 工房（M7）：本地数值包：乘区 + 改名；导出/导入 JSON ----------
+    // o = { list, activeId, onSave(mod), onDelete(id), onUse(id), onClearUse(), onExport(id), onImport(text) }
+    modWorkshop(o) {
+      const NUMS = [
+        ['enemyHp', '敌人血量', 0.5, 3, 1],
+        ['enemySpeed', '敌人速度', 0.5, 2, 1],
+        ['enemyTouch', '接触伤害', 1, 3, 1],
+        ['playerDmg', '玩家伤害', 0.5, 3, 1],
+        ['playerSpeed', '玩家移速', 0.6, 1.8, 1],
+        ['playerHpAdd', '血上限±', -2, 6, 0],
+        ['money', '金钱收益', 0.5, 3, 1],
+      ];
+      const rows = o.list.map((m) => `<div class="mw-row${m.id === o.activeId ? ' on' : ''}">
+        <b>${m.name}</b>
+        <button class="mw-b" data-use="${m.id}">${m.id === o.activeId ? '使用中' : '启用'}</button>
+        <button class="mw-b" data-export="${m.id}">导出</button>
+        <button class="mw-b danger" data-del="${m.id}">删除</button>
+      </div>`).join('') || '<div class="mw-empty">还没有 MOD——右侧调好参数后保存一个吧</div>';
+      modsEl.innerHTML = `<div class="mw-box">
+        <div class="dx-head"><span>MOD 工房</span><span class="dx-count">本地数值包 · 只改单机体验</span><button class="ov-close" aria-label="关闭">✕</button></div>
+        <div class="mw-cols">
+          <div class="mw-left">
+            <div class="mw-name"><input id="mw-name" placeholder="MOD 名称" maxlength="16" value=""></div>
+            ${NUMS.map(([k, label, lo, hi, def]) => `<div class="mw-slider"><label>${label}</label>
+              <input type="range" id="mw-${k}" min="${lo}" max="${hi}" step="0.05" value="${def}">
+              <output id="mw-${k}-v">${def}</output></div>`).join('')}
+            <div class="mw-names"><label>改名（每行 编号或英文名=新名）</label>
+              <textarea id="mw-names" rows="3" placeholder="rattata=暴走鼠\nmagikarp=筋肉鲤鱼王"></textarea></div>
+            <div class="mw-row2">
+              <button class="st-btn primary" id="mw-save">保存并启用</button>
+              <button class="st-btn st-sub-btn" id="mw-stop">停用 MOD</button>
+            </div>
+          </div>
+          <div class="mw-right">
+            <div class="mw-title">已保存</div>
+            ${rows}
+            <div class="mw-hint">导入：粘贴导出的 MOD 代码<br><textarea id="mw-import" rows="2" placeholder='粘贴 {"name":…} JSON'></textarea>
+            <button class="st-btn st-sub-btn" id="mw-import-go">导入</button></div>
+          </div>
+        </div>
+        <div class="mw-hint">挑战码/每日挑战与 MOD 无关；启用后本机新开的局才会应用</div>
+      </div>`;
+      modsEl.classList.remove('hidden');
+      modsEl.querySelector('.ov-close').onclick = () => modsEl.classList.add('hidden');
+      for (const [k] of NUMS.map((x) => [x[0]])) {
+        const el = modsEl.querySelector(`#mw-${k}`);
+        if (el) el.oninput = () => { modsEl.querySelector(`#mw-${k}-v`).textContent = el.value; };
+      }
+      const collect = (name) => {
+        const cfg = {};
+        for (const [k, , , , def] of NUMS) {
+          const v = parseFloat(modsEl.querySelector(`#mw-${k}`).value);
+          if (v !== def) cfg[k] = v;
+        }
+        const names = {};
+        for (const line of modsEl.querySelector('#mw-names').value.split('\n')) {
+          const m2 = line.split('=');
+          if (m2.length === 2 && m2[0].trim() && m2[1].trim()) names[m2[0].trim()] = m2[1].trim();
+        }
+        if (Object.keys(names).length) cfg.names = names;
+        return { id: 'mod_' + Date.now().toString(36), name: name || '未命名 MOD', cfg };
+      };
+      modsEl.querySelector('#mw-save').onclick = () => o.onSave && o.onSave(collect(modsEl.querySelector('#mw-name').value.trim()));
+      modsEl.querySelector('#mw-stop').onclick = () => o.onClearUse && o.onClearUse();
+      modsEl.querySelectorAll('[data-use]').forEach((b) => { b.onclick = () => o.onUse && o.onUse(b.dataset.use); });
+      modsEl.querySelectorAll('[data-del]').forEach((b) => { b.onclick = () => o.onDelete && o.onDelete(b.dataset.del); });
+      modsEl.querySelectorAll('[data-export]').forEach((b) => { b.onclick = () => o.onExport && o.onExport(b.dataset.export); });
+      modsEl.querySelector('#mw-import-go').onclick = () => o.onImport && o.onImport(modsEl.querySelector('#mw-import').value);
+    },
+    get modsOpen() { return !modsEl.classList.contains('hidden'); },
+
     // ---------- 触屏操作层（M6） ----------
     // s = { dash, dashMax, pp(0..1), zReady, hasB, slot, lockB, useIcon, hasComp, compActive }
     // 状态键不变就不碰 DOM（每帧调用）

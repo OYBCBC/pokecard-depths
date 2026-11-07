@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 
 const ROOT = dirname(fileURLToPath(import.meta.url)) + '/..';
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
-const { createRun, stepRun, STEP } = await import(join(ROOT, 'js/sim/engine.js?v=m6a'));
+const { createRun, stepRun, STEP } = await import(join(ROOT, 'js/sim/engine.js?v=m7a'));
 
 const tc = D('typechart.json'), ed = D('enemies.json'), mv = D('moves.json'), bal = D('balance.json'), itemsDoc = D('items.json');
 const fl = D('floors.json');
@@ -114,7 +114,7 @@ function botInput(run, mode) {
       const startKey = run.cellKey;
       const needHeal = p.hp < 4;
       const targetOf = (c) => {
-        if (!c.cleared && c.type !== 'boss') return 1;
+        if (!c.cleared && c.type !== 'boss' && c.type !== 'vault' && c.type !== 'fissure') return 1;   // 密室（锁）/裂缝房（要冲刺撞门）：机器人不碰
         if (!c.cleared && c.type === 'boss') return needHeal ? 0.5 : 2;   // 血少时降权，绕路清房
         return 0;
       };
@@ -130,7 +130,8 @@ function botInput(run, mode) {
           if (tv > 0 && !foundBoss) foundBoss = ck;
         }
         for (const dkey of Object.keys(c.doors)) {
-          if (c.doors[dkey] === 'secret') continue;
+          const dt = c.doors[dkey];
+          if (dt === 'secret' || dt === 'locked' || dt === 'fissure') continue;   // 锁门/裂缝门对机器人 = 墙
           const [dx, dy] = dkey.split(',').map(Number);
           const nk = (c.x + dx) + ',' + (c.y + dy);
           if (!run.map.has(nk) || prev.has(nk)) continue;

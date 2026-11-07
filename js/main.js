@@ -1,22 +1,22 @@
 // 启动入口 M3：楼层/多房间/道具/Boss 全链路。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m6a';
-import { createLights } from './gfx/lights.js?v=m6a';
-import { createCamera } from './gfx/camera.js?v=m6a';
-import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m6a';
-import { createBillboard } from './gfx/sprites.js?v=m6a';
-import { createEffects } from './gfx/effects.js?v=m6a';
-import { createPostfx } from './gfx/postfx.js?v=m6a';
-import { createHud } from './ui/hud.js?v=m6a';
-import { createCries } from './audio/cries.js?v=m6a';
-import { createBgm } from './audio/bgm.js?v=m6a';
-import { createSfx } from './audio/sfx.js?v=m6a';
-import { createInput } from './core/input.js?v=m6a';
-import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m6a';
-import { enterRoom } from './sim/actors.js?v=m6a';
-import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m6a';
-import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m6a';
-import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m6a';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m7a';
+import { createLights } from './gfx/lights.js?v=m7a';
+import { createCamera } from './gfx/camera.js?v=m7a';
+import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m7a';
+import { createBillboard } from './gfx/sprites.js?v=m7a';
+import { createEffects } from './gfx/effects.js?v=m7a';
+import { createPostfx } from './gfx/postfx.js?v=m7a';
+import { createHud } from './ui/hud.js?v=m7a';
+import { createCries } from './audio/cries.js?v=m7a';
+import { createBgm } from './audio/bgm.js?v=m7a';
+import { createSfx } from './audio/sfx.js?v=m7a';
+import { createInput } from './core/input.js?v=m7a';
+import { createRun, stepRun, recompute, goNextFloor, STEP } from './sim/engine.js?v=m7a';
+import { enterRoom } from './sim/actors.js?v=m7a';
+import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m7a';
+import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m7a';
+import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m7a';
 
 const hud = createHud();
 const tier = detectTier();
@@ -105,6 +105,39 @@ async function boot() {
     itemPools: itemsD.poolConfig, balance: bal, waves: floorsD.floors['1'].waves,
     floors: floorsD.floors, species: spD.species, floorNo: 1,
   };
+  // ---- MOD 工房（M7）：localStorage 包，开机应用（名字替换 + 数值乘区）----
+  const MOD_LIST_KEY = 'depths-mods', MOD_ACTIVE_KEY = 'depths-mod-active';
+  function modList() { try { return JSON.parse(localStorage.getItem(MOD_LIST_KEY) || '[]') || []; } catch (e) { return []; } }
+  function modSave(list) { try { localStorage.setItem(MOD_LIST_KEY, JSON.stringify(list.slice(0, 12))); } catch (e) { /* ignore */ } }
+  function activeMod() {
+    const id = localStorage.getItem(MOD_ACTIVE_KEY);
+    return (id && modList().find((m) => m.id === id)) || null;
+  }
+  // 应用到 data（boot 装载后、createRun 前）：引擎零感知，纯数据层
+  function applyMod(data, mod) {
+    if (!mod || !mod.cfg) return;
+    const c = mod.cfg;
+    const ehp = +c.enemyHp || 1, esp = +c.enemySpeed || 1, etouch = +c.enemyTouch || 1;
+    for (const e of Object.values(data.enemies)) {
+      if (e.family === 'boss') continue;
+      e.hp *= ehp; e.speed *= esp;
+      if (etouch !== 1) e.touchDmg = Math.max(1, Math.round(e.touchDmg * etouch));
+    }
+    const pb = data.balance.player;
+    pb.baseDamage *= +c.playerDmg || 1;
+    pb.moveSpeed *= +c.playerSpeed || 1;
+    pb.maxHp = Math.max(2, Math.round(pb.maxHp + (+c.playerHpAdd || 0)));
+    pb.startMoney = Math.max(0, Math.round((pb.startMoney || 15) * (+c.money || 1)));
+    for (const [eid, nm] of Object.entries(c.names || {})) {
+      if (data.enemies[eid]) data.enemies[eid].name = nm;
+      if (data.species[eid]) data.species[eid].name = nm;
+    }
+  }
+  let modApplied = null;
+  try {
+    if (localStorage.getItem(MOD_ACTIVE_KEY) && !selfcheckOn && !params.get('pack')) modApplied = activeMod();
+  } catch (e) { /* ignore */ }
+
   // 换皮：manifest 覆盖名字/图集映射（数据层替换，引擎零改动——ADR-15）
   if (manifest) {
     for (const [k, v] of Object.entries(manifest.entries)) {
@@ -112,6 +145,7 @@ async function boot() {
       if (data.species[k]) { data.species[k].name = v.name; data.species[k].anim = v.anim; }
     }
   }
+  if (modApplied) applyMod(data, modApplied);
   const atlasDir = manifest ? manifest.atlasDir : 'assets/atlas';
 
   hud.progress(0.15, '读取图集…');
@@ -346,6 +380,7 @@ async function boot() {
     get dexState() { return dexState; },
     restart: () => restartRun(),                  // 与胜负页"重新出发"同一路径（beginRun：started/精灵/横幅齐全）
     goRoom: (key) => { enterRoom(run, data, key); window.__depths.run = run; rebuildRoom(); },   // ?debug 传送
+    goFloor: (n) => { while (run.floorNo < n && goNextFloor(run, data)) {} window.__depths.run = run; rebuildRoom(); },   // ?debug 跳层
     give: (id) => { run.player.inv.passives.push(id); recompute(run, data); hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB); } };
 
   // ---- 存档与本机榜 ----
@@ -463,6 +498,34 @@ async function boot() {
       quality: tier,
       fullscreen: fsAvailable(), onFullscreen: () => { goFullscreen(); },
       iosTip: isIPhone && !standalone,
+      modName: modApplied ? modApplied.name : null,
+      onMods: () => {
+        hud.modWorkshop({
+          list: modList(), activeId: modApplied ? modApplied.id : null,
+          onSave: (m) => { const l = modList(); l.push(m); modSave(l); try { localStorage.setItem(MOD_ACTIVE_KEY, m.id); } catch (e) {} hud.toast('MOD 已保存并启用', m.name + ' · 新开的局生效'); showStart(); },
+          onDelete: (id) => { modSave(modList().filter((m) => m.id !== id)); if (modApplied && modApplied.id === id) { try { localStorage.removeItem(MOD_ACTIVE_KEY); } catch (e) {} } showStart(); },
+          onUse: (id) => { try { localStorage.setItem(MOD_ACTIVE_KEY, id); } catch (e) {} const m = modList().find((x) => x.id === id); hud.toast('MOD 已启用', (m && m.name) || id + ' · 新开的局生效'); showStart(); },
+          onClearUse: () => { try { localStorage.removeItem(MOD_ACTIVE_KEY); } catch (e) {} hud.toast('MOD 已停用', '数值恢复原版'); showStart(); },
+          onExport: (id) => {
+            const m = modList().find((x) => x.id === id);
+            if (!m) return;
+            const text = JSON.stringify(m);
+            const done = () => hud.toast('MOD 代码已复制', '发给朋友粘贴导入即可');
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => {});
+            else done();
+          },
+          onImport: (text) => {
+            try {
+              const m = JSON.parse(text);
+              if (!m || !m.cfg || typeof m.name !== 'string') throw new Error('格式');
+              const l = modList(); l.push({ id: 'mod_' + Date.now().toString(36), name: m.name.slice(0, 16), cfg: m.cfg });
+              modSave(l);
+              hud.toast('MOD 已导入', m.name + ' · 在列表里点「启用」');
+              showStart();
+            } catch (e) { hud.toast('导入失败', '不是有效的 MOD 代码'); }
+          },
+        });
+      },
       onQuality: (q) => {
         try { localStorage.setItem('depths-quality', q); } catch (e) { /* ignore */ }
         location.reload();                                     // 渲染器/后处理链随档位重建
@@ -617,6 +680,23 @@ async function boot() {
 
   // 台座详情（靠近 2.8 格内最近未拿台座）
   function peekInfo(d) {
+    if (d.event === 'gacha') {
+      return { name: '？？？晶石', quality: 0, icon: null, price: d.price, desc: '赌石：开了才知道是什么（道具/树果/……或空气）' };
+    }
+    if (d.event === 'forge') {
+      const it = data.items[d.itemId];
+      return { name: it.name + '（重铸）', quality: it.quality, icon: it.icon, price: d.price,
+        desc: '烧掉一件随机被动道具，铸成这件' };
+    }
+    if (d.event === 'blood') {
+      const it = data.items[d.itemId];
+      return { name: it.name, quality: it.quality, icon: it.icon, price: 0, priceHp: d.priceHp,
+        desc: it.desc, hpShort: d.priceHp > 0 && run.player.maxHp - d.priceHp < 2 };
+    }
+    if (d.event === 'gift') {
+      const it = data.items[d.itemId];
+      return { name: it.name, quality: it.quality, icon: it.icon, price: 0, free: true, desc: it.desc };
+    }
     if (d.itemId.startsWith('companion:')) {
       const spec = data.enemies[d.itemId.slice('companion:'.length)];
       return spec ? {
@@ -655,6 +735,15 @@ async function boot() {
           else if (ev.type === 'camp') hud.banner('救援营地', '受困的宝可梦在等你（免费结伴）', 2200);
           else if (ev.type === 'blackmarket') hud.banner('火箭队黑市', '用亲密度上限交易高级货（♥×2 一件）', 2600);
           else if (ev.type === 'altar') hud.banner('吉利蛋祭坛', '捐献金钱换取守护 · 还有免费回复', 2600);
+          else if (ev.type === 'vault') hud.banner('🔑 宝物密室', '锁着的房间总有理由', 2000);
+          else if (ev.type === 'fissure') {
+            const bs = data.enemies.mewtwo;
+            hud.banner(`？？？ · ${bs.name}`, bs.intro || '幻之宝可梦在等你', 3200);
+          }
+          else if (ev.type === 'forge') hud.banner('⚒ 重铸工房', '¥14：烧掉一件随机被动，铸成台座上的新件', 2800);
+          else if (ev.type === 'gacha') hud.banner('◈ 赌石台', '¥8 开一块晶石——开了才知道是什么', 2400);
+          else if (ev.type === 'blood') hud.banner('🩸 血祭坛', '♥1 上限换一件高级货（保底 2 格）', 2600);
+          else if (ev.type === 'gift') hud.banner('❁ 神秘礼物', '有人留在洞窟里的免费礼物', 2200);
           break;
         }
         case 'room-transition': hud.flash(); splay('door'); break;
@@ -663,13 +752,23 @@ async function boot() {
         case 'spawn': {
           const spec = data.enemies[ev.eid];
           const anim = (spec && spec.anim) || ev.eid;
-          if (atlases[anim] && texBySlug[anim]) {           // 图集缺失→无视图（模拟照跑）
+          if (!enemyViews.has(ev.id) && atlases[anim] && texBySlug[anim]) {   // 已有视图不重建（变身保 id）；图集缺失→无视图
             const bb = createBillboard(THREE, texBySlug[anim], atlases[anim], shadowTex);
             bb.place(ev.x, ev.y); bb.setSpawnK(0.2);
+            if (ev.elite && bb.mesh) bb.mesh.scale.multiplyScalar(1.15);      // 精英体形
             scene.add(bb.group);
             enemyViews.set(ev.id, bb);
           }
-          fx.burst(ev.x, ev.y, 6, 0x9fb8d8);
+          fx.burst(ev.x, ev.y, ev.elite ? 10 : 6, ev.elite ? 0xc79fff : 0x9fb8d8);
+          break;
+        }
+        case 'enemy-skin': {
+          // 原位变身（鲤鱼王→暴鲤龙）：丢旧视图，同步循环按新 eid 重建
+          const old = enemyViews.get(ev.id);
+          if (old) { scene.remove(old.group); old.dispose(); enemyViews.delete(ev.id); }
+          fx.burst(ev.x, ev.y, 14, 0xff9a4a);
+          splay('bossIntro');
+          hud.toast('怒化！', '鲤鱼王变成了暴鲤龙！');
           break;
         }
         case 'enemy-hurt': case 'enemy-die': {
@@ -715,6 +814,48 @@ async function boot() {
           break;
         }
         case 'boss-slam': camCtl.shake(0.3, 0.25); break;
+        case 'vault-open':
+          splay('tm');
+          hud.banner('🔑 密室开启！', '宝物与金币归你了', 2200);
+          fx.burst(ev.x, ev.y, 12, 0xffd24a);
+          break;
+        case 'door-locked':
+          hud.toast('门锁着', '需要钥匙 🔑（Boss 保底掉 1 把 · 战斗房也可能捡到）');
+          splay('hurt');
+          break;
+        case 'fissure-open':
+          hud.banner('裂缝深处……', '有什么东西一直在看着你', 2600);
+          camCtl.shake(0.35, 0.4);
+          splay('bossIntro');
+          break;
+        case 'heal-pulse':
+          fx.burst(ev.x, ev.y, 8, 0x9fe070);
+          splay('heart');
+          break;
+        case 'sniper-windup':
+          fx.burst(ev.x, ev.y, 4, 0xffd24a);
+          break;
+        case 'forge-trade': {
+          const lostName = ev.lost ? ((data.items[ev.lost] || {}).name || ev.lost) : null;
+          const gainName = (data.items[ev.gain] || {}).name || ev.gain;
+          hud.banner('⚒ 重铸完成', `${lostName ? lostName + ' → ' : ''}${gainName}`, 2400);
+          splay('tm');
+          break;
+        }
+        case 'forge-blocked':
+          hud.toast('没有可重铸的被动', '先收集一些被动道具再来');
+          break;
+        case 'mewtwo-down':
+          hud.banner('超梦被击败了！', '它的力量认可了你：本局伤害 ×1.15 · 去净化梦幻吧', 3600);
+          camCtl.shake(0.6, 0.9);
+          fx.burst(ev.x, ev.y, 40, 0xc79fff);
+          splay('win');
+          playDexCry({ dex: 150 });
+          break;
+        case 'event-room':
+          hud.toast({ forge: '重铸工房出现了', gacha: '赌石台出现了', blood: '血祭坛出现了', gift: '神秘礼物出现了' }[ev.kind] || '奇遇出现了',
+            '在本层某处的死路尽头');
+          break;
         case 'telegraph-hit': fx.burst(ev.x, ev.y, 10, 0xc88a70); break;
         case 'player-hurt':
           splay('hurt');
@@ -863,12 +1004,13 @@ async function boot() {
           recordBoard();
           hud.hideBossBar();
           if (run.floorNo >= 4) {
-            hud.banner('传说之物，化作了光……', '《晶穴深处》通关！', 4000);
+            const m2 = run.flags && run.flags.mewtwoDown;
+            hud.banner('传说之物，化作了光……', m2 ? '《晶穴深处》真·通关！' : '《晶穴深处》通关！', 4000);
             run.stats.floorNo = run.floorNo;
             const dl = ((data.balance.difficulty || {})[run.difficulty] || {}).label;
             setTimeout(() => hud.showVictory(run.stats, run.seed, {
-              title: '晶穴的传说，落下帷幕',
-              sub: '被净化的梦幻，在光中对你眨了眨眼——下次冒险再见。',
+              title: m2 ? '你连超梦都超越了' : '晶穴的传说，落下帷幕',
+              sub: m2 ? '被净化的梦幻与被认可的力量——晶穴再无秘密。' : '被净化的梦幻，在光中对你眨了眨眼——下次冒险再见。',
               difficultyLabel: dl,
               challenge: encodeChallenge({ seed: run.seed, difficulty: run.difficulty, species: run.player.species0 || run.player.species }),
             }), 2000);
@@ -1064,6 +1206,7 @@ async function boot() {
       }
       if (e.state === 'spawning') bb.setSpawnK(Math.max(0.2, 1 - e.spawnT / 0.55 * 0.8));
       else bb.setSpawnK(1);
+      if (e.elite) bb.mesh.scale.multiplyScalar(1.15);   // 精灵体形 ×1.15（每帧幂等：setSpawnK 先归一）
       bb.setPose(e.flash > 0 && e.family !== 'boss' ? 'Hurt' : e.anim, e.dir);
       if (e.stealth && e.flash <= 0 && !e.fleeing) bb.mesh.material.opacity = 0.45;
       else if (bb.mesh.material.opacity !== 1) bb.mesh.material.opacity = 1;
@@ -1089,7 +1232,7 @@ async function boot() {
     hud.setCompass(!!(run.player.mods && run.player.mods.compass));   // 洞窟罗盘：隐藏房上图
     if (roomView) {
       roomView.update(dt, clock.t, simPaused || hud.endOpen || !p.alive);   // 浮层打开时火光不频闪
-      const open = run.room.cleared || ['shop', 'secret', 'start', 'blackmarket', 'altar', 'camp'].includes(run.room.type);
+      const open = run.room.cleared || ['shop', 'secret', 'start', 'blackmarket', 'altar', 'camp', 'forge', 'gacha', 'blood', 'gift', 'vault'].includes(run.room.type);
       if (open !== doorOpenSeen) { doorOpenSeen = open; roomView.setDoorOpen(open); }
     }
     if (props) {
@@ -1172,7 +1315,7 @@ async function boot() {
     hud.game(p.hp, p.maxHp, p.pp, p.dashCharges, data.balance.player.dashCharges,
       `第${run.floorNo}层·${data.floors[run.floorNo].name}｜${roomLabel}`, p.money,
       p.companion ? (p.activeSide === 'companion' ? `${p.companion.name} ${p.companion.hp}❤` : `替补:${p.companion.name}`) : '',
-      p.pp >= 100 * p.mods.ppCost);
+      p.pp >= 100 * p.mods.ppCost, p.inv.keys || 0);
     hud.slots(effMoveA(run), p.moveB, p.slot, p.mods.lockB);
 
     const info = renderer.info.render;
@@ -1234,9 +1377,26 @@ async function boot() {
       window.__depths.pump(90);
       out.enemiesCombat = run.enemies.length;
       out.viewsCombat = run.enemies.filter((e) => enemyViews.has(e.id)).length;   // 精灵视图必须在（orig 包纹理路径漏参数化时全空）
-      for (let w = 0; w < 6 && !run.room.cleared; w++) {   // 逐波清空（F1 共 3 波）
+      for (let w = 0; w < 6 && !run.room.cleared; w++) {   // 逐波清空（F1 共 4 波，含抛射/治疗新敌）
         for (const e of run.enemies) e.hp = 0;             // debug 击杀路径
         window.__depths.pump(75);
+      }
+      // M7 抛射观测（确定性）：手动放一只小拳石，帧泵 3.6s > firstDelay1.6+warn1.15
+      out.mortarSeen = false;
+      {
+        const gs = data.enemies.geodude;
+        run.enemies.push({ id: run.nextId++, eid: 'geodude', name: gs.name, types: gs.types, family: gs.family,
+          radius: gs.radius, score: gs.score, hp: gs.hp, maxHp: gs.hp, touchDmg: gs.touchDmg, speed: gs.speed, spdMod: gs.spdMod,
+          x: run.player.x + 3, y: run.player.y, px: run.player.x + 3, py: run.player.y, kx: 0, ky: 0,
+          state: 'active', spawnT: 0, flash: 0, touchCd: 0, stun: 0,
+          anim: 'Idle', dir: 0, moving: false, wanderT: 0, wx: 0, wy: 0,
+          shoot: null, shootCd: 0, mortar: { ...gs.mortar } });
+        for (let i = 0; i < 18 && !out.mortarSeen; i++) {
+          window.__depths.pump(12);
+          if (run.telegraphs.some((t) => t.kind === 'rock')) out.mortarSeen = true;
+        }
+        for (const e of run.enemies) e.hp = 0;
+        window.__depths.pump(60);                            // 清场（含鲤鱼王变身链路不出错）
       }
       out.combatCleared = run.room.cleared;
       out.playerAlive = run.player.alive;
@@ -1302,7 +1462,7 @@ async function boot() {
         && run.difficulty === deadRun.difficulty && run.player.species === deadRun.player.species0;
 
       out.ok = out.enemiesCombat > 0 && out.viewsCombat > 0 && out.combatCleared && out.playerAlive && out.playerAlive2 && out.bossSpawned && out.bossMeshOk && out.calls > 0
-        && out.edgesOk && out.padOk && out.pauseOk && out.deathShown && out.retryOk;
+        && out.edgesOk && out.padOk && out.pauseOk && out.deathShown && out.retryOk && out.mortarSeen;
     } catch (e) {
       out.ok = false;
       out.errors.push(String((e && e.stack) || e));

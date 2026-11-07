@@ -10,11 +10,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { ACHVS, achvApply, metaApply, starterUnlocked, UNLOCK_SPECIES, achvProgress } =
-  await import(join(ROOT, 'js/sim/achv.js?v=m6a'));
-const { createRun, stepRun, recompute } = await import(join(ROOT, 'js/sim/engine.js?v=m6a'));
-const { enterRoom, combatNeighborNotNeeded } = await import(join(ROOT, 'js/sim/actors.js?v=m6a'));
-const { serializeRun, deserializeRun } = await import(join(ROOT, 'js/sim/save.js?v=m6a'));
-const { dexSpecies, dexApply } = await import(join(ROOT, 'js/sim/dex.js?v=m6a'));
+  await import(join(ROOT, 'js/sim/achv.js?v=m7a'));
+const { createRun, stepRun, recompute } = await import(join(ROOT, 'js/sim/engine.js?v=m7a'));
+const { enterRoom, combatNeighborNotNeeded } = await import(join(ROOT, 'js/sim/actors.js?v=m7a'));
+const { serializeRun, deserializeRun } = await import(join(ROOT, 'js/sim/save.js?v=m7a'));
+const { dexSpecies, dexApply } = await import(join(ROOT, 'js/sim/dex.js?v=m7a'));
 
 const tc = D('typechart.json');
 const ed = D('enemies.json');
@@ -31,9 +31,9 @@ const data = {
 const idle = { move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false, slotEdge: false, useEdge: false, zEdge: false, swapEdge: false };
 
 // ---------- 成就定义 ----------
-test('ACHVS：恰好 20 个，id 唯一，3 个带物种解锁', () => {
-  assert.equal(ACHVS.length, 20);
-  assert.equal(new Set(ACHVS.map((a) => a.id)).size, 20);
+test('ACHVS：恰好 23 个，id 唯一，3 个带物种解锁', () => {
+  assert.equal(ACHVS.length, 23);
+  assert.equal(new Set(ACHVS.map((a) => a.id)).size, 23);
   const withUnlock = ACHVS.filter((a) => a.unlock);
   assert.deepEqual(withUnlock.map((a) => a.id).sort(), ['camp-5', 'dex-12', 'no-hurt-floor']);
   assert.deepEqual({ ...UNLOCK_SPECIES }, { 'no-hurt-floor': 'cubone', 'dex-12': 'eevee', 'camp-5': 'poliwhirl' });
@@ -381,7 +381,7 @@ test('弹型技能机：燕返强追踪（homing 0.22）', () => {
 });
 
 test('可学性：rollItem learnBy 过滤（皮卡丘抽不到水枪/火焰拳，能抽到打草结/燕返）', async () => {
-  const { rollItem } = await import(join(ROOT, 'js/sim/items.js?v=m6a'));
+  const { rollItem } = await import(join(ROOT, 'js/sim/items.js?v=m7a'));
   const items = data.items, pools = data.itemPools;
   let sawWater = false, sawFirepunch = false, sawLearnable = false;
   for (let i = 0; i < 400; i++) {

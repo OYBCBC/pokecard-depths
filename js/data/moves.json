@@ -1,239 +1,261 @@
 {
-  "v": 1,
-  "moves": {
-    "thunder-shock": {
-      "name": "电击",
-      "type": "electric",
-      "power": 40,
-      "kind": "projectile",
-      "speed": 10,
-      "range": 6.5,
-      "radius": 0.18,
-      "sprite": "orb-bolt"
-    },
-    "water-gun": {
-      "name": "水枪",
-      "type": "water",
-      "power": 40,
-      "kind": "projectile",
-      "speed": 12,
-      "range": 8.0,
-      "radius": 0.18,
-      "sprite": "orb-bolt",
-      "tint": "#7fd4ff"
-    },
-    "fire-spin": {
-      "name": "火焰漩涡",
-      "type": "fire",
-      "power": 35,
-      "kind": "projectile",
-      "speed": 9,
-      "range": 7.0,
-      "radius": 0.2,
-      "sprite": "orb-bolt",
-      "tint": "#ff9a4a"
-    },
-    "grass-knot": {
-      "name": "打草结",
-      "type": "grass",
-      "power": 40,
-      "kind": "projectile",
-      "speed": 9,
-      "range": 6.5,
-      "radius": 0.18,
-      "sprite": "orb-bolt",
-      "tint": "#9fe070",
-      "heavyBonus": 2
-    },
-    "acid": {
-      "name": "溶解液",
-      "type": "poison",
-      "power": 0,
-      "kind": "projectile",
-      "speed": 5,
-      "range": 7.0,
-      "radius": 0.16,
-      "sprite": "orb-acid",
-      "enemyShot": true
-    },
-    "rock": {
-      "name": "落石",
-      "type": "rock",
-      "power": 0,
-      "kind": "projectile",
-      "speed": 0,
-      "range": 99,
-      "radius": 1.1,
-      "sprite": "orb-acid",
-      "enemyShot": true,
-      "telegraph": true
-    },
-    "zap-bolt": {
-      "name": "电击弹",
-      "type": "electric",
-      "power": 0,
-      "kind": "projectile",
-      "speed": 7,
-      "range": 7.5,
-      "radius": 0.16,
-      "sprite": "orb-bolt",
-      "enemyShot": true,
-      "tint": "#fff3a0"
-    },
-    "water-bolt": {
-      "name": "水枪",
-      "type": "water",
-      "power": 0,
-      "kind": "projectile",
-      "speed": 6.5,
-      "range": 7,
-      "radius": 0.16,
-      "sprite": "orb-bolt",
-      "enemyShot": true,
-      "tint": "#7fd4ff"
-    },
-    "psy-bolt": {
-      "name": "念力",
-      "type": "psychic",
-      "power": 0,
-      "kind": "projectile",
-      "speed": 8,
-      "range": 8,
-      "radius": 0.16,
-      "sprite": "orb-bolt",
-      "enemyShot": true,
-      "tint": "#ff9fe0"
-    },
-    "shadow-bolt": {
-      "name": "暗影球",
-      "type": "ghost",
-      "power": 0,
-      "kind": "projectile",
-      "speed": 5.5,
-      "range": 8,
-      "radius": 0.2,
-      "sprite": "orb-acid",
-      "enemyShot": true,
-      "tint": "#a08fd0"
-    },
-    "thunderbolt-z": {
-      "name": "十万伏特·Z",
-      "type": "electric",
-      "power": 180,
-      "kind": "zmove",
-      "radius": 4.2
-    },
-    "thunder-z": {
-      "name": "打雷·Z",
-      "type": "electric",
-      "power": 300,
-      "kind": "zmove",
-      "radius": 5.5
-    },
-    "swift": {
-      "name": "高速星星",
-      "type": "normal",
-      "power": 40,
-      "kind": "projectile",
-      "speed": 11,
-      "range": 7.5,
-      "radius": 0.18,
-      "sprite": "orb-bolt",
-      "tint": "#f5e9c8",
-      "homing": 0.1
-    },
-    "bone-club": {
-      "name": "骨棒",
-      "type": "ground",
-      "power": 55,
-      "kind": "projectile",
-      "speed": 5.0,
-      "range": 1.6,
-      "radius": 0.55,
-      "sprite": "orb-bolt",
-      "tint": "#e8d9b0",
-      "knock": 2.2
-    },
-    "bubble": {
-      "name": "泡沫",
-      "type": "water",
-      "power": 45,
-      "kind": "projectile",
-      "speed": 6.5,
-      "range": 6.0,
-      "radius": 0.3,
-      "sprite": "orb-bolt",
-      "tint": "#9fd8ff"
-    },
-    "evolve-light-z": {
-      "name": "进化之光·Z",
-      "type": "normal",
-      "power": 150,
-      "kind": "zmove",
-      "radius": 3.6
-    },
-    "earthquake-z": {
-      "name": "地震·Z",
-      "type": "ground",
-      "power": 220,
-      "kind": "zmove",
-      "radius": 8.0
-    },
-    "surf-z": {
-      "name": "冲浪·Z",
-      "type": "water",
-      "power": 170,
-      "kind": "zmove",
-      "radius": 7.0
-    },
-    "tri-attack": {
-      "name": "三重攻击",
-      "type": "normal",
-      "power": 24,
-      "kind": "projectile",
-      "speed": 10.5,
-      "range": 6.5,
-      "radius": 0.16,
-      "sprite": "orb-bolt",
-      "tint": "#ffd24a",
-      "spread": 3,
-      "arcDeg": 26
-    },
-    "aerial-ace": {
-      "name": "燕返",
-      "type": "flying",
-      "power": 35,
-      "kind": "projectile",
-      "speed": 10,
-      "range": 7.0,
-      "radius": 0.18,
-      "sprite": "orb-bolt",
-      "tint": "#b8f0ff",
-      "homing": 0.22
-    },
-    "hyper-beam": {
-      "name": "破坏光线",
-      "type": "normal",
-      "power": 110,
-      "kind": "projectile",
-      "speed": 15,
-      "range": 8.0,
-      "radius": 0.34,
-      "sprite": "orb-bolt",
-      "tint": "#ff9a4a",
-      "pierce": 99,
-      "intervalMul": 2.6
-    },
-    "fire-punch": {
-      "name": "火焰拳",
-      "type": "fire",
-      "power": 45,
-      "kind": "projectile",
-      "speed": 9,
-      "range": 5.5,
-      "radius": 0.24,
-      "sprite": "orb-bolt",
-      "tint": "#ff6a5e"
-    }
+ "v": 1,
+ "moves": {
+  "thunder-shock": {
+   "name": "电击",
+   "type": "electric",
+   "power": 40,
+   "kind": "projectile",
+   "speed": 10,
+   "range": 6.5,
+   "radius": 0.18,
+   "sprite": "orb-bolt"
+  },
+  "water-gun": {
+   "name": "水枪",
+   "type": "water",
+   "power": 40,
+   "kind": "projectile",
+   "speed": 12,
+   "range": 8.0,
+   "radius": 0.18,
+   "sprite": "orb-bolt",
+   "tint": "#7fd4ff"
+  },
+  "fire-spin": {
+   "name": "火焰漩涡",
+   "type": "fire",
+   "power": 35,
+   "kind": "projectile",
+   "speed": 9,
+   "range": 7.0,
+   "radius": 0.2,
+   "sprite": "orb-bolt",
+   "tint": "#ff9a4a"
+  },
+  "grass-knot": {
+   "name": "打草结",
+   "type": "grass",
+   "power": 40,
+   "kind": "projectile",
+   "speed": 9,
+   "range": 6.5,
+   "radius": 0.18,
+   "sprite": "orb-bolt",
+   "tint": "#9fe070",
+   "heavyBonus": 2
+  },
+  "acid": {
+   "name": "溶解液",
+   "type": "poison",
+   "power": 0,
+   "kind": "projectile",
+   "speed": 5,
+   "range": 7.0,
+   "radius": 0.16,
+   "sprite": "orb-acid",
+   "enemyShot": true
+  },
+  "rock": {
+   "name": "落石",
+   "type": "rock",
+   "power": 0,
+   "kind": "projectile",
+   "speed": 0,
+   "range": 99,
+   "radius": 1.1,
+   "sprite": "orb-acid",
+   "enemyShot": true,
+   "telegraph": true
+  },
+  "zap-bolt": {
+   "name": "电击弹",
+   "type": "electric",
+   "power": 0,
+   "kind": "projectile",
+   "speed": 7,
+   "range": 7.5,
+   "radius": 0.16,
+   "sprite": "orb-bolt",
+   "enemyShot": true,
+   "tint": "#fff3a0"
+  },
+  "water-bolt": {
+   "name": "水枪",
+   "type": "water",
+   "power": 0,
+   "kind": "projectile",
+   "speed": 6.5,
+   "range": 7,
+   "radius": 0.16,
+   "sprite": "orb-bolt",
+   "enemyShot": true,
+   "tint": "#7fd4ff"
+  },
+  "psy-bolt": {
+   "name": "念力",
+   "type": "psychic",
+   "power": 0,
+   "kind": "projectile",
+   "speed": 8,
+   "range": 8,
+   "radius": 0.16,
+   "sprite": "orb-bolt",
+   "enemyShot": true,
+   "tint": "#ff9fe0"
+  },
+  "shadow-bolt": {
+   "name": "暗影球",
+   "type": "ghost",
+   "power": 0,
+   "kind": "projectile",
+   "speed": 5.5,
+   "range": 8,
+   "radius": 0.2,
+   "sprite": "orb-acid",
+   "enemyShot": true,
+   "tint": "#a08fd0"
+  },
+  "thunderbolt-z": {
+   "name": "十万伏特·Z",
+   "type": "electric",
+   "power": 180,
+   "kind": "zmove",
+   "radius": 4.2
+  },
+  "thunder-z": {
+   "name": "打雷·Z",
+   "type": "electric",
+   "power": 300,
+   "kind": "zmove",
+   "radius": 5.5
+  },
+  "swift": {
+   "name": "高速星星",
+   "type": "normal",
+   "power": 40,
+   "kind": "projectile",
+   "speed": 11,
+   "range": 7.5,
+   "radius": 0.18,
+   "sprite": "orb-bolt",
+   "tint": "#f5e9c8",
+   "homing": 0.1
+  },
+  "bone-club": {
+   "name": "骨棒",
+   "type": "ground",
+   "power": 55,
+   "kind": "projectile",
+   "speed": 5.0,
+   "range": 1.6,
+   "radius": 0.55,
+   "sprite": "orb-bolt",
+   "tint": "#e8d9b0",
+   "knock": 2.2
+  },
+  "bubble": {
+   "name": "泡沫",
+   "type": "water",
+   "power": 45,
+   "kind": "projectile",
+   "speed": 6.5,
+   "range": 6.0,
+   "radius": 0.3,
+   "sprite": "orb-bolt",
+   "tint": "#9fd8ff"
+  },
+  "evolve-light-z": {
+   "name": "进化之光·Z",
+   "type": "normal",
+   "power": 150,
+   "kind": "zmove",
+   "radius": 3.6
+  },
+  "earthquake-z": {
+   "name": "地震·Z",
+   "type": "ground",
+   "power": 220,
+   "kind": "zmove",
+   "radius": 8.0
+  },
+  "surf-z": {
+   "name": "冲浪·Z",
+   "type": "water",
+   "power": 170,
+   "kind": "zmove",
+   "radius": 7.0
+  },
+  "tri-attack": {
+   "name": "三重攻击",
+   "type": "normal",
+   "power": 24,
+   "kind": "projectile",
+   "speed": 10.5,
+   "range": 6.5,
+   "radius": 0.16,
+   "sprite": "orb-bolt",
+   "tint": "#ffd24a",
+   "spread": 3,
+   "arcDeg": 26
+  },
+  "aerial-ace": {
+   "name": "燕返",
+   "type": "flying",
+   "power": 35,
+   "kind": "projectile",
+   "speed": 10,
+   "range": 7.0,
+   "radius": 0.18,
+   "sprite": "orb-bolt",
+   "tint": "#b8f0ff",
+   "homing": 0.22
+  },
+  "hyper-beam": {
+   "name": "破坏光线",
+   "type": "normal",
+   "power": 110,
+   "kind": "projectile",
+   "speed": 15,
+   "range": 8.0,
+   "radius": 0.34,
+   "sprite": "orb-bolt",
+   "tint": "#ff9a4a",
+   "pierce": 99,
+   "intervalMul": 2.6
+  },
+  "fire-punch": {
+   "name": "火焰拳",
+   "type": "fire",
+   "power": 45,
+   "kind": "projectile",
+   "speed": 9,
+   "range": 5.5,
+   "radius": 0.24,
+   "sprite": "orb-bolt",
+   "tint": "#ff6a5e"
+  },
+  "sing-note": {
+   "name": "摇篮曲",
+   "type": "normal",
+   "power": 0,
+   "kind": "projectile",
+   "speed": 3.2,
+   "range": 8.0,
+   "radius": 0.3,
+   "sprite": "orb-acid",
+   "enemyShot": true
+  },
+  "dragon-bolt": {
+   "name": "龙波",
+   "type": "dragon",
+   "power": 0,
+   "kind": "projectile",
+   "speed": 6.4,
+   "range": 8.5,
+   "radius": 0.18,
+   "sprite": "orb-bolt",
+   "enemyShot": true
   }
+ }
 }

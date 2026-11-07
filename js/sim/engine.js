@@ -1,10 +1,10 @@
 // 模拟层引擎：多层塔状态机。纯数据变换，无 DOM/three（node 可无头跑）。
 // 坐标：模拟层 (x, y) 平面，y+ = 南；渲染层映射为 (x, 0, y)。
-import { makeRng, rngNext } from './rng.js?v=m6a';
-import { genMap } from './genmap.js?v=m6a';
-import { applyItems, playerStats } from './items.js?v=m6a';
-import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom } from './actors.js?v=m6a';
-import { stepTelegraphs } from './boss.js?v=m6a';
+import { makeRng, rngNext } from './rng.js?v=m7a';
+import { genMap } from './genmap.js?v=m7a';
+import { applyItems, playerStats } from './items.js?v=m7a';
+import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom } from './actors.js?v=m7a';
+import { stepTelegraphs } from './boss.js?v=m7a';
 
 export const STEP = 1 / 60;
 export const ROOM_W = 17;
@@ -40,6 +40,14 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
   const map = genMap(rand, floorNo);
   const cells = new Map(map.cells.map((c) => [c.x + ',' + c.y, c]));
 
+  // 事件房检定（M7，F1 同样适用）：55% 把一个剩余死端改成 重铸/赌石/血祭坛/神秘礼物
+  if (rand() < (data.balance.eventRoomChance ?? 0.55)) {
+    const kinds = ['forge', 'gacha', 'blood', 'gift'];
+    const kind = kinds[Math.floor(rand() * kinds.length)];
+    const replaced = replaceDeadEnd(cells, kind);
+    if (replaced) mapStartEvent = { t: 'event-room', kind, x: replaced.x, y: replaced.y };
+  }
+  var mapStartEvent = null;
   const state = {
     v: 4, seed, dt: STEP, t: 0, floorNo, reverseT: 0,
     rng,                                        // 序列化用（rand 闭包引用它）
@@ -67,7 +75,7 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
       dashActive: false, dashT: 0, dashDir: { x: 0, y: 1 },
       dashCharges: data.balance.player.dashCharges, dashRe: 0,
       money: data.balance.player.startMoney || 15,
-      inv: { passives: [], trinket: null, consumable: null, badges: [] },
+      inv: { passives: [], trinket: null, consumable: null, badges: [], keys: 0 },   // keys=密室钥匙（M7）
       mods: null, stats: null,
       lethalGuardUsed: false,
       companion: null,                                   // 救援营地替补 {eid, name, hp, maxHp, types, moveA}
@@ -84,6 +92,7 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
       ashUsed: false,       // 圣灰：本层是否已用
       pendChain: 0,         // 电气种子：清房待发的连锁弹数
     },
+    flags: { mewtwoDown: false },                       // M7：超梦被击败（可选 Boss，通关结局升级）
     stats: {
       kills: 0, dmgDealt: 0, superHits: 0, shots: 0, t0: 0, coins: 0, roomsCleared: 0, items: 0, tRun: 0,
       streak: 0, maxStreak: 0,                           // 不受击连杀
@@ -94,6 +103,7 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
   state.hurtPlayer = (dmg) => hurtPlayer(state, dmg, data);
   recompute(state, data);
   enterRoom(state, data, state.cellKey);
+  if (mapStartEvent) state.events.push(mapStartEvent);   // 首层事件房通知（goNextFloor 的直接进 events）
   return state;
 }
 
@@ -104,6 +114,7 @@ export function recompute(state, data) {
   p.stats = playerStats(p.mods, { moveSpeed: spec.moveSpeed });
   if (p.types == null) p.types = spec.types || ['electric'];   // 旧存档兜底
   if (p.evolved) p.stats.damage *= 1.25;                 // 进化面板成长
+  if (state.flags && state.flags.mewtwoDown) p.stats.damage *= 1.15;   // 超梦击破：本局伤害加成（M7）
   const baseHp = spec.maxHp || data.balance.player.maxHp;
   const newMax = baseHp + p.mods.maxHpAdd + (p.evolved ? 2 : 0) - (p.hpPaid || 0);
   if (newMax > p.maxHp) p.hp += (newMax - p.maxHp);
@@ -144,6 +155,14 @@ export function goNextFloor(state, data) {
   bmIn.bossHurt = false;                                // 新层重新累计
   bmIn.ashUsed = false;
   bmIn.auraDebt = 0;
+
+  // 事件房检定（M7）：55% 把一个剩余死端改成 重铸/赌石/血祭坛/神秘礼物 之一
+  if (state.rand() < (data.balance.eventRoomChance ?? 0.55)) {
+    const kinds = ['forge', 'gacha', 'blood', 'gift'];
+    const kind = kinds[Math.floor(state.rand() * kinds.length)];
+    const replaced = replaceDeadEnd(state.map, kind);
+    if (replaced) state.events.push({ t: 'event-room', kind, x: replaced.x, y: replaced.y });
+  }
 
   state.cellKey = map.start.x + ',' + map.start.y;
   const diff = (data.balance.difficulty && data.balance.difficulty[state.difficulty]) || { hpMul: 1 };

@@ -1,100 +1,109 @@
 {
-  "v": 1,
-  "_comment": "全部可调系数（《02》§4：热更不动代码）。M2 初值，sim.mjs 校准后更新。",
-  "player": {
-    "baseDamage": 3.5,
-    "fireDelayTicks": 10,
-    "shotSpeedMul": 1.0,
-    "moveSpeed": 4.2,
-    "maxHp": 6,
-    "iframesOnHurt": 1.0,
-    "dashSpeed": 13,
-    "dashDuration": 0.18,
-    "dashCharges": 2,
-    "dashRecharge": 1.2,
-    "ppPerDamage": 0.25,
-    "ppSuperMul": 1.5,
-    "startMoney": 15
+ "v": 1,
+ "_comment": "全部可调系数（《02》§4：热更不动代码）。M2 初值，sim.mjs 校准后更新。",
+ "player": {
+  "baseDamage": 3.5,
+  "fireDelayTicks": 10,
+  "shotSpeedMul": 1.0,
+  "moveSpeed": 4.2,
+  "maxHp": 6,
+  "iframesOnHurt": 1.0,
+  "dashSpeed": 13,
+  "dashDuration": 0.18,
+  "dashCharges": 2,
+  "dashRecharge": 1.2,
+  "ppPerDamage": 0.25,
+  "ppSuperMul": 1.5,
+  "startMoney": 15
+ },
+ "enemy": {
+  "hpMul": 1.0,
+  "hpMulPerRoom": 1.15,
+  "knockback": 4.5,
+  "knockbackDecay": 9,
+  "separation": 0.55,
+  "contactCooldown": 1.0
+ },
+ "feel": {
+  "hitStopKill": 0.07,
+  "hitStopHurt": 0.12,
+  "shakeKill": 0.12,
+  "shakeHurt": 0.3
+ },
+ "boss": {
+  "hpMul": 1.0
+ },
+ "pickup": {
+  "coinValue": 1,
+  "heartHeal": 1,
+  "dropBands": [
+   [
+    0.18,
+    null
+   ],
+   [
+    0.26,
+    "consumable"
+   ],
+   [
+    0.56,
+    "coin"
+   ],
+   [
+    0.72,
+    "heart"
+   ],
+   [
+    0.82,
+    "coin2"
+   ],
+   [
+    0.88,
+    "key"
+   ],
+   [
+    1.01,
+    null
+   ]
+  ],
+  "magnetSpeed": 7
+ },
+ "shop": {
+  "basePrice": [
+   8,
+   11,
+   14
+  ],
+  "heartPrice": 4,
+  "perRoomInflation": 1.0
+ },
+ "difficulty": {
+  "_comment": "难度三档（《01》§11）：困难=敌血×1.3/预警×0.88；深渊=敌血×1.7/馆主血×1.5/预警×0.78",
+  "normal": {
+   "label": "普通",
+   "hpMul": 1.0,
+   "bossMul": 1.0,
+   "warnMul": 1.0,
+   "desc": "标准晶穴探险"
   },
-  "enemy": {
-    "hpMul": 1.0,
-    "hpMulPerRoom": 1.15,
-    "knockback": 4.5,
-    "knockbackDecay": 9,
-    "separation": 0.55,
-    "contactCooldown": 1.0
+  "hard": {
+   "label": "困难",
+   "hpMul": 1.3,
+   "bossMul": 1.25,
+   "warnMul": 0.88,
+   "desc": "敌人更强 · 预警更短"
   },
-  "feel": {
-    "hitStopKill": 0.07,
-    "hitStopHurt": 0.12,
-    "shakeKill": 0.12,
-    "shakeHurt": 0.3
-  },
-  "boss": {
-    "hpMul": 1.0
-  },
-  "pickup": {
-    "coinValue": 1,
-    "heartHeal": 1,
-    "dropBands": [
-      [
-        0.18,
-        null
-      ],
-      [
-        0.26,
-        "consumable"
-      ],
-      [
-        0.56,
-        "coin"
-      ],
-      [
-        0.72,
-        "heart"
-      ],
-      [
-        0.82,
-        "coin2"
-      ],
-      [
-        1.01,
-        null
-      ]
-    ],
-    "magnetSpeed": 7
-  },
-  "shop": {
-    "basePrice": [
-      8,
-      11,
-      14
-    ],
-    "heartPrice": 4,
-    "perRoomInflation": 1.0
-  },
-  "difficulty": {
-    "_comment": "难度三档（《01》§11）：困难=敌血×1.3/预警×0.88；深渊=敌血×1.7/馆主血×1.5/预警×0.78",
-    "normal": {
-      "label": "普通",
-      "hpMul": 1.0,
-      "bossMul": 1.0,
-      "warnMul": 1.0,
-      "desc": "标准晶穴探险"
-    },
-    "hard": {
-      "label": "困难",
-      "hpMul": 1.3,
-      "bossMul": 1.25,
-      "warnMul": 0.88,
-      "desc": "敌人更强 · 预警更短"
-    },
-    "abyss": {
-      "label": "深渊",
-      "hpMul": 1.7,
-      "bossMul": 1.5,
-      "warnMul": 0.78,
-      "desc": "只为最深的行者"
-    }
+  "abyss": {
+   "label": "深渊",
+   "hpMul": 1.7,
+   "bossMul": 1.5,
+   "warnMul": 0.78,
+   "desc": "只为最深的行者"
   }
+ },
+ "vault": {
+  "keyDropBoss": 1,
+  "openBand": 0.88
+ },
+ "eventRoomChance": 0.55
 }

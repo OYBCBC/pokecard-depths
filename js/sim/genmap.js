@@ -4,9 +4,11 @@
 // 规格：
 //   13×13 网格，中心 (6,6) 出生房；BFS 扩张：邻居已占/防环规则/50% 随机放弃
 //   目标房数 = min(20, 5 + floor(10×层号/3) + rand(0,1))
-//   重 roll：房数 < target-2，或死端 < 5，或 Boss 与出生房相邻
-//   死端（按距离降序）：Boss → 商店 → 宝箱 → 挑战 → 营地 → 剩余（隐藏房候选）
-//   隐藏房：与 ≥3 房相邻、不邻 Boss/其他特殊房的空格；进图不显示，冲刺撞裂缝进入
+//   重 roll：房数 < target-2，或死端 < minDead，或 Boss 与出生房相邻
+//   死端（按距离降序）：Boss → 商店 → 宝箱 → 挑战 → 营地 → 密室(F2+) → 剩余（隐藏房候选/黑市替换池）
+//   隐藏房：与 ≥3 房相邻、不邻 Boss/特殊房的空格；进图不显示，冲刺撞裂缝进入
+//   大房型（M7）：普通战斗房标记 big='wide'|'tall'——内部尺寸放大（网格仍占 1 格，Boss 房同模式）
+//   裂缝房（M7）：F4 出生房旁的超梦挑战入口，门缝需冲刺撞开
 
 export const GRID = 13;
 
@@ -23,13 +25,13 @@ function key(x, y) { return x + ',' + y; }
 
 function tryGen(rand, floorNo) {
   // F4 晶核之间：迷你层（直奔梦幻终战），死端下限放宽、房数容差收紧（必须够 4 房）
-  if (floorNo >= 4) return tryGenCore(rand, 4, 1, 0);
-  const target = Math.min(20, 5 + Math.floor(10 * floorNo / 3) + (rand() < 0.5 ? 0 : 1));
-  // 死端 ≥6：Boss/商店/宝箱/挑战/营地占 5 个后，仍剩 1 个战斗死端供黑市/祭坛替换（M5）
-  return tryGenCore(rand, target, 6, 2);
+  if (floorNo >= 4) return tryGenCore(rand, 4, 1, 0, floorNo);
+  // 死端 ≥7（M7，F1 为 6）：Boss/商店/宝箱/挑战/营地占 5 个 + 密室(F2+) 1 个，
+  // 仍剩 ≥1 个战斗死端供黑市/祭坛/事件房替换（条件性替换需要额外死端——M4.5/M5 同类教训）
+  return tryGenCore(rand, Math.min(20, 5 + Math.floor(10 * floorNo / 3) + (rand() < 0.5 ? 0 : 1)), floorNo >= 2 ? 7 : 6, 2, floorNo);
 }
 
-function tryGenCore(rand, target, minDead, tol) {
+function tryGenCore(rand, target, minDead, tol, floorNo = 1) {
   const cells = new Map();          // key -> { x, y, type, }
   const put = (x, y, type) => cells.set(key(x, y), { x, y, type });
 
@@ -83,9 +85,19 @@ function tryGenCore(rand, target, minDead, tol) {
   const challenge = takeDeadEnd(); if (challenge) challenge.type = 'challenge';
   // 救援营地每层保底（替补=换 Build 载体，是免疫/克制的战略出口，必须拿得到）
   const camp = takeDeadEnd();   if (camp) camp.type = 'camp';
+  // 锁住的宝物密室（M7，F2+）：钥匙经济的目标房
+  if (floorNo >= 2) { const vault = takeDeadEnd(); if (vault) vault.type = 'vault'; }
+
+  // 大房型（M7）：非死端的普通战斗房，按层号放 1~2 个——内部放大（网格 1 格）
+  const combatAll = [...cells.values()].filter((c) => c.type === 'combat');
+  const bigs = floorNo >= 4 ? [] : combatAll
+    .filter((c) => neighborsOf(c.x, c.y).length >= 2)
+    .sort((a, b) => b.d - a.d)
+    .slice(0, floorNo >= 3 ? 2 : 1);
+  bigs.forEach((c, i) => { c.big = i % 2 === 0 ? 'wide' : 'tall'; });
 
   // 隐藏房：与 ≥3 个普通/出生房相邻的空格（不邻 Boss/特殊房），邻居越多权重越高
-  const special = new Set(['boss', 'shop', 'treasure', 'challenge', 'camp', 'secret']);
+  const special = new Set(['boss', 'shop', 'treasure', 'challenge', 'camp', 'secret', 'vault']);
   let best = null, bestScore = -1;
   for (let y = 0; y < GRID; y++) {
     for (let x = 0; x < GRID; x++) {
@@ -106,6 +118,13 @@ function tryGenCore(rand, target, minDead, tol) {
   }
   if (best) put(best.x, best.y, 'secret');
 
+  // 裂缝房（M7）：F4 出生房旁的超梦挑战（可选隐藏 Boss）；门缝冲刺撞开
+  if (floorNo >= 4) {
+    const spot = N.map(([dx, dy]) => ({ x: cx + dx, y: cy + dy }))
+      .find((p) => p.x >= 0 && p.y >= 0 && p.x < GRID && p.y < GRID && !cells.has(key(p.x, p.y)));
+    if (spot) put(spot.x, spot.y, 'fissure');
+  }
+
   // 运行时字段
   for (const c of cells.values()) {
     c.cleared = c.type === 'start';
@@ -113,7 +132,13 @@ function tryGenCore(rand, target, minDead, tol) {
     c.doors = {};
     for (const [dx, dy] of N) {
       const nb = cells.get(key(c.x + dx, c.y + dy));
-      if (nb) c.doors[dx + ',' + dy] = nb.type === 'secret' ? 'secret' : 'normal';
+      if (nb) {
+        // 密室门两侧上锁；裂缝门两侧标 fissure（表现=裂缝，冲刺撞开）
+        const lockedPair = (c.type === 'vault' || nb.type === 'vault') ? 'locked'
+          : (c.type === 'fissure' || nb.type === 'fissure') ? 'fissure'
+          : nb.type === 'secret' ? 'secret' : 'normal';
+        c.doors[dx + ',' + dy] = lockedPair;
+      }
     }
   }
 
@@ -139,13 +164,17 @@ function fallbackGen(rand, floorNo) {
   put(5, 6, 'combat'); put(4, 6, 'treasure'); put(3, 6, 'combat');
   put(7, 6, 'combat'); put(8, 6, 'combat'); put(6, 2, 'boss');
   put(5, 5, 'camp'); put(7, 5, 'challenge');      // 营地保底（替补=克制出口），兜底图同样要有
+  if (floorNo >= 2) put(7, 7, 'vault');
   for (const c of cells.values()) {
     c.cleared = c.type === 'start';
     c.visited = c.type === 'start';
     c.doors = {};
     for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
       const nb = cells.get(key(c.x + dx, c.y + dy));
-      if (nb) c.doors[dx + ',' + dy] = nb.type === 'secret' ? 'secret' : 'normal';
+      if (nb) {
+        const lockedPair = (c.type === 'vault' || nb.type === 'vault') ? 'locked' : nb.type === 'secret' ? 'secret' : 'normal';
+        c.doors[dx + ',' + dy] = lockedPair;
+      }
     }
   }
   return { grid: GRID, target: cells.size, cells: [...cells.values()], start: { x: 6, y: 6 }, counts: tally(cells), fallback: true };

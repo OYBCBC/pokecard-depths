@@ -75,11 +75,11 @@ export function buildRoom(THREE, scene, tex, lights, tier, cfg) {
 
   // ---- 门：闸板（战斗时关）+ 发光门洞 ----
   const gates = [], doorGlows = [], cracks = [];
-  const mkGate = (side, secret) => {
+  const mkGate = (side, secret, locked) => {
     const gx = side[1] === 0 ? (side[0] < 0 ? -T / 2 : W + T / 2) : cx;
     const gz = side[1] === 0 ? cz : (side[1] < 0 ? -T / 2 : H + T / 2);
     if (secret) {
-      // 隐藏门：裂缝贴片（揭示后移除）
+      // 隐藏门/裂缝门：裂缝贴片（揭示后移除）
       const crack = new THREE.Mesh(
         new THREE.PlaneGeometry(GAP * 0.9, GAP * 1.1),
         new THREE.MeshBasicMaterial({ map: tex.crack, transparent: true, depthWrite: false })
@@ -92,7 +92,10 @@ export function buildRoom(THREE, scene, tex, lights, tier, cfg) {
     }
     const glow = new THREE.Mesh(
       new THREE.PlaneGeometry(GAP * 0.95, GAP * 1.4),
-      new THREE.MeshBasicMaterial({ map: tex.door, transparent: true, depthWrite: false, side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({
+        map: tex.door, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+        color: locked ? 0xffd24a : 0xffffff,        // 锁门泛金光（钥匙经济的"这里能开"信号）
+      })
     );
     glow.position.set(gx, GAP * 0.68, gz);
     if (side[1] === 0) glow.rotation.y = Math.PI / 2;
@@ -100,7 +103,11 @@ export function buildRoom(THREE, scene, tex, lights, tier, cfg) {
     doorGlows.push(glow);
     const gate = new THREE.Mesh(
       new THREE.BoxGeometry(side[1] === 0 ? GAP : GAP * 0.9, HGT, side[1] === 0 ? GAP * 0.9 : GAP),
-      [0, 1, 2, 3, 4, 5].map(() => new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.9 }))
+      [0, 1, 2, 3, 4, 5].map(() => new THREE.MeshStandardMaterial({
+        map: wallTex, roughness: 0.9,
+        color: locked ? 0xd8b24a : 0xffffff,
+        emissive: locked ? 0x5a4210 : 0x000000,
+      }))
     );
     gate.position.set(gx, HGT / 2, gz);
     gate.castShadow = gate.receiveShadow = true;
@@ -109,7 +116,9 @@ export function buildRoom(THREE, scene, tex, lights, tier, cfg) {
   };
   for (const dkey of doorSides) {
     const [dx, dy] = dkey.split(',').map(Number);
-    mkGate([dx, dy], cfg.doors[dkey] !== 'normal' && cfg.doors[dkey] !== 'revealed');
+    const dt = cfg.doors[dkey];
+    // secret/fissure 未揭示=裂缝；locked=金闸；normal/revealed=普通门
+    mkGate([dx, dy], dt !== 'normal' && dt !== 'revealed' && dt !== 'locked', dt === 'locked');
   }
 
   // ---- 火把 ×2（北墙两侧）----

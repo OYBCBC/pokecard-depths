@@ -148,6 +148,9 @@ body.touchmode .kb-only { display: none; }
 .mmr.t-challenge { --tc: #ff9a4a; } .mmr.t-secret { --tc: #c79fff; } .mmr.t-start { --tc: #9fe070; }
 .mmr.t-camp { --tc: #9fe070; } .mmr.t-combat { --tc: #aab8d0; }
 .mmr.t-blackmarket { --tc: #ff5a8a; } .mmr.t-altar { --tc: #ffe9b0; }
+.mmr.t-vault { --tc: #ffd24a; } .mmr.t-fissure { --tc: #c79fff; }
+.mmr.t-forge { --tc: #ff9a4a; } .mmr.t-gacha { --tc: #c79fff; }
+.mmr.t-blood { --tc: #ff5a6e; } .mmr.t-gift { --tc: #9fe070; }
 .mmr.seen .body { fill: color-mix(in srgb, var(--tc, #aab8d0) 30%, #141b2c); stroke: var(--tc, #aab8d0); stroke-width: 2; }
 .mmr.cleared .body { fill: #1c2438; stroke: color-mix(in srgb, var(--tc, #aab8d0) 55%, #1c2438); }
 .mmr text { fill: #eef3fb; font-size: 12px; text-anchor: middle; dominant-baseline: central; font-family: inherit; }
@@ -404,6 +407,35 @@ body.touchmode #banner .b-title { font-size: 22px; letter-spacing: 3px; }
   body.touchmode #tpad { transform: scale(.86); transform-origin: 100% 100%; }
   .ghost { transform: scale(.86); }
 }
+
+/* ---------- MOD 工房（M7） ---------- */
+.mod-chip { margin-top: 8px; font-size: 11px; color: #c79fff; }
+.mod-chip b { color: #ffe9a0; }
+#mods { position: absolute; inset: 0; display: flex; overflow: auto;
+  background: rgba(8, 10, 18, .88); pointer-events: auto; z-index: 12; }
+.mw-box { width: min(880px, 96vw); max-height: 92vh; overflow: auto; margin: auto;
+  background: rgba(13, 17, 28, .97); border: 2px solid #3a4a6c; border-radius: 6px; padding: 16px 20px; }
+.mw-cols { display: flex; gap: 26px; margin-top: 12px; }
+.mw-left { flex: 1.2; min-width: 0; } .mw-right { flex: 1; min-width: 0; }
+.mw-name input { width: 100%; font: inherit; font-size: 14px; color: #ffe9a0; background: rgba(10,14,24,.9);
+  border: 1px solid #3a4a6c; border-radius: 3px; padding: 7px 10px; outline: none; }
+.mw-slider { display: flex; align-items: center; gap: 8px; margin-top: 7px; font-size: 12px; color: #93a4c0; }
+.mw-slider label { width: 72px; }
+.mw-slider input[type=range] { flex: 1; accent-color: #7fd4ff; }
+.mw-slider output { width: 42px; text-align: right; color: #dfe8f5; font-variant-numeric: tabular-nums; }
+.mw-names { margin-top: 10px; font-size: 11px; color: #93a4c0; }
+.mw-names textarea, .mw-hint textarea { width: 100%; font: inherit; font-size: 12px; color: #dfe8f5;
+  background: rgba(10,14,24,.9); border: 1px solid #3a4a6c; border-radius: 3px; padding: 6px 8px; outline: none; resize: vertical; }
+.mw-row2 { display: flex; gap: 8px; margin-top: 12px; }
+.mw-row2 .st-btn { flex: 1; }
+.mw-title { font-size: 12px; color: #7fd4ff; letter-spacing: 2px; margin-bottom: 6px; }
+.mw-row { display: flex; align-items: center; gap: 6px; padding: 5px 7px; border: 1px solid #2c3958; border-radius: 4px; margin-bottom: 5px; font-size: 12px; }
+.mw-row.on { border-color: #c79fff; background: rgba(30, 22, 44, .8); }
+.mw-row b { flex: 1; color: #dfe8f5; font-weight: normal; }
+.mw-b { font: inherit; font-size: 10px; color: #7fd4ff; background: rgba(16,22,36,.9); border: 1px solid #2c3958; border-radius: 3px; padding: 2px 8px; cursor: pointer; }
+.mw-b.danger { color: #ff8a97; }
+.mw-empty { font-size: 11px; color: #5d6a85; padding: 8px 0; }
+.mw-hint { margin-top: 10px; font-size: 10px; color: #5d6a85; line-height: 1.8; }
 
 /* ---------- 成就面板 / 解锁 toast（M4 第四批） ---------- */
 #achv { position: absolute; inset: 0; display: flex; overflow: auto;

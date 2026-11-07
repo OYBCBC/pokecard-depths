@@ -44,7 +44,7 @@ function tev(target, touches) {
 }
 const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
 
-const { createInput, touchPreferred } = await import('../js/core/input.js?v=m6a');
+const { createInput, touchPreferred } = await import('../js/core/input.js?v=m7a');
 
 test('左半屏拖动=移动：方向/幅度正确，超半径归一化', () => {
   const { win } = setup();

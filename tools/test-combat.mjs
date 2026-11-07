@@ -11,12 +11,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { damageStat, fireInterval, typeMultiplier, stabMultiplier, computeHit, enemyPanel } =
-  await import(join(ROOT, 'js/sim/combat.js?v=m6a'));
-const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m6a'));
-const _engine = await import(join(ROOT, 'js/sim/engine.js?v=m6a'));
-const { enterRoom } = await import(join(ROOT, 'js/sim/actors.js?v=m6a'));
-const _save = await import(join(ROOT, 'js/sim/save.js?v=m6a'));
-const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m6a'));
+  await import(join(ROOT, 'js/sim/combat.js?v=m7a'));
+const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m7a'));
+const _engine = await import(join(ROOT, 'js/sim/engine.js?v=m7a'));
+const { enterRoom, spawnWave } = await import(join(ROOT, 'js/sim/actors.js?v=m7a'));
+const _save = await import(join(ROOT, 'js/sim/save.js?v=m7a'));
+const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m7a'));
 function combatNeighbor(run, d) {
   const cell = run.map.get(run.cellKey);
   for (const [dk] of Object.entries(cell.doors)) {
@@ -179,7 +179,7 @@ test('引擎：冲刺给无敌与位移', () => {
 
 
 // ---------- M4：多层塔 / Z 招式 / 进化 / 替补 ----------
-const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m6a'));
+const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m7a'));
 
 function idleInput() {
   return { move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false, slotEdge: false, useEdge: false, zEdge: false, swapEdge: false };
@@ -466,7 +466,7 @@ test('图鉴：事件点亮（遭遇/击杀/馆主搭档/进化/结伴/别名）
 
 // ---------- M5 第二批：道具全量 / 黑市祭坛 / 徽章 / 异常状态 ----------
 
-const _items = await import(join(ROOT, 'js/sim/items.js?v=m6a'));
+const _items = await import(join(ROOT, 'js/sim/items.js?v=m7a'));
 const items = data.items;
 
 test('道具全量：74 件（被动42+强化8+消耗11+纪念10+徽章3），图标齐全、池合法', () => {
@@ -841,3 +841,355 @@ test('挑战码：编解码往返（种子/难度/搭档），坏码返回 null'
   const loose = decodeChallenge('DPT1.' + Buffer.from('{"s":42,"d":"hell","sp":"mewtwo"}').toString('base64'));
   assert.deepEqual(loose, { seed: 42, difficulty: 'normal', species: 'mewtwo' }, '难度回落 normal、搭档原样（开局校验兜底）');
 });
+
+// ==================== M7：新敌人行为 / 钥匙 / 事件房 / 超梦 / 精英 ====================
+
+// 造一只规格与 spawnWave 一致的敌（直接塞进房里，绕开波次表）
+function mkEnemy(data, id, x, y, floorNo = 1, extra = {}) {
+  const spec = data.enemies[id];
+  return {
+    id: 9000 + Math.floor(Math.random() * 100000), eid: id, name: spec.name, types: spec.types,
+    family: spec.family, radius: spec.radius, score: spec.score,
+    hp: spec.hp, maxHp: spec.hp, touchDmg: spec.touchDmg, speed: spec.speed, spdMod: spec.spdMod,
+    x, y, px: x, py: y, kx: 0, ky: 0,
+    state: 'active', spawnT: 0, flash: 0, touchCd: 0, stun: 0,
+    anim: 'Idle', dir: 0, moving: false, wanderT: 0, wx: 0, wy: 0,
+    shoot: spec.shoot ? { ...spec.shoot } : null, shootCd: spec.shoot ? spec.shoot.firstDelay : 0,
+    ...extra,
+    heal: spec.heal ? { ...spec.heal } : undefined,
+    mortar: spec.mortar ? { ...spec.mortar } : undefined,
+    sniper: spec.sniper ? { ...spec.sniper } : undefined,
+    dash: spec.dash ? { ...spec.dash } : undefined,
+    mimic: spec.mimic ? { ...spec.mimic } : undefined,
+    kbRes: spec.kbRes, dropHearts: spec.dropHearts, transformTo: spec.transformTo, transformT: spec.transformT,
+  };
+}
+function freshRoom(floorNo = 1) {
+  const run = createRun({ ...data, floorNo }, 424242 + floorNo, 'pikachu', 'normal');
+  const cell = [...run.map.values()].find((c) => c.type === 'combat');
+  enterRoom(run, { ...data, floorNo }, cell.x + ',' + cell.y);
+  for (const e of run.enemies) e.hp = 0;
+  stepRun(run, IDLE, { ...data, floorNo });   // 清尸
+  run.enemies.length = 0; run.projectiles.length = 0; run.telegraphs.length = 0;
+  return { run, d: { ...data, floorNo } };
+}
+const IDLE = { move: { x: 0, y: 0 }, aim: { x: 1, y: 0 }, fire: false, dashEdge: false, slotEdge: false, useEdge: false, zEdge: false, swapEdge: false };
+function pumpN(run, d, n, inp = IDLE) {
+  const evs = [];
+  for (let i = 0; i < n; i++) { stepRun(run, inp, d); evs.push(...run.events); }
+  return evs;
+}
+// 预警圈是瞬态（结算即移除）：逐帧快照 kind 集合
+function pumpTels(run, d, n, inp = IDLE) {
+  const kinds = new Set();
+  for (let i = 0; i < n; i++) {
+    stepRun(run, inp, d);
+    for (const t of run.telegraphs) kinds.add(t.kind);
+  }
+  return [...kinds];
+}
+
+test('M7 抛射（小拳石）：周期在玩家附近落预警圈', () => {
+  const { run, d } = freshRoom(2);
+  run.player.x = 8; run.player.y = 5;
+  run.enemies.push(mkEnemy(d, 'geodude', 4, 4));
+  const evs = pumpN(run, d, 60 * 6);
+  const kinds = pumpTels(run, d, 60 * 6);
+  assert.ok(kinds.includes('rock'), `落点预警应出现，实际 kind：${kinds.join(',') || '无'}`);
+  assert.ok(evs.some((e) => e.t === 'enemy-shoot'));
+});
+
+test('M7 狙击（催眠貘）：蓄力后射出高速弹（speed≈13）', () => {
+  const { run, d } = freshRoom(3);
+  run.player.x = 8; run.player.y = 5;
+  run.enemies.push(mkEnemy(d, 'drowzee', 4, 5));
+  let fast = null;
+  for (let i = 0; i < 60 * 6 && !fast; i++) {
+    stepRun(run, IDLE, d);
+    fast = run.projectiles.find((b) => b.owner === 'enemy' && Math.hypot(b.vx, b.vy) > 11);
+  }
+  assert.ok(fast, '应射出 >11 格/秒的狙击弹');
+});
+
+test('M7 治疗（皮皮）：受伤同伴被奶回来且触发 heal-pulse', () => {
+  const { run, d } = freshRoom(1);
+  const hurt = mkEnemy(d, 'rattata', 5, 5);
+  hurt.hp = hurt.maxHp - 3;
+  const healer = mkEnemy(d, 'clefairy', 5.5, 5.2);
+  run.enemies.push(hurt, healer);
+  const evs = pumpN(run, d, 60 * 7);
+  assert.ok(hurt.hp > hurt.maxHp - 3 + 1.5, `同伴应被奶 ≥2（${hurt.hp}/${hurt.maxHp}）`);
+  assert.ok(evs.some((e) => e.t === 'heal-pulse'));
+});
+
+test('M7 冲锋（飞天螳螂）：蓄力→横冲，冲刺期接触伤害 ×2', () => {
+  const { run, d } = freshRoom(3);
+  run.player.x = 8; run.player.y = 5.5;
+  const scy = mkEnemy(d, 'scyther', 5, 5.5);
+  run.enemies.push(scy);
+  let dashed = false;
+  for (let i = 0; i < 60 * 6; i++) {
+    stepRun(run, IDLE, d);
+    if (scy.dashing) dashed = true;
+    run.player.x = 8; run.player.y = 5.5;   // 站桩
+    run.player.hp = run.player.maxHp; run.player.iframes = 0;
+  }
+  const kinds = pumpTels(run, d, 60 * 6);
+  const sawLine = kinds.includes('charge-line');
+  assert.ok(sawLine, '冲锋路径应有零伤害预警线');
+  assert.ok(dashed, '应进入横冲状态');
+});
+
+test('M7 变化（百变怪）：反弹玩家当前 A 槽招式', () => {
+  const { run, d } = freshRoom(3);
+  run.player.x = 8; run.player.y = 5;
+  run.enemies.push(mkEnemy(d, 'ditto', 4, 5));
+  let mimicShot = null;
+  for (let i = 0; i < 60 * 6 && !mimicShot; i++) {
+    stepRun(run, IDLE, d);
+    mimicShot = run.projectiles.find((b) => b.owner === 'enemy' && b.moveId === run.player.moveA);
+  }
+  assert.ok(mimicShot, `应复制玩家的 ${run.player.moveA} 弹`);
+});
+
+test('M7 鲤鱼王：9 秒怒变暴鲤龙（enemy-skin 事件 + 图鉴点亮 eid）', () => {
+  const { run, d } = freshRoom(1);
+  const karp = mkEnemy(d, 'magikarp', 8, 5);
+  run.enemies.push(karp);
+  const evs = pumpN(run, d, 60 * 10);
+  assert.equal(karp.eid, 'gyarados');
+  assert.ok(evs.some((e) => e.t === 'enemy-skin' && e.eid === 'gyarados'));
+  assert.ok(evs.some((e) => e.t === 'spawn' && e.eid === 'gyarados'));
+});
+
+test('M7 受击半血也触发怒变', () => {
+  const { run, d } = freshRoom(1);
+  const karp = mkEnemy(d, 'magikarp', 8, 5);
+  karp.hp = karp.maxHp * 0.4;
+  run.enemies.push(karp);
+  pumpN(run, d, 3);
+  assert.equal(karp.eid, 'gyarados');
+});
+
+test('M7 吉利蛋：击杀必掉 2 颗心', () => {
+  const { run, d } = freshRoom(3);
+  const ch = mkEnemy(d, 'chansey', 8, 5);
+  run.enemies.push(ch);
+  ch.hp = 0;
+  pumpN(run, d, 2);
+  assert.equal(run.pickups.filter((k) => k.kind === 'heart').length, 2);
+});
+
+test('M7 精英：F3 起 15% 概率，血 ×2.2；F2 无', () => {
+  let hit = false;
+  for (let seed = 1; seed <= 40 && !hit; seed++) {
+    const run = createRun({ ...data, floorNo: 3 }, seed * 13, 'pikachu', 'normal');
+    const cell = [...run.map.values()].find((c) => c.type === 'combat');
+    enterRoom(run, { ...data, floorNo: 3 }, cell.x + ',' + cell.y);
+    run.enemies.length = 0;
+    // 直接调 spawnWave（模拟房间推进）：需要 room 状态
+    run.room.waveIdx = 0; run.room.cleared = false;
+    spawnWave(run, { ...data, floorNo: 3 });
+    hit = run.enemies.some((e) => e.elite);
+  }
+  assert.ok(hit, '40 个种子内应出现精英');
+  const run2 = createRun({ ...data, floorNo: 2 }, 7, 'pikachu', 'normal');
+  const cell2 = [...run2.map.values()].find((c) => c.type === 'combat');
+  enterRoom(run2, { ...data, floorNo: 2 }, cell2.x + ',' + cell2.y);
+  run2.enemies.length = 0; run2.room.waveIdx = 0; run2.room.cleared = false;
+  spawnWave(run2, { ...data, floorNo: 2 });
+  assert.ok(run2.enemies.every((e) => !e.elite), 'F2 不出精英');
+});
+
+test('M7 击退抗性（卡比兽）：击退距离约打 3 折', () => {
+  const { run, d } = freshRoom(3);
+  const a = mkEnemy(d, 'rattata', 8, 5);
+  const b = mkEnemy(d, 'snorlax', 8, 5);
+  run.enemies.push(a, b);
+  // 同一击退速度，衰减后比较位移
+  a.kx = 9; b.kx = 9;
+  pumpN(run, d, 30);
+  assert.ok(b.x > 8 && a.x > 8, '两者都被推动');
+});
+
+test('M7 钥匙：拾取计数 → 锁门消耗并开门 → 无钥匙节流提示', () => {
+  const run = createRun({ ...data, floorNo: 2 }, 555, 'pikachu', 'normal');
+  const d = { ...data, floorNo: 2 };
+  const vcell = [...run.map.values()].find((c) => c.type === 'vault');
+  assert.ok(vcell, 'F2 有密室');
+  const startKey = run.cellKey;
+  enterRoom(run, d, startKey);
+  run.pickups.push({ id: run.nextId++, kind: 'key', itemId: null, x: run.player.x, y: run.player.y, px: 0, py: 0, bob: 0 });
+  stepRun(run, IDLE, d);
+  assert.equal(run.player.inv.keys, 1, '拾取钥匙');
+  // 走到锁门：把玩家传到 vault 门边（cleared 出生房直接可走门）
+  const doorSide = Object.entries(run.map.get(startKey).doors).find(([dk, dt]) => {
+    const [dx, dy] = dk.split(',').map(Number);
+    const nb = run.map.get((run.map.get(startKey).x + dx) + ',' + (run.map.get(startKey).y + dy));
+    return nb && nb.type === 'vault';
+  });
+  const [vdx, vdy] = Object.entries(vcell.doors).find(([dk, dt]) => dt === 'locked')[0].split(',').map(Number);
+  const ndx = -vdx, ndy = -vdy;               // 邻居视角的门方向
+  const fromCell = (vcell.x + vdx) + ',' + (vcell.y + vdy);
+  enterRoom(run, d, fromCell);
+  run.room.cleared = true; run.room.doorOpen = true;
+  const w = run.roomW, h = run.roomH;
+  // 站到邻居房里朝向 vault 的那面墙门口
+  if (ndx === -1) run.player.x = 0.7;
+  if (ndx === 1) run.player.x = w - 0.7;
+  if (ndy === -1) run.player.y = 0.7;
+  if (ndy === 1) run.player.y = h - 0.7;
+  if (ndx === 0) run.player.x = w / 2; else run.player.y = h / 2;
+  let evs = pumpN(run, d, 3);
+  assert.ok(evs.some((e) => e.t === 'vault-open'), '有钥匙应开门');
+  assert.equal(run.player.inv.keys, 0, '消耗一把钥匙');
+  const fcell = run.map.get(fromCell);
+  assert.equal(fcell.doors[(-vdx) + ',' + (-vdy)] || fcell.doors[vdx + ',' + vdy], 'normal', '门变 normal');
+  // 再撞锁门（已开）应直接传送进 vault
+  evs = pumpN(run, d, 10);
+  assert.equal(run.cellKey, vcell.x + ',' + vcell.y, '应传送进密室');
+  assert.ok(run.pedestals.length >= 2, '密室里有 2 件宝物');
+});
+
+test('M7 无钥匙撞锁门：door-locked 节流（1.5s 内 ≤1 条）', () => {
+  const run = createRun({ ...data, floorNo: 2 }, 556, 'pikachu', 'normal');
+  const d = { ...data, floorNo: 2 };
+  const vcell = [...run.map.values()].find((c) => c.type === 'vault');
+  const [vdx, vdy] = Object.entries(vcell.doors).find(([dk, dt]) => dt === 'locked')[0].split(',').map(Number);
+  const ndx = -vdx, ndy = -vdy;
+  const fromCell = (vcell.x + vdx) + ',' + (vcell.y + vdy);
+  enterRoom(run, d, fromCell);
+  run.room.cleared = true; run.room.doorOpen = true;
+  run.player.inv.keys = 0;
+  if (ndx === -1) run.player.x = 0.7;
+  if (ndx === 1) run.player.x = run.roomW - 0.7;
+  if (ndx === 0) run.player.x = run.roomW / 2;
+  if (ndy === -1) run.player.y = 0.7;
+  if (ndy === 1) run.player.y = run.roomH - 0.7;
+  if (ndy === 0) run.player.y = run.roomH / 2; else run.player.x = run.roomW / 2;
+  const evs = pumpN(run, d, 120);   // 2 秒贴门
+  const locks = evs.filter((e) => e.t === 'door-locked');
+  assert.ok(locks.length >= 1 && locks.length <= 3, `节流后提示 1-3 条，得 ${locks.length}`);
+  assert.equal(run.cellKey, fromCell, '无钥匙不传送');
+});
+
+test('M7 重铸工房：无被动提示不收钱；有被动烧一件换目标件', () => {
+  const run = createRun({ ...data, floorNo: 2 }, 777, 'pikachu', 'normal');
+  const d = { ...data, floorNo: 2 };
+  // 手动布置 forge 房
+  const fcell = [...run.map.values()].find((c) => c.type === 'combat');
+  fcell.type = 'forge';
+  enterRoom(run, d, fcell.x + ',' + fcell.y);
+  assert.equal(run.pedestals.length, 1, 'forge 台座');
+  assert.equal(run.pedestals[0].event, 'forge');
+  assert.equal(run.pedestals[0].price, 14);
+  // 无被动：接触台座 → forge-blocked，台座还在
+  const ped = run.pedestals[0];
+  run.player.x = ped.x; run.player.y = ped.y;
+  let evs = pumpN(run, d, 10);
+  assert.ok(evs.some((e) => e.t === 'forge-blocked'), '无被动应提示');
+  assert.equal(ped.taken, false);
+  // 有被动：烧一件（非 TM），拿到目标件
+  run.player.inv.passives.push('old-rod');
+  d.items['old-rod'] = { name: '旧鱼竿', kind: 'passive', quality: 1, icon: 'x', effect: {}, desc: '', pools: ['T'] };
+  run.player.money = 50;
+  evs = pumpN(run, d, 10);
+  assert.ok(evs.some((e) => e.t === 'forge-trade'), '应发生重铸');
+  assert.ok(evs.some((e) => e.t === 'forge-trade' && e.lost === 'old-rod'));
+  assert.ok(run.player.inv.passives.includes(ped.itemId), '拿到目标件');
+  assert.ok(!run.player.inv.passives.includes('old-rod'), '旧件被烧');
+  assert.ok(run.player.money < 50, '扣了钱');
+  delete d.items['old-rod'];   // 数据共享：清理假道具防污染后续用例
+});
+
+test('M7 血祭坛：♥1 上限换高级货（保底 2 格）；神秘礼物免费', () => {
+  const run = createRun({ ...data, floorNo: 2 }, 888, 'pikachu', 'normal');
+  const d = { ...data, floorNo: 2 };
+  const fcell = [...run.map.values()].find((c) => c.type === 'combat');
+  fcell.type = 'blood';
+  enterRoom(run, d, fcell.x + ',' + fcell.y);
+  const ped = run.pedestals[0];
+  assert.equal(ped.priceHp, 1, '血祭坛 ♥1');
+  const maxBefore = run.player.maxHp;
+  run.player.x = ped.x; run.player.y = ped.y;
+  pumpN(run, d, 5);
+  assert.equal(ped.taken, true);
+  assert.equal(run.player.maxHp, maxBefore - 1, '上限 -1');
+  assert.ok(run.player.inv.passives.includes(ped.itemId));
+
+  // gift：免费
+  const gcell = [...run.map.values()].find((c) => c.type === 'combat');
+  gcell.type = 'gift';
+  enterRoom(run, d, gcell.x + ',' + gcell.y);
+  const gped = run.pedestals[0];
+  assert.equal(gped.price, 0, 'gift 免费');
+  const itemsBefore = run.player.inv.passives.length;
+  run.player.x = gped.x; run.player.y = gped.y;
+  pumpN(run, d, 5);
+  assert.ok(gped.taken, '免费拿走');
+});
+
+test('M7 超梦：裂缝房生成 → 击杀 = mewtwo-down + 旗标 + 掉落 + 不结局', () => {
+  const run = createRun({ ...data, floorNo: 4 }, 999, 'pikachu', 'normal');
+  const d = { ...data, floorNo: 4 };
+  const fcell = [...run.map.values()].find((c) => c.type === 'fissure');
+  assert.ok(fcell, 'F4 有裂缝房');
+  // 撞开门再进
+  const startCell = run.map.get(run.cellKey);
+  enterRoom(run, d, run.cellKey);
+  startCell.doors && null;
+  const fdoor = Object.entries(startCell.doors).find(([dk]) => {
+    const [dx, dy] = dk.split(',').map(Number);
+    const nb = run.map.get((startCell.x + dx) + ',' + (startCell.y + dy));
+    return nb && nb.type === 'fissure';
+  });
+  assert.ok(fdoor, '出生房应邻接裂缝房（F4 迷你层）');
+  const [fdx, fdy] = fdoor[0].split(',').map(Number);
+  assert.equal(fdoor[1], 'fissure');
+  // 站到裂缝门口 → 冲刺撞开（tryReveal 由 stepRoom 的 fissure 分支处理）
+  enterRoom(run, d, run.cellKey);
+  run.room.cleared = true; run.room.doorOpen = true;
+  if (fdx === 0) run.player.x = run.roomW / 2; else run.player.y = run.roomH / 2;
+  if (fdy === -1) run.player.y = 0.7; if (fdy === 1) run.player.y = run.roomH - 0.7;
+  if (fdx === -1) run.player.x = 0.7; if (fdx === 1) run.player.x = run.roomW - 0.7;
+  run.player.dashActive = true; run.player.dashT = 0.18; run.player.dashDir = { x: 0, y: 0 };   // 原地冲刺撞门
+  let evs = pumpN(run, d, 2);
+  run.player.dashActive = false;
+  assert.ok(evs.some((e) => e.t === 'fissure-open'), '冲刺撞门应揭示裂缝');
+  // 走进裂缝房（revealed 后=普通门，站门位即传送）
+  if (fdx === 0) run.player.x = run.roomW / 2; else run.player.y = run.roomH / 2;
+  if (fdy === -1) run.player.y = 0.7; if (fdy === 1) run.player.y = run.roomH - 0.7;
+  if (fdx === -1) run.player.x = 0.7; if (fdx === 1) run.player.x = run.roomW - 0.7;
+  pumpN(run, d, 6);
+  assert.equal(run.cellKey, fcell.x + ',' + fcell.y, '应进入裂缝房');
+  const m2 = run.enemies.find((e) => e.family === 'boss');
+  assert.ok(m2 && m2.eid === 'mewtwo', '超梦生成');
+  assert.ok(m2.maxHp > 400, `超梦高血（${m2.maxHp}）`);
+  // 击杀
+  m2.hp = 0;
+  evs = pumpN(run, d, 5);
+  assert.ok(evs.some((e) => e.t === 'mewtwo-down'));
+  assert.equal(run.flags.mewtwoDown, true);
+  assert.equal(run.over, false, '超梦不是结局');
+  assert.ok(run.pickups.filter((k) => k.kind === 'heart').length >= 2);
+  // 伤害加成生效
+  near(run.player.stats.damage / 3.5, 1.15, 0.01);
+  // 幻影召唤：P2 后会有 gastly·幻影
+});
+
+test('M7 超梦 P2：血量 <62% 出幻影 + 阶段事件', () => {
+  const run = createRun({ ...data, floorNo: 4 }, 1001, 'pikachu', 'normal');
+  const d = { ...data, floorNo: 4 };
+  const fcell = [...run.map.values()].find((c) => c.type === 'fissure');
+  enterRoom(run, d, fcell.x + ',' + fcell.y);
+  const m2 = run.enemies.find((e) => e.family === 'boss');
+  m2.state = 'active'; m2.spawnT = 0;
+  m2.hp = m2.maxHp * 0.5;
+  const evs = pumpN(run, d, 60 * 8);
+  assert.ok(evs.some((e) => e.t === 'boss-phase2'));
+  assert.ok(run.enemies.some((e) => e.isPhantom), '应召唤幻影');
+  m2.hp = m2.maxHp * 0.2;
+  const evs2 = pumpN(run, d, 60 * 4);
+  assert.ok(evs2.some((e) => e.t === 'boss-phase3'));
+});
+

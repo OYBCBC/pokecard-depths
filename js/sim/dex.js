@@ -12,6 +12,19 @@ export const DEX_EXTRA = {
   cubone: { dex: 104, name: '卡拉卡拉', anim: 'cubone', tag: '解锁伙伴' },
   poliwhirl: { dex: 61, name: '蚊香君', anim: 'poliwhirl', tag: '解锁伙伴' },
   mew: { dex: 151, name: '梦幻', anim: 'mew', tag: '传说' },
+  // M7 物种扩容
+  clefairy: { dex: 35, name: '皮皮', anim: 'clefairy', tag: '治愈' },
+  jigglypuff: { dex: 39, name: '胖丁', anim: 'jigglypuff', tag: '' },
+  geodude: { dex: 74, name: '小拳石', anim: 'geodude', tag: '' },
+  drowzee: { dex: 96, name: '催眠貘', anim: 'drowzee', tag: '' },
+  chansey: { dex: 113, name: '吉利蛋', anim: 'chansey', tag: '治愈' },
+  scyther: { dex: 123, name: '飞天螳螂', anim: 'scyther', tag: '' },
+  magikarp: { dex: 129, name: '鲤鱼王', anim: 'magikarp', tag: '' },
+  gyarados: { dex: 130, name: '暴鲤龙', anim: 'gyarados', tag: '怒化' },
+  ditto: { dex: 132, name: '百变怪', anim: 'ditto', tag: '' },
+  snorlax: { dex: 143, name: '卡比兽', anim: 'snorlax', tag: '重型' },
+  dragonite: { dex: 149, name: '快龙', anim: 'dragonite', tag: '' },
+  mewtwo: { dex: 150, name: '超梦', anim: 'mewtwo', tag: '幻之 Boss' },
 };
 // 分裂子种 → 本体（小臭泥并入臭泥）
 export const DEX_ALIAS = { 'grimer-small': 'grimer' };
@@ -56,6 +69,7 @@ export function dexApply(dex, events) {
     else if (ev.t === 'evolve' && ev.to) e = touch(ev.to);
     else if (ev.t === 'companion-join' && ev.eid) e = touch(ev.eid);
     else if (ev.t === 'dex-seen' && ev.eid) e = touch(ev.eid);
+    else if (ev.t === 'enemy-skin' && ev.eid) e = touch(ev.eid);   // 鲤鱼王→暴鲤龙原位变身
     if (!e) continue;
     if (ev.t === 'enemy-die') { e.kills = (e.kills || 0) + 1; changed = true; }
     if (!e.seen) { e.seen = 1; changed = true; }

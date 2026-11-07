@@ -28,6 +28,10 @@ export const ACHVS = [
   { id: 'daily-done', name: '每日打卡', desc: '完成一局每日挑战（通关或战败均算）' },
   { id: 'camp-5', name: '结伴之谊', desc: '累计与 5 只受困宝可梦结伴', unlock: 'poliwhirl' },
   { id: 'companion-win', name: '搭档之力', desc: '有替补同行时击败馆主' },
+  // M7 内容批
+  { id: 'vault-1', name: '撬锁行家', desc: '打开一间上锁的宝物密室' },
+  { id: 'elite-10', name: '精英猎手', desc: '累计击倒 10 只精英宝可梦' },
+  { id: 'mewtwo-down', name: '超越了梦', desc: '在裂缝深处击败超梦' },
 ];
 const BY_ID = new Map(ACHVS.map((a) => [a.id, a]));
 
@@ -52,6 +56,8 @@ export function metaApply(meta, events, run) {
       case 'item-take': m.items = (m.items || 0) + 1; break;
       case 'pickup': if (ev.kind === 'coin') m.coins = (m.coins || 0) + 1; if (ev.kind === 'coin2') m.coins = (m.coins || 0) + 2; break;
       case 'zmove': m.zmoves = (m.zmoves || 0) + 1; break;
+      case 'vault-open': m.vaultOpens = (m.vaultOpens || 0) + 1; break;
+      case 'enemy-die': if (ev.elite) m.eliteKills = (m.eliteKills || 0) + 1; break;
       default: break;
     }
   }
@@ -107,7 +113,10 @@ export function achvApply(achvSet, meta, { run = null, events = [], dexCount = 0
         break;
       case 'enemy-die':
         if (run && (run.stats.maxStreak || 0) >= 15) grant('streak-15');
+        if (ev.elite && (m.eliteKills || 0) >= 10) grant('elite-10');
         break;
+      case 'vault-open': grant('vault-1'); break;
+      case 'mewtwo-down': grant('mewtwo-down'); break;
       case 'item-take':
         if (run && (run.stats.items || 0) >= 10) grant('items-10');
         break;
@@ -153,6 +162,7 @@ export function achvProgress(id, { meta = {}, dexCount = 0, dexTotal = 0 } = {})
     case 'runs-25': return { cur: Math.min(meta.runs || 0, 25), need: 25 };
     case 'kills-300': return { cur: Math.min(meta.kills || 0, 300), need: 300 };
     case 'camp-5': return { cur: Math.min(meta.companions || 0, 5), need: 5 };
+    case 'elite-10': return { cur: Math.min(meta.eliteKills || 0, 10), need: 10 };
     case 'dex-12': return { cur: Math.min(dexCount, 12), need: 12 };
     case 'dex-all': return dexTotal ? { cur: dexCount, need: dexTotal } : null;
     default: return null;

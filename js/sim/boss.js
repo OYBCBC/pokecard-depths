@@ -5,12 +5,13 @@
 
 const T = 1 / 60;
 
-export function spawnBoss(state, data) {
+export function spawnBoss(state, data, bossIdOverride) {
   const floorCfg = data.floors[state.floorNo];
-  const spec = data.enemies[floorCfg.boss];
+  const bossId = bossIdOverride || floorCfg.boss;
+  const spec = data.enemies[bossId];
   const cfg = spec.boss;
   const ent = {
-    id: state.nextId++, eid: floorCfg.boss, name: spec.name, types: spec.types,
+    id: state.nextId++, eid: bossId, name: spec.name, types: spec.types,
     family: 'boss', radius: spec.radius, score: 0,
     hp: spec.hp * data.balance.boss.hpMul * (state.bossMul || 1),
     maxHp: spec.hp * data.balance.boss.hpMul * (state.bossMul || 1),
@@ -34,6 +35,9 @@ export function spawnBoss(state, data) {
   } else if (ent.eid === 'mew') {
     ent.b.tpT = 1.4; ent.b.ringT = 2.0; ent.b.volleyT = 4.0;
     ent.b.summonT = 3.0; ent.b.spikeT = 1.2; ent.b.phase3Done = false;
+  } else if (ent.eid === 'mewtwo') {
+    ent.b.tpT = 2.0; ent.b.volleyT = 3.0; ent.b.gridT = 5.0;
+    ent.b.summonT = 6.0; ent.b.spikeT = 2.0; ent.b.phase3Done = false;
   }
   state.enemies.push(ent);
   state.events.push({ t: 'boss-intro', name: spec.name, ace: spec.anim });
@@ -50,6 +54,7 @@ export function stepBoss(state, e, data) {
   if (e.eid === 'surge') return stepSurge(state, e, data);
   if (e.eid === 'sabrina') return stepSabrina(state, e, data);
   if (e.eid === 'mew') return stepMew(state, e, data);
+  if (e.eid === 'mewtwo') return stepMewtwo(state, e, data);
   e.px = e.x; e.py = e.y;
   if (e.flash > 0) e.flash -= T;
 
@@ -439,6 +444,101 @@ function stepMew(state, e, data) {
   }
 
   bossContact(state, e, 1);
+}
+
+// ---------- 超梦（M7 隐藏 Boss，裂缝房）：三段 ----------
+//   P1 瞬移狙击：闪烁换位 + 三连瞄准弹 + 周期晶格
+//   P2（<62%）分裂幻影 + 双环 nova + 落点雨
+//   P3（<28%）全屏晶格加密 + spike 连击（梦幻 P3 同款加大密度）
+function stepMewtwo(state, e, data) {
+  const b = e.b, cfg = b.cfg, p = state.player;
+  e.px = e.x; e.py = e.y;
+  if (e.flash > 0) e.flash -= T;
+
+  if (!b.phase2Done && e.hp < e.maxHp * cfg.phase2At) {
+    b.phase2Done = true; b.phase = 2;
+    nova(state, e, cfg, 1);
+    state.events.push({ t: 'boss-phase2', x: e.x, y: e.y });
+  }
+  if (b.phase === 2 && !b.phase3Done && e.hp < e.maxHp * cfg.phase3At) {
+    b.phase3Done = true; b.phase = 3;
+    nova(state, e, cfg, 2);
+    state.events.push({ t: 'boss-phase3', x: e.x, y: e.y });
+  }
+
+  // 瞬移（比梦幻更频繁，瞬移前 0.35s 半透明预告）
+  b.tpT -= T;
+  if (b.tpT <= 0) {
+    b.tpT = cfg.tp.interval * (0.85 + state.rand() * 0.3);
+    const a = state.rand() * Math.PI * 2;
+    const d = 3.2 + state.rand() * 1.5;
+    const nx = Math.max(1.4, Math.min(state.roomW - 1.4, p.x + Math.cos(a) * d));
+    const ny = Math.max(1.4, Math.min(state.roomH - 1.4, p.y + Math.sin(a) * d));
+    state.events.push({ t: 'blink', id: e.id, from: [e.x, e.y], to: [nx, ny] });
+    e.x = nx; e.y = ny; e.px = nx; e.py = ny;
+  }
+
+  // 瞄准三连
+  b.volleyT -= T;
+  if (b.volleyT <= 0) {
+    b.volleyT = cfg.volley.interval;
+    const base = Math.atan2(p.y - e.y, p.x - e.x);
+    for (let i = 0; i < cfg.volley.n; i++) {
+      const a = base + (i - (cfg.volley.n - 1) / 2) * 0.2;
+      state.projectiles.push({
+        owner: 'enemy', id: state.nextId++, moveId: 'psy-bolt',
+        x: e.x, y: e.y, px: e.x, py: e.y,
+        vx: Math.cos(a) * cfg.volley.speed, vy: Math.sin(a) * cfg.volley.speed,
+        life: 9 / cfg.volley.speed, radius: 0.17,
+      });
+    }
+    state.events.push({ t: 'enemy-shoot', x: e.x, y: e.y });
+  }
+
+  // P2：召唤 Gastly 幻影 + nova
+  if (b.phase >= 2) {
+    b.summonT -= T;
+    const minions = state.enemies.filter((x) => x.eid === cfg.summon.id && x.isPhantom).length;
+    if (b.summonT <= 0 && minions < cfg.summon.max) {
+      b.summonT = cfg.summon.interval;
+      const spec = data.enemies[cfg.summon.id];
+      const sx = 1.5 + state.rand() * (state.roomW - 3);
+      const sy = 1.5 + state.rand() * (state.roomH - 3);
+      state.enemies.push({
+        id: state.nextId++, eid: cfg.summon.id, name: spec.name + '·幻影', types: spec.types,
+        family: spec.family, radius: spec.radius * 0.9, score: spec.score,
+        hp: spec.hp * 0.5 * state.hpMul, maxHp: spec.hp * 0.5 * state.hpMul,
+        touchDmg: spec.touchDmg, speed: spec.speed * 1.2, spdMod: spec.spdMod,
+        x: sx, y: sy, px: sx, py: sy, kx: 0, ky: 0,
+        state: 'spawning', spawnT: 0.4, flash: 0, touchCd: 0, stun: 0,
+        anim: 'Idle', dir: 0, moving: false, wanderT: 0, wx: 0, wy: 0, isPhantom: true,
+      });
+      state.events.push({ t: 'spawn', id: state.enemies[state.enemies.length - 1].id, eid: cfg.summon.id, x: sx, y: sy });
+    }
+    if (b.phase === 2) bossRain(state, e, cfg, b);
+  }
+
+  // P3：全屏晶格（随机行/列预警→落点）+ spike 追击
+  if (b.phase === 3) {
+    b.gridT -= T;
+    if (b.gridT <= 0) {
+      b.gridT = cfg.grid.interval;
+      const vertical = state.rand() < 0.5;
+      for (let i = 0; i < cfg.grid.cols; i++) {
+        const c = 1.5 + state.rand() * ((vertical ? state.roomW : state.roomH) - 3);
+        for (let k = 1.5; k < (vertical ? state.roomH : state.roomW) - 1.5; k += 1.7) {
+          warn(state, vertical ? c : k, vertical ? k : c, 0.9, cfg.grid.warn, cfg.grid.dmg, 'grid');
+        }
+      }
+    }
+    b.spikeT -= T;
+    if (b.spikeT <= 0) {
+      b.spikeT = cfg.spikes.interval;
+      warn(state, p.x, p.y, cfg.spikes.radius, cfg.spikes.warn, cfg.spikes.damage, 'mew');
+    }
+  }
+
+  bossContact(state, e, e.touchDmg);
 }
 
 // 阶段切换清场环（双环 nova）

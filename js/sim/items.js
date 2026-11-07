@@ -1,5 +1,5 @@
 // 道具效果系统（纯函数）：背包 → 数值修饰 mods。引擎与测试共用。
-import { damageStat, fireInterval } from './combat.js?v=m6a';
+import { damageStat, fireInterval } from './combat.js?v=m7a';
 
 export const BASE_MODS = () => ({
   dmgUps: 0, dmgFlat: 0, dmgMul: 1,
@@ -120,7 +120,7 @@ export function rollItem(items, poolConfig, poolName, rand, opts = {}) {
   const learnable = (it) => !it.effect || !it.effect.tm || !it.learn
     || !opts.learnBy || it.learn.includes(opts.learnBy);
   const cands = Object.entries(items).filter(([id, it]) =>
-    it.pools.includes(chosenPool) && !owned.has(id) && learnable(it)
+    (it.pools || []).includes(chosenPool) && !owned.has(id) && learnable(it)
     && (!opts.kinds || opts.kinds.includes(it.kind)));
   if (!cands.length) {
     // 池空：从全部未拥有里兜底

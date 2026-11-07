@@ -1,16 +1,22 @@
 // 战斗与房间行为系统：玩家/弹体/敌人三族/波次/多房间楼层/拾取经济/台座。
 // 全部纯数据变换；事件写进 state.events 供表现层消费。
-import { computeHit } from './combat.js?v=m6a';
-import { fireInterval } from './combat.js?v=m6a';
-import { rollItem } from './items.js?v=m6a';
-import { spawnBoss, stepBoss } from './boss.js?v=m6a';
+import { computeHit } from './combat.js?v=m7a';
+import { fireInterval } from './combat.js?v=m7a';
+import { rollItem } from './items.js?v=m7a';
+import { spawnBoss, stepBoss } from './boss.js?v=m7a';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 
-export function roomSizeFor(type, data) {
-  return type === 'boss' ? [24, 16] : [17, 11];
+// 大房型（M7）：big='wide'|'tall' 放大普通房内部；密室/事件房小而方正；Boss 房同模式 1 格网格
+const BIG_SIZE = { wide: [23, 13], tall: [13, 15] };
+export function roomSizeFor(type, data, big) {
+  if (big && BIG_SIZE[big]) return BIG_SIZE[big];
+  if (type === 'boss' || type === 'fissure') return [24, 16];
+  if (type === 'vault') return [13, 11];
+  if (type === 'forge' || type === 'gacha' || type === 'blood' || type === 'gift') return [13, 11];
+  return [17, 11];
 }
 
 /** 进入房间（含首次内容生成）。cellKey = "x,y"。
@@ -26,7 +32,7 @@ export function enterRoom(state, data, cellKey) {
     };
   }
   const cell = state.map.get(cellKey);
-  const [w, h] = roomSizeFor(cell.type, data);
+  const [w, h] = roomSizeFor(cell.type, data, cell.big);
   state.cellKey = cellKey;
   state.roomW = w; state.roomH = h;
   state.enemies.length = 0;
@@ -148,6 +154,33 @@ export function enterRoom(state, data, cellKey) {
       }
       spawnBoss(state, data);
       break;
+    case 'fissure':
+      // 裂缝房（M7）：超梦挑战——可选隐藏 Boss，死了不毁存档（Boss 战失败=就地复活弹回出生房）
+      spawnBoss(state, data, 'mewtwo');
+      break;
+    case 'vault': {
+      // 密室（M7）：钥匙开锁，2 件高级货 + 金币雨 + 心
+      if (!stash) {
+        const excl = [];
+        addPedestal(state, data, 'treasure', 0, { exclude: excl });
+        addPedestal(state, data, 'blackmarket', 1, { slots: 2, exclude: excl });   // 高级池
+        for (let k = 0; k < 5; k++) {
+          state.pickups.push(mkPickup(state, 'coin2',
+            w / 2 + (state.rand() - 0.5) * 4, h / 2 + 1.8 + (state.rand() - 0.5) * 1.6));
+        }
+        state.pickups.push(mkPickup(state, 'heart', w / 2, h / 2 - 1.6));
+      }
+      state.room.cleared = true; state.room.doorOpen = true;
+      cell.cleared = true;
+      break;
+    }
+    case 'forge': case 'gacha': case 'blood': case 'gift': {
+      // 事件房（M7）：进房即安全，台座按房种生成（语义见 addEventPedestal）
+      if (!stash) addEventPedestal(state, data, cell.type);
+      state.room.cleared = true; state.room.doorOpen = true;
+      cell.cleared = true;
+      break;
+    }
     case 'secret':
       if (!stash) {
         addPedestal(state, data, 'secret', 0);
@@ -188,6 +221,35 @@ function addCampPedestal(state, data, slotIdx) {
     id: state.nextId++, itemId: 'companion:' + eid, price: 0,
     x: w / 2 + (slotIdx - 1) * 2.6, y: h / 2 - 0.5, taken: false,
   });
+}
+
+// 事件房台座（M7）：房种决定台座语义（价格与交互在 takePedestal 分支处理）
+//   forge 重铸工房：¥14 把一件随机被动重铸成另一件（台座=重铸目标）
+//   gacha 赌石台：¥8 开石头（奖品进场时 roll 好，未开前不显示名字）
+//   blood 血祭坛：♥1 换高级货（黑市池，无路线限制）
+//   gift 神秘礼物：免费拿（S/O 池低品质，保底获得感）
+function addEventPedestal(state, data, kind) {
+  const p = state.player;
+  const [w, h] = [state.roomW, state.roomH];
+  const mk = (itemId, price, extra) => state.pedestals.push({
+    id: state.nextId++, itemId, price, priceHp: 0, x: w / 2, y: h / 2 - 0.5, taken: false, event: kind, ...extra,
+  });
+  if (kind === 'forge') {
+    const owned = p.inv.passives.filter((id) => !data.items[id].effect.tm);
+    const itemId = rollItem(data.items, data.itemPools, 'treasure', state.rand,
+      { owned: [...p.inv.passives], learnBy: p.species });
+    if (itemId) mk(itemId, 14);
+  } else if (kind === 'gacha') {
+    const pool = state.rand() < 0.55 ? 'drop' : 'shop';
+    const itemId = rollItem(data.items, data.itemPools, pool, state.rand, { owned: [...p.inv.passives], learnBy: p.species });
+    if (itemId) mk(itemId, 8);
+  } else if (kind === 'blood') {
+    const itemId = rollItem(data.items, data.itemPools, 'blackmarket', state.rand, { owned: [...p.inv.passives], learnBy: p.species });
+    if (itemId) mk(itemId, 0, { priceHp: 1 });
+  } else if (kind === 'gift') {
+    const itemId = rollItem(data.items, data.itemPools, 'secret', state.rand, { owned: [...p.inv.passives], learnBy: p.species });
+    if (itemId) mk(itemId, 0);
+  }
 }
 
 function mkPickup(state, kind, x, y, itemId) {
@@ -632,7 +694,7 @@ function applyHit(state, e, b, data) {
   }
   if (m.slowOnHit > 0 && e.family !== 'boss') e.slowT = m.slowOnHit;
   const kl = Math.hypot(b.vx, b.vy) || 1;
-  const knock = data.balance.enemy.knockback * m.knockMul * (mv.knock || 1);   // 骨棒重击退
+  const knock = data.balance.enemy.knockback * m.knockMul * (mv.knock || 1) * (1 - (e.kbRes || 0));   // 骨棒重击退；卡比兽击退抗性
   e.kx = (b.vx / kl) * knock;
   e.ky = (b.vy / kl) * knock;
   // 畏缩（王者之证）
@@ -721,7 +783,29 @@ function killEnemy(state, e, kind = 'normal') {
   state.stats.kills += 1;
   state.stats.streak = (state.stats.streak || 0) + 1;    // 不受击连杀
   state.stats.maxStreak = Math.max(state.stats.maxStreak || 0, state.stats.streak);
-  state.events.push({ t: 'enemy-die', id: e.id, eid: e.eid, x: e.x, y: e.y, kind, name: e.name, floor: state.floorNo });
+  // 吉利蛋/皮皮：击杀掉心（奶妈的补偿）
+  if (e.dropHearts) {
+    for (let k = 0; k < e.dropHearts; k++) {
+      state.pickups.push(mkPickup(state, 'heart',
+        Math.max(1, Math.min(state.roomW - 1, e.x + (state.rand() - 0.5) * 1.6)),
+        Math.max(1, Math.min(state.roomH - 1, e.y + (state.rand() - 0.5) * 1.6))));
+    }
+  }
+  state.events.push({ t: 'enemy-die', id: e.id, eid: e.eid, x: e.x, y: e.y, kind, name: e.name, floor: state.floorNo, elite: e.elite });
+}
+
+// 鲤鱼王 → 暴鲤龙：原位变身（保 id/位置；视图经 enemy-skin 事件重建贴图）
+function transformEnemy(state, e, data) {
+  const spec = data.enemies[e.transformTo];
+  e.eid = e.transformTo; e.name = spec.name; e.types = spec.types; e.family = spec.family;
+  e.radius = spec.radius; e.score = spec.score;
+  e.hp = spec.hp * state.hpMul; e.maxHp = spec.hp * state.hpMul;
+  e.touchDmg = spec.touchDmg; e.speed = spec.speed; e.spdMod = spec.spdMod;
+  e.lunge = spec.lunge || undefined;
+  e.transformTo = null; e.transformT = undefined;
+  e.kx = 0; e.ky = 0;
+  state.events.push({ t: 'enemy-skin', id: e.id, eid: e.eid, x: e.x, y: e.y });
+  state.events.push({ t: 'spawn', id: e.id, eid: e.eid, x: e.x, y: e.y });   // 图鉴遭遇点亮
 }
 
 // ---------- 敌人 ----------
@@ -739,7 +823,18 @@ export function stepEnemies(state, input, data) {
         state.room.cleared = true;
         state.map.get(state.cellKey).cleared = true;
         state.stats.tRun = state.t - state.stats.t0;
-        if (state.floorNo >= 4) {
+        if (e.eid === 'mewtwo') {
+          // 超梦（M7 可选隐藏 Boss）：不掉楼梯不结局——奖励 + mewtwoDown 旗标（通关结局升级）
+          state.flags = state.flags || {};
+          state.flags.mewtwoDown = true;
+          for (let k = 0; k < 10; k++) {
+            state.pickups.push(mkPickup(state, 'coin2', e.x + (state.rand() - 0.5) * 5, e.y + (state.rand() - 0.5) * 4));
+          }
+          state.pickups.push(mkPickup(state, 'heart', e.x - 1.2, e.y));
+          state.pickups.push(mkPickup(state, 'heart', e.x + 1.2, e.y));
+          state.events.push({ t: 'mewtwo-down', x: e.x, y: e.y });
+          engine_recompute(state, data);              // 伤害 ×1.15 立即生效
+        } else if (state.floorNo >= 4) {
           // 梦幻终战胜利：净化结局演出（不倒下，被净化）
           state.over = true; state.win = true;
           state.events.push({ t: 'mew-purify', x: e.x, y: e.y, name: e.name });
@@ -912,6 +1007,154 @@ export function stepEnemies(state, input, data) {
         e.shootCd = e.shoot.cooldown * (0.85 + state.rand() * 0.3);
         state.events.push({ t: 'enemy-shoot', x: e.x, y: e.y });
       }
+    } else if (e.family === 'tank') {
+      // 路障型：缓慢逼近（击退抗性在 applyHit 结算）
+      const dx = p.x - e.x, dy = p.y - e.y;
+      const l = Math.hypot(dx, dy) || 1;
+      vx = dx / l * e.speed; vy = dy / l * e.speed;
+    } else if (e.family === 'healer') {
+      // 治愈波动：周期奶半径内同伴（含 Boss）；平时游走
+      e.wanderT -= state.dt;
+      if (e.wanderT <= 0) {
+        const a = state.rand() * Math.PI * 2;
+        e.wx = Math.cos(a); e.wy = Math.sin(a);
+        e.wanderT = 0.8 + state.rand() * 1.0;
+      }
+      vx = e.wx * e.speed; vy = e.wy * e.speed;
+      e.healT = (e.healT === undefined ? (e.heal ? e.heal.firstDelay : 2) : e.healT) - state.dt;
+      if (e.healT <= 0 && e.heal && p.alive) {
+        e.healT = e.heal.cooldown;
+        let healed = 0;
+        for (const o of state.enemies) {
+          if (o === e || o.state !== 'active') continue;
+          if (dist2(o.x, o.y, e.x, e.y) < e.heal.radius * e.heal.radius) {
+            o.hp = Math.min(o.maxHp, o.hp + e.heal.amount); healed++;
+          }
+        }
+        if (healed) state.events.push({ t: 'heal-pulse', x: e.x, y: e.y, r: e.heal.radius, n: healed });
+        else e.healT = 1.0;                            // 没有受伤目标：快点重试
+      }
+    } else if (e.family === 'mortar') {
+      // 抛射型：游走 + 周期在玩家位置附近落点预警（预警圈结算，弹体不飞行）
+      e.wanderT -= state.dt;
+      if (e.wanderT <= 0) {
+        const a = state.rand() * Math.PI * 2;
+        e.wx = Math.cos(a); e.wy = Math.sin(a);
+        e.wanderT = 0.9 + state.rand() * 1.0;
+      }
+      vx = e.wx * e.speed; vy = e.wy * e.speed;
+      e.mortarT = (e.mortarT === undefined ? e.mortar.firstDelay : e.mortarT) - state.dt;
+      if (e.mortarT <= 0 && p.alive) {
+        e.mortarT = e.mortar.interval * (0.85 + state.rand() * 0.3);
+        for (let i = 0; i < 2; i++) {
+          state.telegraphs.push({
+            x: clamp(p.x + (state.rand() - 0.5) * e.mortar.spread * 2, 1.2, state.roomW - 1.2),
+            y: clamp(p.y + (state.rand() - 0.5) * e.mortar.spread * 2, 1.2, state.roomH - 1.2),
+            r: e.mortar.radius, t: e.mortar.warn * (state.warnMul || 1), dmg: e.mortar.damage, kind: 'rock',
+          });
+        }
+        state.events.push({ t: 'enemy-shoot', x: e.x, y: e.y });
+      }
+    } else if (e.family === 'sniper') {
+      // 狙击型：蓄力站定（预警事件）→ 高速直线弹
+      if (e.sniping) {
+        e.sniping -= state.dt;
+        if (e.sniping <= 0) {
+          e.sniping = null;
+          const base = Math.atan2(p.y - e.y, p.x - e.x);
+          const spd = e.sniper.speed * (state.player.mods ? state.player.mods.enemyShotMul : 1);
+          state.projectiles.push({
+            owner: 'enemy', id: state.nextId++, moveId: e.sniper.move,
+            x: e.x, y: e.y, px: e.x, py: e.y,
+            vx: Math.cos(base) * spd, vy: Math.sin(base) * spd,
+            life: 10 / spd, radius: 0.15,
+          });
+          state.events.push({ t: 'enemy-shoot', x: e.x, y: e.y });
+          e.snipeT = e.sniper.cooldown;
+        }
+      } else {
+        e.snipeT = (e.snipeT === undefined ? e.sniper.firstDelay : e.snipeT) - state.dt;
+        const dx = p.x - e.x, dy = p.y - e.y;
+        const l = Math.hypot(dx, dy) || 1;
+        if (e.snipeT <= 0 && p.alive && l > 2.2) {
+          e.sniping = e.sniper.windup;
+          state.events.push({ t: 'sniper-windup', id: e.id, x: e.x, y: e.y });
+        } else if (l > 3.2) { vx = dx / l * e.speed; vy = dy / l * e.speed; }
+      }
+    } else if (e.family === 'dasher') {
+      // 冲锋型：锁定直线蓄力（路径零伤害标记）→ 高速横冲，冲刺期接触伤害升级
+      if (e.dashing) {
+        e.dashing -= state.dt;
+        vx = e.dashDir.x * e.dash.speed; vy = e.dashDir.y * e.dash.speed;
+        if (e.dashing <= 0) { e.dashing = null; e.dashCd = e.dash.cooldown; }
+      } else if (e.dashWindup) {
+        e.dashWindup -= state.dt;
+        if (e.dashWindup <= 0) {
+          e.dashWindup = null;
+          e.dashing = e.dash.duration;
+          const dx = p.x - e.x, dy = p.y - e.y, l = Math.hypot(dx, dy) || 1;
+          e.dashDir = { x: dx / l, y: dy / l };
+          for (let d = 1; d < 12; d += 1.6) {
+            const mx = e.x + e.dashDir.x * d, my = e.y + e.dashDir.y * d;
+            if (mx < 0.6 || mx > state.roomW - 0.6 || my < 0.6 || my > state.roomH - 0.6) break;
+            state.telegraphs.push({ x: mx, y: my, r: 0.9, t: e.dash.duration + 0.05, dmg: 0, kind: 'charge-line' });
+          }
+          state.events.push({ t: 'enemy-shoot', x: e.x, y: e.y });
+        }
+      } else {
+        e.dashCd = (e.dashCd === undefined ? e.dash.firstDelay : e.dashCd) - state.dt;
+        const dx = p.x - e.x, dy = p.y - e.y;
+        const l = Math.hypot(dx, dy) || 1;
+        if (e.dashCd <= 0 && p.alive && l > 1.6 && l < 9) {
+          e.dashWindup = e.dash.windup;
+          state.events.push({ t: 'sniper-windup', id: e.id, x: e.x, y: e.y });
+        } else if (l > 2.4) { vx = dx / l * e.speed * 0.7; vy = dy / l * e.speed * 0.7; }
+      }
+    } else if (e.family === 'mimic') {
+      // 变化型：游走 + 周期复制玩家 A 槽招式反弹（弹速/弹径/散射随招式，伤害恒 1）
+      e.wanderT -= state.dt;
+      if (e.wanderT <= 0) {
+        const a = state.rand() * Math.PI * 2;
+        e.wx = Math.cos(a); e.wy = Math.sin(a);
+        e.wanderT = 0.7 + state.rand() * 0.9;
+      }
+      vx = e.wx * e.speed; vy = e.wy * e.speed;
+      e.mimicT = (e.mimicT === undefined ? e.mimic.firstDelay : e.mimicT) - state.dt;
+      if (e.mimicT <= 0 && p.alive) {
+        e.mimicT = e.mimic.cooldown * (0.85 + state.rand() * 0.3);
+        const moveId = (p.activeSide === 'companion' && p.companion) ? p.companion.moveA : p.moveA;
+        const mv = data.moves[moveId] || data.moves['thunder-shock'];
+        const spd = mv.speed * (state.player.mods ? state.player.mods.enemyShotMul : 1);
+        const spread = Math.min(mv.spread || 1, e.mimic.spreadCap);
+        const base = Math.atan2(p.y - e.y, p.x - e.x);
+        const arc = (mv.arcDeg || 24) * Math.PI / 180;
+        for (let s = 0; s < spread; s++) {
+          const a = base + (spread > 1 ? (s / (spread - 1) - 0.5) * arc : 0);
+          state.projectiles.push({
+            owner: 'enemy', id: state.nextId++, moveId,
+            x: e.x, y: e.y, px: e.x, py: e.y,
+            vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+            life: mv.range / spd, radius: mv.radius,
+          });
+        }
+        state.events.push({ t: 'enemy-shoot', x: e.x, y: e.y });
+      }
+    } else if (e.family === 'flopper') {
+      // 鲤鱼王：无害弹跳，计时/受击过半 → 怒变暴鲤龙（原位换皮，事件驱动视图重建）
+      if (e.transformTo) {
+        e.transformT = (e.transformT === undefined ? 9 : e.transformT) - state.dt;
+        if (e.transformT <= 0 || e.hp < e.maxHp * 0.5) {
+          transformEnemy(state, e, data);
+          continue;
+        }
+      }
+      e.wanderT -= state.dt;
+      if (e.wanderT <= 0) {
+        const a = state.rand() * Math.PI * 2;
+        e.wx = Math.cos(a); e.wy = Math.sin(a);
+        e.wanderT = 0.55 + state.rand() * 0.6;
+      }
+      vx = e.wx * e.speed; vy = e.wy * e.speed;
     }
 
     // 束缚带减速
@@ -934,7 +1177,7 @@ export function stepEnemies(state, input, data) {
       if (p.buffs && p.buffs.contact > 0) continue;
       const rr = e.radius + 0.45;
       if (dist2(e.x, e.y, p.x, p.y) < rr * rr) {
-        const hurt = state.hurtPlayer(e.touchDmg);
+        const hurt = state.hurtPlayer(e.dashing && e.dash ? e.dash.damage : e.touchDmg);
         if (hurt) {
           e.touchCd = bal.contactCooldown;
           // 凸凸头盔：接触反伤 + 击退
@@ -979,11 +1222,14 @@ export function spawnWave(state, data) {
   const waves = state.waves || data.waves;
   const waveDef = waves[Math.min(Math.max(state.room.waveIdx, 0), waves.length - 1)];
   const eMul = state.player.mods ? state.player.mods.enemyMul : 1;   // 白银喷雾
+  // 精英层（M7）：F3 起 15% 个体精英——血 ×2.2 速 ×1.12 体形 ×1.12，击杀必掉币
+  const eliteRoll = state.floorNo >= 3;
   for (const { id, n } of waveDef) {
     let count = n;
     if (eMul < 1 && n > 1) count = n - (state.rand() < (1 - eMul) * n ? 1 : 0);
     for (let k = 0; k < count; k++) {
       const spec = data.enemies[id];
+      const elite = eliteRoll && spec.family !== 'flopper' && state.rand() < 0.15;
       let x = 0, y = 0, ok = false;
       for (let tries = 0; tries < 24 && !ok; tries++) {
         x = 1.5 + state.rand() * (state.roomW - 3);
@@ -993,16 +1239,22 @@ export function spawnWave(state, data) {
       }
       state.enemies.push({
         id: state.nextId++, eid: id, name: spec.name, types: spec.types,
-        family: spec.family, radius: spec.radius, score: spec.score,
-        hp: spec.hp * state.hpMul, maxHp: spec.hp * state.hpMul,
-        touchDmg: spec.touchDmg, speed: spec.speed, spdMod: spec.spdMod,
+        family: spec.family, radius: spec.radius * (elite ? 1.12 : 1), score: spec.score,
+        hp: spec.hp * state.hpMul * (elite ? 2.2 : 1), maxHp: spec.hp * state.hpMul * (elite ? 2.2 : 1),
+        touchDmg: spec.touchDmg, speed: spec.speed * (elite ? 1.12 : 1), spdMod: spec.spdMod,
         x, y, px: x, py: y, kx: 0, ky: 0,
         state: 'spawning', spawnT: 0.55, flash: 0, touchCd: 0, stun: 0,
         anim: 'Idle', dir: 0, moving: false, wanderT: 0, wx: 0, wy: 0,
         shoot: spec.shoot ? { ...spec.shoot } : null,
         shootCd: spec.shoot ? spec.shoot.firstDelay : 0,
+        // 行为配置随实例拷贝（M7 新族：治疗/抛射/狙击/冲锋/变化/变身/击退抗性/掉心）
+        heal: spec.heal, mortar: spec.mortar, sniper: spec.sniper,
+        dash: spec.dash, mimic: spec.mimic,
+        kbRes: spec.kbRes, dropHearts: spec.dropHearts,
+        transformTo: spec.transformTo, transformT: spec.transformT, lunge: spec.lunge || undefined,
+        elite: elite || undefined,
       });
-      state.events.push({ t: 'spawn', id: state.enemies[state.enemies.length - 1].id, eid: id, x, y });
+      state.events.push({ t: 'spawn', id: state.enemies[state.enemies.length - 1].id, eid: id, x, y, elite });
     }
   }
   state.events.push({ t: 'wave-start', wave: state.room.waveIdx + 1 });
@@ -1036,8 +1288,16 @@ export function stepRoom(state, input, data) {
   for (const d of state.pedestals) {
     if (d.taken) continue;
     if (dist2(p.x, p.y, d.x, d.y) < 0.85 * 0.85 && p.alive) {
+      // 重铸工房：没有可烧的被动就不收钱（台座留下，提示节流）
+      if (d.event === 'forge' && !p.inv.passives.some((id) => !data.items[id].effect.tm)) {
+        if (state.t - (d.blockMsgT || -9) > 1.5) {
+          d.blockMsgT = state.t;
+          state.events.push({ t: 'forge-blocked', x: p.x, y: p.y });
+        }
+        continue;
+      }
       if (d.priceHp > 0) {
-        // 黑市：用亲密度上限交易（至少保留 2 格）
+        // 黑市/血祭坛：用亲密度上限交易（至少保留 2 格）
         if (p.maxHp - d.priceHp >= 2) {
           p.hpPaid = (p.hpPaid || 0) + d.priceHp;
           engine_recompute(state, data);
@@ -1062,6 +1322,35 @@ export function stepRoom(state, input, data) {
   const GAP = 1.3;
   for (const [dkey, dtype] of Object.entries(cell.doors)) {
     if (dtype === 'secret') continue;             // 未揭示的隐藏门不可通行
+    // 锁门 / 裂缝门（M7）：占门位但不传送——钥匙开锁 / 冲刺撞开
+    if (dtype === 'locked' || dtype === 'fissure') {
+      const [dx, dy] = dkey.split(',').map(Number);
+      let at = false;
+      if (dy === -1) at = p.y <= 0.78 && Math.abs(p.x - r.w / 2) < GAP;
+      if (dy === 1) at = p.y >= r.h - 0.78 && Math.abs(p.x - r.w / 2) < GAP;
+      if (dx === -1) at = p.x <= 0.78 && Math.abs(p.y - r.h / 2) < GAP;
+      if (dx === 1) at = p.x >= r.w - 0.78 && Math.abs(p.y - r.h / 2) < GAP;
+      if (!at) continue;
+      const other = state.map.get((cell.x + dx) + ',' + (cell.y + dy));
+      if (dtype === 'fissure') {
+        if (!p.dashActive) continue;              // 与隐藏房同机制：冲刺撞裂缝
+        cell.doors[dkey] = 'revealed';
+        if (other) other.doors[(-dx) + ',' + (-dy)] = 'revealed';
+        state.events.push({ t: 'secret-reveal', side: dkey });
+        state.events.push({ t: 'fissure-open', x: p.x, y: p.y });
+        continue;
+      }
+      if ((p.inv.keys || 0) > 0) {
+        p.inv.keys -= 1;
+        cell.doors[dkey] = 'normal';
+        if (other) other.doors[(-dx) + ',' + (-dy)] = 'normal';
+        state.events.push({ t: 'vault-open', x: p.x, y: p.y });
+      } else if (state.t - (cell.lockMsgT || -9) > 1.5) {
+        cell.lockMsgT = state.t;
+        state.events.push({ t: 'door-locked', x: p.x, y: p.y });
+      }
+      continue;
+    }
     const [dx, dy] = dkey.split(',').map(Number);
     let hit = false;
     if (dy === -1) hit = p.y <= 0.78 && Math.abs(p.x - r.w / 2) < GAP;
@@ -1143,6 +1432,8 @@ function stepPickups(state, data) {
         case 'coin2':
           p.money += 2 + ((m.moneyMul > 1 && state.rand() < (m.moneyMul - 1)) ? 1 : 0);
           state.stats.coins += 2; break;
+        case 'key':
+          p.inv.keys = (p.inv.keys || 0) + 1; break;
         case 'heart':
           if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + data.balance.pickup.heartHeal); state.events.push({ t: 'heal', heal: data.balance.pickup.heartHeal }); }
           else taken = false;
@@ -1189,6 +1480,18 @@ function takePedestal(state, data, d) {
   }
   const it = data.items[d.itemId];
   d.taken = true;
+  // 重铸工房（M7）：钱已在台座交互扣过——烧掉一件随机被动换台座上的目标件
+  if (d.event === 'forge') {
+    const burnable = p.inv.passives.filter((id) => !data.items[id].effect.tm);
+    const lost = burnable.length ? burnable[Math.floor(state.rand() * burnable.length)] : null;
+    if (lost) p.inv.passives = p.inv.passives.filter((id) => id !== lost);
+    p.inv.passives.push(d.itemId);
+    state.stats.items += 1;
+    state.events.push({ t: 'forge-trade', lost, gain: d.itemId, x: p.x, y: p.y });
+    state.events.push({ t: 'item-take', id: d.itemId, name: it.name, desc: it.desc, icon: it.icon, quality: it.quality, kind: it.kind, price: d.price });
+    engine_recompute(state, data);
+    return;
+  }
   // 出生房三选一：拿走一台，其余两台消失（避免回头白捡）
   if (d.choice === 'start-tm') {
     for (let i = state.pedestals.length - 1; i >= 0; i--) {
@@ -1238,4 +1541,4 @@ function takePedestal(state, data, d) {
 }
 
 // 规避循环 import：engine.recompute 通过事件总线由调用方重算——这里直接内联等价逻辑
-import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m6a';
+import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m7a';
