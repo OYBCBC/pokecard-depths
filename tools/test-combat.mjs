@@ -12,7 +12,7 @@ const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { damageStat, fireInterval, typeMultiplier, stabMultiplier, computeHit, enemyPanel } =
   await import(join(ROOT, 'js/sim/combat.js?v=m7a'));
-const { createRun, stepRun } = await import(join(ROOT, 'js/sim/engine.js?v=m7a'));
+const { createRun, stepRun, recompute } = await import(join(ROOT, 'js/sim/engine.js?v=m7a'));
 const _engine = await import(join(ROOT, 'js/sim/engine.js?v=m7a'));
 const { enterRoom, spawnWave } = await import(join(ROOT, 'js/sim/actors.js?v=m7a'));
 const _save = await import(join(ROOT, 'js/sim/save.js?v=m7a'));
@@ -1193,3 +1193,66 @@ test('M7 超梦 P2：血量 <62% 出幻影 + 阶段事件', () => {
   assert.ok(evs2.some((e) => e.t === 'boss-phase3'));
 });
 
+
+// ==================== M7.1：多被动共存 / TM 替换明示 / 消耗品交换 ====================
+
+test('M7.1 普通被动无限个且全部生效（maxHp/dmg 叠加）', () => {
+  const run = createRun(data, 31415, 'pikachu', 'normal');
+  const d = data;
+  // 三件被动：两件血上限 + 一件伤害
+  const before = { hp: run.player.maxHp, dmg: run.player.stats.damage };
+  run.player.inv.passives.push('old-rod-a', 'old-rod-b', 'old-rod-c');
+  d.items['old-rod-a'] = { name: 'A', kind: 'passive', quality: 1, icon: 'x', pools: ['T'], effect: { maxHp: 1 } };
+  d.items['old-rod-b'] = { name: 'B', kind: 'passive', quality: 1, icon: 'x', pools: ['T'], effect: { maxHp: 2 } };
+  d.items['old-rod-c'] = { name: 'C', kind: 'passive', quality: 1, icon: 'x', pools: ['T'], effect: { dmgUps: 1 } };
+  recompute(run, d);
+  assert.equal(run.player.inv.passives.length, 3, '背包保留三件');
+  assert.equal(run.player.maxHp, before.hp + 3, `血上限 +3（${before.hp}→${run.player.maxHp}）`);
+  assert.ok(run.player.stats.damage > before.dmg, '伤害成长生效');
+  delete d.items['old-rod-a']; delete d.items['old-rod-b']; delete d.items['old-rod-c'];
+});
+
+test('M7.1 TM 替换：背包只留最新，事件明示 lost→gain', () => {
+  const run = createRun(data, 31416, 'pikachu', 'normal');
+  const d = data;
+  run.player.inv.passives.push('magnet');       // 一件普通被动在场
+  d.items['tm-x1'] = { name: 'TM·测试一', kind: 'passive', quality: 1, icon: 'x', pools: ['S'], effect: { tm: 'water-gun' } };
+  d.items['tm-x2'] = { name: 'TM·测试二', kind: 'passive', quality: 2, icon: 'x', pools: ['S'], effect: { tm: 'fire-spin' } };
+  run.player.x = 8; run.player.y = 5;
+  // 拿第一台
+  run.pedestals.push({ id: run.nextId++, itemId: 'tm-x1', price: 0, priceHp: 0, x: 8, y: 5, taken: false });
+  stepRun(run, IDLE, d);
+  assert.deepEqual(run.player.inv.passives.filter((id) => d.items[id] && d.items[id].effect.tm), ['tm-x1']);
+  assert.equal(run.player.moveB, 'water-gun');
+  // 拿第二台（第一台应在旁一格避免同格）
+  run.player.x = 9;
+  run.pedestals.push({ id: run.nextId++, itemId: 'tm-x2', price: 0, priceHp: 0, x: 9, y: 5, taken: false });
+  const evs = [];
+  for (let i = 0; i < 3; i++) { stepRun(run, IDLE, d); evs.push(...run.events); }
+  const tmIds = run.player.inv.passives.filter((id) => d.items[id] && d.items[id].effect.tm);
+  assert.deepEqual(tmIds, ['tm-x2'], '只保留最新 TM');
+  assert.ok(run.player.inv.passives.includes('magnet'), '普通被动不受影响');
+  assert.equal(run.player.moveB, 'fire-spin', 'B 槽切到新 TM');
+  const rep = evs.find((e) => e.t === 'tm-replace');
+  assert.ok(rep, '应有 tm-replace 事件');
+  assert.equal(rep.lost, 'tm-x1'); assert.equal(rep.gain, 'tm-x2');
+  delete d.items['tm-x1']; delete d.items['tm-x2'];
+});
+
+test('M7.1 消耗品台座交换：旧的掉脚边不再静默覆盖', () => {
+  const run = createRun(data, 31417, 'pikachu', 'normal');
+  const d = data;
+  run.player.x = 8; run.player.y = 5;
+  run.player.inv.consumable = 'cheri-berry';    // E 槽已有
+  run.pedestals.push({ id: run.nextId++, itemId: 'sitrus-berry', price: 0, priceHp: 0, x: 8, y: 5, taken: false });
+  const evs = [];
+  for (let i = 0; i < 3; i++) { stepRun(run, IDLE, d); evs.push(...run.events); }
+  assert.equal(run.player.inv.consumable, 'sitrus-berry', 'E 槽换成新的');
+  const dropped = run.pickups.find((k) => k.kind === 'consumable' && k.itemId === 'cheri-berry');
+  assert.ok(dropped, '旧的应掉在脚边成拾取物');
+  assert.ok(evs.some((e) => e.t === 'consumable-swap' && e.lost === 'cheri-berry' && e.gain === 'sitrus-berry'));
+  // 捡不起来（E 槽满）：旧品安静躺在原地
+  const n0 = run.pickups.length;
+  for (let i = 0; i < 10; i++) stepRun(run, IDLE, d);
+  assert.equal(run.pickups.length, n0, '满槽时拾取物不被吞');
+});

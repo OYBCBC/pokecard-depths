@@ -1505,8 +1505,10 @@ function takePedestal(state, data, d) {
   switch (it.kind) {
     case 'passive':
       if (it.effect.tm) {
-        // 只保留最新技能机
-        p.inv.passives = p.inv.passives.filter((id) => !data.items[id].effect.tm);
+        // 只保留最新技能机（B 槽一格）；有替换时明示——无声消失会被当成"被动只能有一个"（M7.1 用户反馈）
+        const prevTm = p.inv.passives.find((id) => data.items[id] && data.items[id].effect.tm);
+        p.inv.passives = p.inv.passives.filter((id) => !(data.items[id] && data.items[id].effect.tm));
+        if (prevTm) state.events.push({ t: 'tm-replace', lost: prevTm, gain: d.itemId, x: p.x, y: p.y });
       }
       p.inv.passives.push(d.itemId);
       break;
@@ -1523,11 +1525,19 @@ function takePedestal(state, data, d) {
           engine_recompute(state, data);
           state.events.push({ t: 'evolve', to: p.evolveTo, from, name: data.species[p.evolveTo].name });
         } else {
+          if (p.inv.consumable) {                      // E 槽已有：换下来的掉脚边（不静默丢失）
+            state.pickups.push(mkPickup(state, 'consumable', p.x + 0.9, p.y + 0.5, p.inv.consumable));
+            state.events.push({ t: 'consumable-swap', lost: p.inv.consumable, gain: d.itemId, x: p.x, y: p.y });
+          }
           p.inv.consumable = d.itemId;                 // 不满足条件先存着
           state.events.push({ t: 'item-take', id: d.itemId, name: it.name, desc: (state.floorNo < 2 || !p.evolveTo) ? '（第 2 层起可用；无进化链的搭档不消耗）' : it.desc, icon: it.icon, quality: it.quality, kind: it.kind, price: 0 });
           return;
         }
         break;
+      }
+      if (p.inv.consumable) {                          // 以撒式交换：E 槽一件，旧的掉脚边
+        state.pickups.push(mkPickup(state, 'consumable', p.x + 0.9, p.y + 0.5, p.inv.consumable));
+        state.events.push({ t: 'consumable-swap', lost: p.inv.consumable, gain: d.itemId, x: p.x, y: p.y });
       }
       p.inv.consumable = d.itemId; break;
     case 'trinket': p.inv.trinket = d.itemId; break;

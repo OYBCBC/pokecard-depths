@@ -1048,6 +1048,17 @@ async function boot() {
         case 'use-blocked':
           hud.toast('雷之石没有反应…', '这只搭档没有进化链，石头留在背包里');
           break;
+        case 'tm-replace': {
+          const lostName = (data.items[ev.lost] || {}).name || ev.lost;
+          const gainName = (data.items[ev.gain] || {}).name || ev.gain;
+          hud.toast('B 槽技能机已替换', `${lostName} → ${gainName}（B 槽一台，旧的已回收）`);
+          break;
+        }
+        case 'consumable-swap': {
+          const lostName2 = (data.items[ev.lost] || {}).name || ev.lost;
+          hud.toast(`换下的 ${lostName2} 掉在脚边`, 'E 槽一件消耗品 · 用掉后再回来捡');
+          break;
+        }
         default: break;
       }
     }
