@@ -72,6 +72,7 @@
 ```bash
 python3 tools/serve.py 8349     # 静态文件（禁缓存）；打开 http://127.0.0.1:8349
 # 网址加 ?debug 显示调试面板（fps/drawcalls/光照自检），C 键播放皮卡丘叫声，1/2/3 切画质
+# ?debug 调试钩子：__depths.goRoom(房key)/goFloor(层)/restart/pump(帧)/snap(截图)
 # 开始界面也可切换画质（高/中/低，localStorage 记忆）；?nosw=1 跳过 Service Worker
 ```
 

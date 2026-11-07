@@ -381,6 +381,19 @@ async function boot() {
     restart: () => restartRun(),                  // 与胜负页"重新出发"同一路径（beginRun：started/精灵/横幅齐全）
     goRoom: (key) => { enterRoom(run, data, key); window.__depths.run = run; rebuildRoom(); },   // ?debug 传送
     goFloor: (n) => { while (run.floorNo < n && goNextFloor(run, data)) {} window.__depths.run = run; rebuildRoom(); },   // ?debug 跳层
+    // 自动化截图专用（M7）：同步渲染一帧并在同一任务里 toDataURL。
+    // 失焦/后台标签的合成器截图拿不到 WebGL 帧（present 被浏览器丢弃）——坑⑫的正解；
+    // preserveDrawingBuffer=false 下缓冲在合成后即清，所以渲染与采样必须同任务（M1 踩坑）。
+    snap: (scale = 0.5) => {
+      if (postfx) postfx.composer.render(1 / 60);
+      else renderer.render(scene, camCtl.camera);
+      const src = document.getElementById('game');
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(src.width * scale));
+      c.height = Math.max(1, Math.round(src.height * scale));
+      c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+      return c.toDataURL('image/png');
+    },
     give: (id) => { run.player.inv.passives.push(id); recompute(run, data); hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB); } };
 
   // ---- 存档与本机榜 ----
