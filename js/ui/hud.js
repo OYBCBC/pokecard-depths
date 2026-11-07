@@ -169,7 +169,7 @@ export function createHud() {
   modsEl.addEventListener('click', (e) => { if (e.target === modsEl) modsEl.classList.add('hidden'); });
   const tb = { dash: $('tb-dash'), z: $('tb-z'), slot: $('tb-slot'), use: $('tb-use'), swap: $('tb-swap') };
   const ghostL = $('ghost-l'), ghostR = $('ghost-r'), stickL = $('stick-l'), stickR = $('stick-r');
-  let itemcardTimer = null, bannerTimer = null, padKey = '', gameKey = '', slotsKey = '';
+  let itemcardTimer = null, bannerTimer = null, padKey = '', gameKey = '', slotsKey = '', sheetTapFn = null;
   const isTouch = () => document.body.classList.contains('touchmode');
   // 图鉴/成就：点浮层空白处关闭（手机上没有 B/J/Esc）
   for (const el of [dexEl, achvEl]) el.addEventListener('click', (e) => { if (e.target === el) el.classList.add('hidden'); });
@@ -314,7 +314,7 @@ export function createHud() {
     },
     hidePeek() { peekEl.classList.add('hidden'); },
     // 开始界面：继续存档 / 新开 / 每日挑战 / 挑战码 / 图鉴 / 成就 / 画质 / 存档管理 + 本机榜
-    startScreen({ save, board, onContinue, onNew, onDaily, onChallenge, onDex, onAchv, onExport, onImport, achvCount, quality, onQuality, fullscreen, onFullscreen, iosTip, onMods, modName }) {
+    startScreen({ save, board, onContinue, onNew, onDaily, onChallenge, onDex, onAchv, onExport, onImport, achvCount, quality, onQuality, fullscreen, onFullscreen, iosTip, onMods, modName, onRedraw }) {
       const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
       const qRow = quality ? '<div class="st-title">画质</div><div class="st-row">' +
         [['high', '高（景深）'], ['med', '中（推荐）'], ['low', '低（老设备）']].map(([id, label]) =>
@@ -366,7 +366,8 @@ export function createHud() {
         codeBtn.dataset.open = '1';
         codeBtn.outerHTML = '<div class="st-code-row" id="st-code-row">' +
           '<input id="st-code-input" placeholder="粘贴 DPT1.xxxx…" spellcheck="false" autocomplete="off">' +
-          '<button class="st-btn st-sub-btn" id="st-code-go">进入</button></div>';
+          '<button class="st-btn st-sub-btn" id="st-code-go">进入</button>' +
+          '<button class="st-btn st-sub-btn" id="st-code-cancel">取消</button></div>';
         const input = q('st-code-input');
         const go = () => {
           const v = input.value;
@@ -375,6 +376,7 @@ export function createHud() {
           onChallenge && onChallenge(v);
         };
         q('st-code-go').onclick = go;
+        q('st-code-cancel').onclick = () => { onRedraw && onRedraw(); };
         input.onkeydown = (e) => { if (e.key === 'Enter') go(); };
         input.focus();
       };
@@ -396,7 +398,7 @@ export function createHud() {
       startEl.onkeydown = (e) => { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); primary.click(); } };
     },
     // 搭档选择（新的探险/每日挑战之后）：4 张卡 + 难度三档选择
-    starterPick({ list, thumbs, isUnlocked, onPick, title, difficulties, difficulty, onDifficulty, hideDifficulty }) {
+    starterPick({ list, thumbs, isUnlocked, onPick, title, difficulties, difficulty, onDifficulty, hideDifficulty, onRedraw }) {
       const diffHtml = (difficulties && !hideDifficulty)
         ? `<div class="sp-diffs">${difficulties.map((d) =>
             `<button class="sp-diff ${d.id === difficulty ? 'on' : ''}" data-did="${d.id}" title="${d.desc}">
@@ -415,9 +417,12 @@ export function createHud() {
           <div class="st-logo sp-title">${title || '选择搭档'}</div>
           ${diffHtml}
           <div class="sp-grid">${cards}</div>
+          <button class="st-btn st-sub-btn" id="sp-back">← 回标题</button>
           <div class="st-hint">点击选择${hideDifficulty ? '' : ' · 上方选择难度（每日挑战固定普通）'}</div>
         </div>`;
       startEl.classList.remove('hidden');
+      const spBack = startEl.querySelector('#sp-back');
+      if (spBack) spBack.onclick = () => { onRedraw && onRedraw(); };
       if (diffHtml) startEl.querySelectorAll('.sp-diff').forEach((el) => {
         el.onclick = () => { onDifficulty && onDifficulty(el.dataset.did); };
       });
@@ -530,7 +535,7 @@ export function createHud() {
       const mm = Math.floor(run.t / 60), ss = String(Math.floor(run.t % 60)).padStart(2, '0');
       sheetEl.innerHTML = `<div class="sh-box">
         <div class="sh-map">
-          <div class="sh-title">第 ${run.floorNo} 层 · ${data.floors[run.floorNo].name}</div>
+          <div class="sh-title">第 ${run.floorNo} 层 · ${data.floors[run.floorNo].name}<button class="ov-close" aria-label="关闭面板" data-sheet-close>✕</button></div>
           ${mapSvg(run.map, run.cellKey, { win: 0, size: 24, gap: 6 })}
         </div>
         <div class="sh-stats">
@@ -549,6 +554,8 @@ export function createHud() {
         </div>
       </div>`;
       sheetEl.classList.remove('hidden');
+      const scBtn = sheetEl.querySelector('[data-sheet-close]');
+      if (scBtn) scBtn.onclick = (e) => { e.stopPropagation(); sheetTapFn && sheetTapFn(); };
     },
     price(d, sx, sy) {
       let el = pricesEl.querySelector(`[data-pid="${d.id}"]`);
@@ -810,7 +817,7 @@ export function createHud() {
         b.onclick = () => handlers[b.dataset.end] && handlers[b.dataset.end]();
       });
     },
-    onSheetTap(fn) { sheetEl.onclick = fn; },
+    onSheetTap(fn) { sheetTapFn = fn; sheetEl.onclick = fn; },
     get errors() { return errors; },
   };
 }

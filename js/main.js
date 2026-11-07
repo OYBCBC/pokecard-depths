@@ -421,7 +421,20 @@ async function boot() {
   hud.ready();
 
   // ---- Service Worker（M5）：离线缓存；selfcheck/调试不注册防旧缓存挡新代码 ----
+  // 换版本自动刷新（M7.1）：新 SW 接管时重载一次——否则用户要手动刷两次才能拿到新资源
+  // （旧 SW 先用缓存答完本次加载，新 SW 要等下一次导航才生效）。首次安装不刷。
   if ('serviceWorker' in navigator && !selfcheckOn && !params.has('nosw')) {
+    try {
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          try {
+            if (sessionStorage.getItem('depths-sw-reload')) return;
+            sessionStorage.setItem('depths-sw-reload', '1');
+            location.reload();
+          } catch (e) { location.reload(); }
+        });
+      }
+    } catch (e) { /* ignore */ }
     try { navigator.serviceWorker.register('sw.js').catch((e) => console.info('[sw] 注册失败（不影响游戏）', e)); }
     catch (e) { /* ignore */ }
   }
@@ -487,6 +500,7 @@ async function boot() {
       title: daily ? '每日挑战 · 选择搭档' : '选择搭档',
       difficulties: diffList, difficulty: selectedDiff,
       hideDifficulty: daily,
+      onRedraw: () => showStart(),                                        // 「← 回标题」
       onDifficulty: (did) => { selectedDiff = did; pickStarter(daily); },   // 重绘选中态
       onPick: (sid) => {
         saveStore.clear();
@@ -512,6 +526,7 @@ async function boot() {
       fullscreen: fsAvailable(), onFullscreen: () => { goFullscreen(); },
       iosTip: isIPhone && !standalone,
       modName: modApplied ? modApplied.name : null,
+      onRedraw: () => showStart(),
       onMods: () => {
         hud.modWorkshop({
           list: modList(), activeId: modApplied ? modApplied.id : null,
@@ -1362,7 +1377,10 @@ async function boot() {
   // 触屏按键（M6）：pointerdown 即触发（不等 click 抬手），按住不连发；地图=开关、暂停=菜单
   const padBtn = (id, fn) => {
     const el = document.getElementById(id);
-    if (el) el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); fn(); });
+    if (!el) return;
+    const on = (e) => { e.preventDefault(); e.stopPropagation(); fn(); };
+    if (window.PointerEvent) el.addEventListener('pointerdown', on);
+    else el.addEventListener('touchstart', on, { passive: false });   // 老安卓内核兜底
   };
   padBtn('tb-dash', () => input.pressButton('Space'));
   padBtn('tb-z', () => input.pressButton('ZMove'));
@@ -1462,6 +1480,21 @@ async function boot() {
       setPaused(false);
       window.__depths.pump(5);
       out.pauseOk = out.pauseOk && !hud.pauseOpen && run.t > t0;
+      // ③b 触屏「地图」按钮开面板 → 点面板关闭（用户反馈回归：旧版按钮坏的）
+      const tbMap = document.getElementById('tb-map');
+      tbMap.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      window.__depths.pump(2);
+      out.sheetOk = !document.getElementById('sheet').classList.contains('hidden');
+      document.getElementById('sheet').click();
+      window.__depths.pump(2);
+      out.sheetOk = out.sheetOk && document.getElementById('sheet').classList.contains('hidden');
+      // ③c 图鉴打开 → ✕ 关闭（触屏无 B/Esc，✕ 必须可用）
+      refreshDex();
+      const dxClose = document.querySelector('#dex .ov-close');
+      out.dexCloseOk = !!dxClose;
+      if (dxClose) dxClose.click();
+      window.__depths.pump(1);
+      out.dexCloseOk = out.dexCloseOk && document.getElementById('dex').classList.contains('hidden');
       // ④ 死亡 → 胜负页"重新出发"按钮（手机没有 R 键）→ 新局开打
       p0.iframes = 0;
       run.hurtPlayer(99);
@@ -1475,7 +1508,8 @@ async function boot() {
         && run.difficulty === deadRun.difficulty && run.player.species === deadRun.player.species0;
 
       out.ok = out.enemiesCombat > 0 && out.viewsCombat > 0 && out.combatCleared && out.playerAlive && out.playerAlive2 && out.bossSpawned && out.bossMeshOk && out.calls > 0
-        && out.edgesOk && out.padOk && out.pauseOk && out.deathShown && out.retryOk && out.mortarSeen;
+        && out.edgesOk && out.padOk && out.pauseOk && out.deathShown && out.retryOk && out.mortarSeen
+        && out.sheetOk && out.dexCloseOk;
     } catch (e) {
       out.ok = false;
       out.errors.push(String((e && e.stack) || e));

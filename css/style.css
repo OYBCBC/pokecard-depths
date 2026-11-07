@@ -184,7 +184,7 @@ body.touchmode .kb-only { display: none; }
 #sheet { position: absolute; inset: 0; display: flex; overflow: auto; background: rgba(8, 10, 18, .68); }
 #sheet .sh-box { display: flex; gap: 30px; margin: auto; padding: 26px 34px; background: rgba(13, 17, 28, .94); border: 2px solid #3a4a6c; border-radius: 6px; box-shadow: 0 12px 50px rgba(0, 0, 0, .6); max-width: 96vw; }
 body.touchmode #sheet { pointer-events: auto; }   /* 触屏：点面板任意处关闭 */
-.sh-title { font-size: 13px; color: #7fd4ff; letter-spacing: 2px; margin-bottom: 10px; }
+.sh-title { font-size: 13px; color: #7fd4ff; letter-spacing: 2px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .sh-title2 { margin-top: 14px; }
 .sh-stats { min-width: 264px; }
 .s-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; border-bottom: 1px dashed #232d44; }
@@ -373,7 +373,8 @@ body.touchmode #banner .b-title { font-size: 22px; letter-spacing: 3px; }
 .rt-title { font-size: 20px; letter-spacing: 3px; color: #ffe9a0; }
 .rt-sub { font-size: 11px; color: #93a4c0; margin: 10px 0 20px; }
 .ov-close { font-family: inherit; font-size: 14px; color: #93a4c0; background: rgba(22, 28, 44, .9);
-  border: 1px solid #3a4a6c; border-radius: 4px; width: 34px; height: 30px; margin-left: 10px; cursor: pointer; }
+  border: 1px solid #3a4a6c; border-radius: 4px; min-width: 40px; height: 34px; margin-left: 10px;
+  padding: 0 10px; cursor: pointer; touch-action: manipulation; }
 .ov-close:hover, .ov-close:active { color: #fff; border-color: #7fd4ff; }
 
 /* ---------- 短屏（手机横屏 ≤500px 高）：开始界面两栏、选搭档/面板/胜负页压缩 ---------- */
