@@ -244,17 +244,20 @@ export function createEffects(THREE, scene, ringTex, opts = {}) {
     if (def.glow) flashLight(hx, 10, x, z, 0.12);
   }
 
-  /** 命中特效：属性组合。kind: super/weak/immune/normal（克制微调粒子量与附加色） */
+  /** 命中特效：属性组合。kind: super/weak/immune/normal（克制微调粒子量与附加色）
+   *  burst 兜底样式的粒子颜色按属性配色覆盖——每系命中都有属性识别度 */
   function hitFx(x, z, styleKey, moveType, kind = 'normal') {
     const def = styleDef(styleKey, moveType);
     const h = HIT_FX[def.hit] || HIT_FX.burst;
+    const palOverride = (!HIT_FX[def.hit] || def.hit === 'burst') && TYPE_COLORS[moveType];
     const kN = kind === 'super' ? 1.4 : kind === 'weak' ? 0.6 : 1;
     for (const part of h.parts) {
+      const colors = palOverride || part.colors || ['#ffe9a0', '#fff8dc'];   // 兜底：无属性信息时用暖白
       const n = Math.max(2, Math.round(part.n * kN));
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2, s = part.spd * (0.5 + Math.random() * 0.9);
         spawnParticle(x, 0.62, z, {
-          color: part.colors[(Math.random() * part.colors.length) | 0],
+          color: colors[(Math.random() * colors.length) | 0],
           vx: Math.cos(a) * s, vz: Math.sin(a) * s,
           vy: part.up * (0.6 + Math.random() * 0.8),
           grav: part.grav, life: part.life * (0.75 + Math.random() * 0.5),

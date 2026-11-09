@@ -15,11 +15,11 @@ export const TYPE_FX = {
   poison:   { tex: 'poison',   spin: 0,  pulse: [0.06, 5],  glow: false, trail: 'bubble',  hit: 'goo' },
   ground:   { tex: 'ground',   spin: 2,  pulse: 0,          glow: false, trail: 'dust',    hit: 'dust' },
   rock:     { tex: 'rock',     spin: 4,  pulse: 0,          glow: false, trail: 'dust',    hit: 'chunk' },
-  normal:   { tex: 'normal',   spin: 0,  pulse: [0.05, 7],  glow: true,  trail: null,      hit: 'burst' },
-  fighting: { tex: 'fighting', spin: 8,  pulse: 0,          glow: true,  trail: null,      hit: 'burst' },
-  flying:   { tex: 'flying',   spin: 9,  pulse: 0,          glow: true,  trail: 'wisp',    hit: 'burst' },
+  normal:   { tex: 'normal',   spin: 0,  pulse: [0.05, 7],  glow: true,  trail: 'streak',  hit: 'burst' },
+  fighting: { tex: 'fighting', spin: 8,  pulse: 0,          glow: true,  trail: null,      hit: 'impact' },
+  flying:   { tex: 'flying',   spin: 9,  pulse: 0,          glow: true,  trail: 'wisp',    hit: 'gust' },
   bug:      { tex: 'bug',      spin: 10, pulse: 0,          glow: true,  trail: 'leaf',    hit: 'leaf' },
-  steel:    { tex: 'steel',    spin: 0,  pulse: [0.04, 8],  glow: true,  trail: 'spark',   hit: 'burst' },
+  steel:    { tex: 'steel',    spin: 0,  pulse: [0.04, 8],  glow: true,  trail: 'spark',   hit: 'clink' },
   dragon:   { tex: 'dragon',   spin: 0,  pulse: [0.10, 7],  glow: true,  trail: 'ember',   hit: 'fire' },
   fairy:    { tex: 'fairy',    spin: 5,  pulse: [0.08, 6],  glow: true,  trail: 'twinkle', hit: 'ring' },
   ice:      { tex: 'ice',      spin: 2,  pulse: 0,          glow: true,  trail: 'drip',    hit: 'splash' },
@@ -30,7 +30,6 @@ export const TYPE_FX = {
 export const MOVE_FX = {
   'swift':       { tex: 'swift', spin: 9, pulse: 0 },
   'bone-club':   { tex: 'bone',  spin: 14, pulse: 0, hit: 'chunk' },
-  'egg-bomb':    { tex: 'egg',   spin: 5, pulse: 0 },
   'tri-attack':  { tex: 'tri',   spin: 7, pulse: 0.05 },
   'hyper-beam':  { tex: 'hyper', spin: 0, pulse: [0.16, 11], trail: 'ember', hit: 'fire' },
   'shadow-ball': { tex: 'ghostball', spin: 0, pulse: [0.22, 4], hit: 'wisp' },
@@ -38,6 +37,7 @@ export const MOVE_FX = {
   'lick':        { tex: 'wisp',  spin: 0, pulse: [0.15, 5] },
   'string-shot': { tex: 'silk',  spin: 0, pulse: 0, hit: 'leaf' },
   'sing-note':   { tex: 'note',  spin: 0, pulse: [0.12, 5], trail: 'twinkle', hit: 'ring' },
+  'egg-bomb':    { tex: 'egg',   spin: 5, pulse: 0, hit: 'shell' },
 };
 
 // 尾迹粒子（池化）：rate 每秒每弹体发射数；grav 重力；rise 额外升力；
@@ -51,9 +51,11 @@ export const TRAILS = {
   bubble:  { rate: 14, spd: 0.2, up: 0.8,  grav: -1.2, life: 0.6,  shrink: true,  colors: ['#a868d8', '#d9b8f0'] },
   dust:    { rate: 24, spd: 0.4, up: 0.5,  grav: 2.5,  life: 0.5,  shrink: true,  colors: ['#b09868', '#86663f'] },
   twinkle: { rate: 24, spd: 0.6, up: 0.5,  grav: -0.3, life: 0.5,  flicker: true,  shrink: true,  colors: ['#ffb8e8', '#fff2fa'] },
+  streak:  { rate: 20, spd: 0.25, up: 0.1, grav: 0,    life: 0.22, shrink: true,  colors: ['#fff8dc', '#f5e9c8'] },   // 一般系速度残影（电光一闪类）
 };
 
 // 命中样式：粒子组（可多组）+ 附加层（ring 地面冲击环 / bolt 电弧 / flash 点光）
+// burst 为兜底样式——颜色在 hitFx 里按属性配色覆盖（TYPE_COLORS[moveType]），保证每系命中都有属性识别度
 export const HIT_FX = {
   fire:   { parts: [{ n: 10, spd: 3.4, up: 2.2, grav: 4, life: 0.5, colors: ['#ff5a1f', '#ff9a3c'] },
                     { n: 5, spd: 1.6, up: 3.2, grav: 2, life: 0.6, colors: ['#ffe66e'] }],
@@ -68,10 +70,19 @@ export const HIT_FX = {
             ring: ['#ff7fd0', 2.6, 0.4], flash: ['#ff9fe0', 20, 5] },
   wisp:   { parts: [{ n: 9, spd: 1.8, up: 1.6, grav: -1.5, life: 0.7, colors: ['#a08fd0', '#c9b8f2'] }],
             ring: ['#8f7fd8', 1.8, 0.5] },
-  goo:    { parts: [{ n: 10, spd: 2.6, up: 2.6, grav: 9, life: 0.55, colors: ['#a868d8', '#7a4ba8', '#d9b8f0'] }], flash: ['#a868d8', 14, 4] },
+  goo:    { parts: [{ n: 10, spd: 2.6, up: 2.6, grav: 9, life: 0.55, colors: ['#c882e8', '#a868d8', '#e8ccf8'] }], flash: ['#c882e8', 14, 4] },
   dust:   { parts: [{ n: 11, spd: 2.8, up: 2, grav: 8, life: 0.55, colors: ['#b09868', '#86663f'] }], flash: ['#b09868', 10, 4] },
   chunk:  { parts: [{ n: 10, spd: 3, up: 2.8, grav: 12, life: 0.65, colors: ['#a8a29a', '#6f6a63', '#d0ccc4'] }], flash: ['#a8a29a', 12, 4] },
-  burst:  { parts: [{ n: 8, spd: 3, up: 2.4, grav: 6, life: 0.4, colors: ['#ffe9a0', '#fff8dc'] }] },
+  impact: { parts: [{ n: 8, spd: 3.6, up: 2.6, grav: 10, life: 0.45, colors: ['#ffb08a', '#e8604a'] },
+                    { n: 4, spd: 1.4, up: 3, grav: 5, life: 0.5, colors: ['#fff0c8'] }],
+            flash: ['#ffb08a', 18, 4] },
+  gust:   { parts: [{ n: 10, spd: 4.2, up: 1.4, grav: 2, life: 0.4, colors: ['#f0faff', '#c8ecff'] }],
+            flash: ['#dff2ff', 12, 5] },
+  clink:  { parts: [{ n: 8, spd: 3.8, up: 2.4, grav: 8, life: 0.35, flicker: true, colors: ['#f4f9fd', '#c8d4e0'] }],
+            flash: ['#f4f9fd', 22, 4] },
+  shell:  { parts: [{ n: 10, spd: 3, up: 3, grav: 12, life: 0.6, colors: ['#fdf6e8', '#e8d8b8', '#fffdf4'] }],
+            flash: ['#fdf6e8', 14, 4] },
+  burst:  { parts: [{ n: 8, spd: 3, up: 2.4, grav: 6, life: 0.4, colors: ['#ffe9a0', '#fff8dc'] }], flash: ['#fff4d8', 12, 4] },   // 有属性信息时颜色按属性覆盖
 };
 
 // 命中克制加成：super 追加金色粒子组 / weak 减量（hitFx 处理）

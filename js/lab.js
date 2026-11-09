@@ -12,7 +12,8 @@ import { createPostfx } from './gfx/postfx.js?v=m7b';
 import { createInput } from './core/input.js?v=m7b';
 import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m7b';
 import { computeHit } from './sim/combat.js?v=m7b';
-import { styleOf, TYPE_COLORS } from './gfx/vfxdefs.js?v=m8';
+import { styleOf, styleDef, TYPE_COLORS } from './gfx/vfxdefs.js?v=m8';
+import { makeProjTex } from './gfx/projtex.js?v=m8';
 
 const TYPE_ZH = {
   normal: '一般', fire: '火', water: '水', grass: '草', electric: '电', ice: '冰',
@@ -554,6 +555,8 @@ async function boot() {
   // 帧泵（内嵌浏览器 rAF 挂起/自动化脚本用；与主游戏 __depths.pump 同一套路）
   window.__lab = {
     run, frozen: false,
+    vfx: { styleOf, styleDef, makeProjTex },   // 特效调试钩子：样式解析 + 原始贴图
+    get camera() { return camCtl.camera; },
     pump: (n = 1, dtMs = 1000 / 60) => {
       pumping = true;
       try {

@@ -91,22 +91,23 @@ export const DRAW = {
   },
   ghost(ctx) { flame(ctx, '#8f7fd8', '#c9b8f2', 1); ctx.fillStyle = '#efe8ff'; ctx.fillRect(6, 7, 1, 1); ctx.fillRect(10, 6, 1, 1); },
   poison(ctx) {
-    disc(ctx, 8, 8, 5.4, '#7a4ba8');
-    disc(ctx, 8, 8, 4.4, '#a868d8');
-    disc(ctx, 6.4, 6.4, 1.6, '#d9b8f0');
-    ctx.fillStyle = '#d9b8f0'; ctx.fillRect(10, 10, 1, 1); ctx.fillRect(6, 10, 1, 1);
+    disc(ctx, 8, 8, 5.4, '#8a56b8');
+    disc(ctx, 8, 8, 4.4, '#b878e0');
+    disc(ctx, 8, 8, 2.6, '#d8a0f0');
+    disc(ctx, 6.4, 6.4, 1.8, '#f0d0ff');
+    ctx.fillStyle = '#f0d0ff'; ctx.fillRect(10, 10, 1, 1); ctx.fillRect(6, 10, 1, 1);
   },
   ground(ctx) {
-    disc(ctx, 8, 8.5, 5.2, '#a08858');
-    disc(ctx, 7, 8, 4, '#b09868');
-    ctx.fillStyle = '#86663f';
+    disc(ctx, 8, 8.5, 5.2, '#b8a074');
+    disc(ctx, 7, 8, 4, '#c8b080');
+    ctx.fillStyle = '#93794f';
     for (const [x, y] of [[7, 8], [10, 10], [6, 11], [3, 8], [13, 9], [9, 3]]) ctx.fillRect(x, y, 1, 1);
   },
   rock(ctx) {
-    ctx.fillStyle = '#a8a29a';
+    ctx.fillStyle = '#b8b2aa';
     ctx.fillRect(4, 5, 8, 8);
     ctx.fillRect(5, 4, 6, 1); ctx.fillRect(5, 13, 6, 1); ctx.fillRect(3, 6, 1, 6); ctx.fillRect(12, 6, 1, 6);
-    ctx.fillStyle = '#d0ccc4'; ctx.fillRect(5, 5, 2, 1); ctx.fillRect(5, 6, 1, 2);
+    ctx.fillStyle = '#e4e0d8'; ctx.fillRect(5, 5, 3, 1); ctx.fillRect(5, 6, 1, 3);
     ctx.fillStyle = '#6f6a63'; ctx.fillRect(8, 6, 1, 1); ctx.fillRect(9, 7, 1, 2); ctx.fillRect(7, 9, 1, 1); ctx.fillRect(8, 10, 1, 2);
   },
   normal(ctx) {
@@ -129,10 +130,10 @@ export const DRAW = {
     disc(ctx, 7.6, 9.8, 2, '#f0faff');
   },
   bug(ctx) {
-    diamond(ctx, 8, 8, 2.2, 6.8, '#78a848');
-    diamond(ctx, 8, 8, 1.3, 5.8, '#b8e878');
-    ctx.fillStyle = '#eaffc8';
-    for (let y = 3; y <= 12; y++) ctx.fillRect(8, y, 1, 1);
+    diamond(ctx, 8, 8, 2.8, 7.0, '#88c050');
+    diamond(ctx, 8, 8, 1.7, 6.0, '#c8f088');
+    ctx.fillStyle = '#f4ffd0';
+    for (let y = 2; y <= 13; y++) ctx.fillRect(8, y, 1, 1);
   },
   steel(ctx) {
     disc(ctx, 8, 8, 5.6, '#8a97a5');
@@ -141,9 +142,9 @@ export const DRAW = {
     ctx.fillStyle = '#8a97a5'; ctx.fillRect(9, 9, 2, 1); ctx.fillRect(9, 10, 1, 1);
   },
   dragon(ctx) {
-    disc(ctx, 8, 8, 5.2, '#c86a28');
-    disc(ctx, 8, 8, 4.2, '#f0a858');
-    disc(ctx, 8, 8, 2, '#ffe0a8');
+    disc(ctx, 8, 8, 5.4, '#d87828');
+    disc(ctx, 8, 8, 4.4, '#f8b860');
+    disc(ctx, 8, 8, 2.4, '#ffeda8');
     ctx.fillStyle = '#7a5af0';
     for (const [x, y] of [[3, 10], [4, 9], [4, 8], [12, 6], [11, 7], [12, 8]]) ctx.fillRect(x, y, 1, 1);
   },
@@ -197,10 +198,11 @@ export const DRAW = {
   },
   ghostball(ctx) { flame(ctx, '#5a48a8', '#9a86e8', 1.5); disc(ctx, 8, 9, 1.4, '#e8e0ff'); },
   splash(ctx) {
-    star4(ctx, 8, 8, 5, 1.2, 2.6, '#3fa9ff');
-    disc(ctx, 8, 8, 1.6, '#cfeeff');
+    star4(ctx, 8, 8, 6.5, 1.8, 3.4, '#4fb4ff');
+    star4(ctx, 8, 8, 4, 1.3, 2.2, '#a8dcff');
+    disc(ctx, 8, 8, 2, '#f0faff');
   },
-  wisp(ctx) { flame(ctx, '#c0a8e8', '#efe8ff', 0.8); },
+  wisp(ctx) { flame(ctx, '#d0b8ee', '#f8f4ff', 0.8); },
   silk(ctx) {                                                                           // 吐丝：丝团
     ctx.strokeStyle = '#d8e8a0'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(8, 8, 4.5, 0, Math.PI * 2); ctx.stroke();
