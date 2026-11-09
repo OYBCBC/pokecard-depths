@@ -1,22 +1,22 @@
 // 启动入口 M3：楼层/多房间/道具/Boss 全链路。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m7a';
-import { createLights } from './gfx/lights.js?v=m7a';
-import { createCamera } from './gfx/camera.js?v=m7a';
-import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m7a';
-import { createBillboard } from './gfx/sprites.js?v=m7a';
-import { createEffects } from './gfx/effects.js?v=m7a';
-import { createPostfx } from './gfx/postfx.js?v=m7a';
-import { createHud } from './ui/hud.js?v=m7a';
-import { createCries } from './audio/cries.js?v=m7a';
-import { createBgm } from './audio/bgm.js?v=m7a';
-import { createSfx } from './audio/sfx.js?v=m7a';
-import { createInput } from './core/input.js?v=m7a';
-import { createRun, stepRun, recompute, goNextFloor, STEP } from './sim/engine.js?v=m7a';
-import { enterRoom } from './sim/actors.js?v=m7a';
-import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m7a';
-import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m7a';
-import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m7a';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m7b';
+import { createLights } from './gfx/lights.js?v=m7b';
+import { createCamera } from './gfx/camera.js?v=m7b';
+import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m7b';
+import { createBillboard } from './gfx/sprites.js?v=m7b';
+import { createEffects } from './gfx/effects.js?v=m7b';
+import { createPostfx } from './gfx/postfx.js?v=m7b';
+import { createHud } from './ui/hud.js?v=m7b';
+import { createCries } from './audio/cries.js?v=m7b';
+import { createBgm } from './audio/bgm.js?v=m7b';
+import { createSfx } from './audio/sfx.js?v=m7b';
+import { createInput } from './core/input.js?v=m7b';
+import { createRun, stepRun, recompute, goNextFloor, STEP } from './sim/engine.js?v=m7b';
+import { enterRoom } from './sim/actors.js?v=m7b';
+import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m7b';
+import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m7b';
+import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m7b';
 
 const hud = createHud();
 const tier = detectTier();
@@ -373,7 +373,7 @@ async function boot() {
   }
   rebuildRoom();
 
-  window.__depths = { run, renderer, scene, camera: camCtl.camera, cries, tier, postfx, input, lightOk, data,
+  window.__depths = { run, renderer, scene, camera: camCtl.camera, cries, sfx, tier, postfx, input, lightOk, data,
     get roomView() { return roomView; },
     get views() { return enemyViews; },          // selfcheck 按 id 精确取面片
     get player() { return player; }, pump: null,
@@ -394,7 +394,7 @@ async function boot() {
       c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
       return c.toDataURL('image/png');
     },
-    give: (id) => { run.player.inv.passives.push(id); recompute(run, data); hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB); } };
+    give: (id) => { run.player.inv.passives.push(id); recompute(run, data); hud.slots(effMoveA(run), effMoveB(run), run.player.slot, run.player.mods.lockB); } };
 
   // ---- 存档与本机榜 ----
   const BOARD_KEY = 'depths-board';
@@ -473,7 +473,7 @@ async function boot() {
     playerSlug = '';
     setPlayerSprite(run.player.species);
     rebuildRoom();
-    hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB);
+    hud.slots(effMoveA(run), effMoveB(run), run.player.slot, run.player.mods.lockB);
     // 图鉴点亮所选搭档
     const dr0 = dexApply(dexState, [{ t: 'dex-seen', eid: run.player.species }]);
     if (dr0.changed) { dexState = dr0.dex; dexStore.write(dexState); }
@@ -664,9 +664,13 @@ async function boot() {
   updateRotate();
   input.onModeChange(() => updateRotate());
 
-  // A 槽显示：替补上场时显示替补招式
+  // A/B 槽与 PP 显示：替补上场时显示替补自己的招式与 PP 条（两侧各自独立）
   const effMoveA = (r) => (r.player.activeSide === 'companion' && r.player.companion)
     ? r.player.companion.moveA : r.player.moveA;
+  const effMoveB = (r) => (r.player.activeSide === 'companion' && r.player.companion)
+    ? (r.player.companion.moveB || null) : r.player.moveB;
+  const effSide = (r) => (r.player.activeSide === 'companion' && r.player.companion)
+    ? r.player.companion : r.player;
 
   // 触屏瞄准辅助（M6）：右摇杆方向 ±10° 内有敌人就对准它——拇指推方向的精度远不如鼠标
   const ASSIST_COS = Math.cos(10 * Math.PI / 180);
@@ -736,7 +740,7 @@ async function boot() {
     if (!it) return null;
     const priceHp = d.priceHp > 0 ? '♥'.repeat(d.priceHp) : null;
     return {
-      name: it.name, desc: it.desc, quality: it.quality, icon: it.icon,
+      name: it.name, desc: it.desc, quality: it.quality, icon: it.icon, kind: it.kind,
       price: d.price, free: d.price === 0 && !d.priceHp, priceHp,
       hpShort: d.priceHp > 0 && run.player.maxHp - d.priceHp < 2,   // 上限不足
     };
@@ -803,7 +807,7 @@ async function boot() {
           const bb = enemyViews.get(ev.id);
           if (bb) bb.flash(0.12);
           const color = ev.kind === 'super' ? 0xffd24a : ev.kind === 'weak' ? 0x9aa7bd : 0xffe9a0;
-          splay(ev.t === 'enemy-hurt' ? (ev.kind === 'super' ? 'superhit' : 'hit') : 'kill');
+          splay(ev.t === 'enemy-hurt' ? (ev.kind === 'super' ? 'superhit' : ev.kind === 'weak' ? 'weakhit' : 'hit') : 'kill');
           fx.burst(ev.x, ev.y, ev.t === 'enemy-die' ? 14 : 6, color);
           if (ev.t === 'enemy-die') {
             hitStopT = Math.max(hitStopT, feel.hitStopKill);
@@ -841,7 +845,7 @@ async function boot() {
           hud.banner('梦幻被净化了……', '柔和的光芒充满晶穴，一切躁动归于宁静', 3600);
           break;
         }
-        case 'boss-slam': camCtl.shake(0.3, 0.25); break;
+        case 'boss-slam': splay('slam'); camCtl.shake(0.3, 0.25); break;
         case 'vault-open':
           splay('tm');
           hud.banner('🔑 密室开启！', '宝物与金币归你了', 2200);
@@ -862,6 +866,7 @@ async function boot() {
           break;
         case 'sniper-windup':
           fx.burst(ev.x, ev.y, 4, 0xffd24a);
+          splay('windup');
           break;
         case 'forge-trade': {
           const lostName = ev.lost ? ((data.items[ev.lost] || {}).name || ev.lost) : null;
@@ -884,7 +889,7 @@ async function boot() {
           hud.toast({ forge: '重铸工房出现了', gacha: '赌石台出现了', blood: '血祭坛出现了', gift: '神秘礼物出现了' }[ev.kind] || '奇遇出现了',
             '在本层某处的死路尽头');
           break;
-        case 'telegraph-hit': fx.burst(ev.x, ev.y, 10, 0xc88a70); break;
+        case 'telegraph-hit': splay('slam'); fx.burst(ev.x, ev.y, 10, 0xc88a70); break;
         case 'player-hurt':
           splay('hurt');
           buzz(35);
@@ -893,7 +898,7 @@ async function boot() {
           player.flash(0.1);
           break;
         case 'player-dodge': splay('dodge'); damageNum(ev.x, ev.y, '闪避', 'immune'); break;
-        case 'player-block': damageNum(ev.x, ev.y, '格挡', 'super'); break;
+        case 'player-block': splay('block'); damageNum(ev.x, ev.y, '格挡', 'super'); break;
         case 'lethal-guard': hud.banner('气势披带！', '保住了一命', 1400); break;
         case 'player-die':
           buzz(160);
@@ -911,8 +916,8 @@ async function boot() {
         case 'item-take':
           splay(ev.kind === 'passive' && ev.id && ev.id.startsWith('tm-') ? 'tm' : 'item');
           props && props.removePedestal(run.pedestals.find((d) => d.itemId === ev.id)?.id ?? -1);
-          hud.itemCard(ev.name, ev.desc, ev.quality, ev.icon);
-          hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB);
+          hud.itemCard(ev.name, ev.desc, ev.quality, ev.icon, ev.id && data.items[ev.id] ? data.items[ev.id].kind : ev.kind);
+          hud.slots(effMoveA(run), effMoveB(run), run.player.slot, run.player.mods.lockB);
           break;
         case 'choice-vanish':   // 三选一台座联动消失
           props && props.removePedestal(ev.id);
@@ -925,6 +930,7 @@ async function boot() {
         case 'secret-reveal':
           roomView && roomView.revealSecret();
           hud.banner('墙上有裂缝……开了！', '', 1800);
+          splay('achv');
           break;
         case 'boss-clear': {
           const bSpec = data.enemies[data.floors[ev.floor].boss];
@@ -937,9 +943,10 @@ async function boot() {
         case 'badge-take':
           splay('item');
           hud.banner(`${ev.name} GET！`, '馆主徽章：本局全程生效', 2600);
-          hud.slots(effMoveA(run), run.player.moveB, run.player.slot, run.player.mods.lockB);
+          hud.slots(effMoveA(run), effMoveB(run), run.player.slot, run.player.mods.lockB);
           break;
         case 'bm-open':
+          splay('achv');
           hud.toast(ev.kind === 'blackmarket' ? '黑市的门开着……' : '祭坛的光在召唤……',
             ev.kind === 'blackmarket' ? '本层某处出现了火箭队黑市' : '本层某处出现了吉利蛋祭坛');
           break;
@@ -953,6 +960,7 @@ async function boot() {
           break;
         case 'toxic-selfhurt': case 'aura-selfhurt':
           damageNum(ev.x, ev.y, '-1', 'poison');
+          splay('selfdot');
           player.flash(0.08);
           break;
         case 'enemy-freeze':
@@ -960,7 +968,7 @@ async function boot() {
           damageNum(ev.x, ev.y, '冰冻', 'weak');
           splay('freeze');
           break;
-        case 'enemy-burn': fx.burst(ev.x, ev.y, 3, 0xff9a4a); break;
+        case 'enemy-burn': fx.burst(ev.x, ev.y, 3, 0xff9a4a); splay('burn'); break;
         case 'enemy-poison':
           fx.burst(ev.x, ev.y, 3, 0xb478d8);
           splay('poison');
@@ -976,8 +984,8 @@ async function boot() {
         case 'chain-ready': hud.toast('电气种子', `本房前 ${ev.n} 发弹带连锁闪电`); break;
         case 'pp-full': splay('heart'); break;
         case 'teleport': hud.flash(); splay('door'); break;
-        case 'cured': hud.toast('木子果', '异常状态全部解除'); break;
-        case 'regen': if (ev.echo) damageNum(run.player.x, run.player.y, '+1', 'super'); break;
+        case 'cured': splay('item'); hud.toast('木子果', '异常状态全部解除'); break;
+        case 'regen': if (ev.echo) { splay('regen'); damageNum(run.player.x, run.player.y, '+1', 'super'); } break;
         case 'floor-next':
           saveNow();
           hud.banner(ev.name, '回 2 格亲密度 · 敌人更强了', 3200);
@@ -1046,17 +1054,29 @@ async function boot() {
           break;
         case 'clear': hud.minimap(run.map, run.cellKey); saveNow(); break;
         case 'use-blocked':
-          hud.toast('雷之石没有反应…', '这只搭档没有进化链，石头留在背包里');
+          hud.toast('雷之石没有反应…', ev.reason === 'floor' ? '进化要从第 2 层开始——石头先收好，到下层再用'
+            : ev.reason === 'evolved' ? '已经进化过了，石头先收好'
+            : '这只搭档没有进化链，石头留在背包里');
           break;
         case 'tm-replace': {
           const lostName = (data.items[ev.lost] || {}).name || ev.lost;
           const gainName = (data.items[ev.gain] || {}).name || ev.gain;
-          hud.toast('B 槽技能机已替换', `${lostName} → ${gainName}（B 槽一台，旧的已回收）`);
+          if (ev.side === 'companion') {
+            const who = (run.player.companion && run.player.companion.name) || '替补';
+            hud.toast(`${who} 的技能机已替换`, `${lostName} → ${gainName}（替补 B 槽与主力互不共用）`);
+          } else {
+            hud.toast('B 槽技能机已替换', `${lostName} → ${gainName}（B 槽一台，旧的已回收）`);
+          }
           break;
         }
         case 'consumable-swap': {
           const lostName2 = (data.items[ev.lost] || {}).name || ev.lost;
           hud.toast(`换下的 ${lostName2} 掉在脚边`, 'E 槽一件消耗品 · 用掉后再回来捡');
+          break;
+        }
+        case 'trinket-swap': {
+          const lostName3 = (data.items[ev.lost] || {}).name || ev.lost;
+          hud.toast(`换下的 ${lostName3} 掉在脚边`, '纪念品单件 · 想换回来到脚边捡');
           break;
         }
         default: break;
@@ -1321,8 +1341,9 @@ async function boot() {
       hud.sticks(stks, touchTut);
       if (ingame) hud.touchPad({
         dash: p.dashCharges, dashMax: data.balance.player.dashCharges,
-        pp: p.pp / (100 * p.mods.ppCost), zReady: p.pp >= 100 * p.mods.ppCost,
-        hasB: !!p.moveB, slot: p.slot, lockB: !!p.mods.lockB,
+        pp: (effSide(run).pp || 0) / (100 * p.mods.ppCost),
+        zReady: (effSide(run).pp || 0) >= 100 * p.mods.ppCost,
+        hasB: !!effMoveB(run), slot: p.slot, lockB: !!p.mods.lockB,
         useIcon: p.inv.consumable ? ((data.items[p.inv.consumable] || {}).icon || 'kings-rock') : null,
         hasComp: !!(p.companion && p.companion.hp > 0), compActive: p.activeSide === 'companion',
       });
@@ -1351,18 +1372,18 @@ async function boot() {
       run.room.type === 'combat' || run.room.type === 'challenge'
         ? `${ROOM_NAMES[cell.type]} · 波 ${Math.min(run.room.waveIdx + 1, 3)}/3`
         : ROOM_NAMES[cell.type];
-    hud.game(p.hp, p.maxHp, p.pp, p.dashCharges, data.balance.player.dashCharges,
+    hud.game(p.hp, p.maxHp, (effSide(run).pp || 0), p.dashCharges, data.balance.player.dashCharges,
       `第${run.floorNo}层·${data.floors[run.floorNo].name}｜${roomLabel}`, p.money,
       p.companion ? (p.activeSide === 'companion' ? `${p.companion.name} ${p.companion.hp}❤` : `替补:${p.companion.name}`) : '',
-      p.pp >= 100 * p.mods.ppCost, p.inv.keys || 0);
-    hud.slots(effMoveA(run), p.moveB, p.slot, p.mods.lockB);
+      (effSide(run).pp || 0) >= 100 * p.mods.ppCost, p.inv.keys || 0);
+    hud.slots(effMoveA(run), effMoveB(run), p.slot, p.mods.lockB);
 
     const info = renderer.info.render;
     hud.frame(dt, {
       tier: `${TIERS[tier].label}(${tier})`, dpr: renderer.getPixelRatio().toFixed(2),
       calls: info.calls, tris: info.triangles,
       enemies: run.enemies.length, projs: run.projectiles.length, steps,
-      x: p.x, y: p.y, hp: p.hp, pp: p.pp, cry: cries.statusOf(25),
+      x: p.x, y: p.y, hp: p.hp, pp: (effSide(run).pp || 0), cry: cries.statusOf(25),
       postfx: postfx ? '开' : (postfxFallback ? '关（composer黑图已回退直渲染）' : '关（低档）'),
       light: lightOk ? '正常' : '异常（请用 Chrome/Safari）',
     });

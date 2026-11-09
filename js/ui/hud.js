@@ -17,6 +17,15 @@ function fallbackCopy(text, done) {
   } catch (e) { /* 剪贴板不可用静默 */ }
 }
 
+// 道具分类标签（M7.1：持有规则直接显示在卡上）
+const KIND_TAG = {
+  passive: { t: '被动', s: '永久生效 · 可无限叠加' },
+  stat: { t: '强化', s: '永久生效 · 可无限叠加' },
+  consumable: { t: '消耗品', s: 'E 槽一件 · 按 E / 道具键使用' },
+  trinket: { t: '纪念品', s: '单件 · 新的会换下旧的（掉脚边）' },
+  badge: { t: '徽章', s: '全局被动 · 本局全程生效' },
+};
+
 // 分享图（Canvas 合成 → PNG 下载）：胜负页共用
 function shareImage({ title, stats, seed, difficultyLabel, dead }) {
   const c = document.createElement('canvas');
@@ -289,6 +298,14 @@ export function createHud() {
         'thunder-shock': '电击', 'water-gun': '水枪', 'fire-spin': '火焰漩涡', 'grass-knot': '打草结',
         'swift': '高速星星', 'bone-club': '骨棒', 'bubble': '泡沫',
         'tri-attack': '三重攻击', 'aerial-ace': '燕返', 'hyper-beam': '破坏光线', 'fire-punch': '火焰拳',
+        // 伙伴专属默认招式（enemies.json moveA）
+        'quick-attack': '电光一闪', 'string-shot': '吐丝', 'acid-spray': '溶解液', 'sonic-boom': '音爆',
+        'sludge': '污泥', 'mud-shot': '泥巴弹', 'zap-cannon': '电磁炮', 'bite': '咬住',
+        'confusion': '念力', 'lick': '舔舔', 'sand-tomb': '流沙', 'karate-chop': '空手劈',
+        'horn-attack': '角撞', 'feint-attack': '偷袭', 'fury-swipes': '乱抓', 'shadow-ball': '暗影球',
+        'moonblast': '月亮之力', 'pound': '拍击', 'rollout': '滚动', 'psybeam': '精神光线',
+        'egg-bomb': '蛋炸弹', 'fury-cutter': '连斩', 'splash': '溅跳', 'twister': '龙卷风',
+        'mirror-shot': '模仿', 'body-slam': '压扁', 'dragon-claw': '龙爪',
       };
       slotsEl.innerHTML =
         `<span class="slot ${active === 'A' ? 'on' : ''}">A·${nm[slotA] || slotA}</span>` +
@@ -308,8 +325,9 @@ export function createHud() {
         : info.price > 0
           ? `<span class="pk-p">¥${info.price}</span>`
           : `<span class="pk-p free">${info.free ? '免费' : '踏上拾取'}</span>`;
+      const k = KIND_TAG[info.kind] || null;
       peekEl.innerHTML = `<div class="pk">${info.icon ? `<img src="assets/items/${info.icon}.png">` : ''}` +
-        `<div><div class="pk-n">${info.name} ${pips}</div><div class="pk-d">${info.desc || ''}</div></div>${price}</div>`;
+        `<div><div class="pk-n">${info.name} ${pips}${k ? ` <i class="k-tag">${k.t}</i>` : ''}</div><div class="pk-d">${info.desc || ''}</div></div>${price}</div>`;
       peekEl.classList.remove('hidden');
     },
     hidePeek() { peekEl.classList.add('hidden'); },
@@ -504,6 +522,7 @@ export function createHud() {
       if (!show) { sheetEl.classList.add('hidden'); return; }
       const p = run.player, s = p.stats, m = p.mods;
       const moveA_eff = (p.activeSide === 'companion' && p.companion) ? p.companion.moveA : p.moveA;
+      const moveB_eff = (p.activeSide === 'companion' && p.companion) ? (p.companion.moveB || null) : p.moveB;
       const row = (label, val) => `<div class="s-row"><span>${label}</span><b>${val}</b></div>`;
       const chips = [];
       const pct = (v) => Math.round(v * 100) + '%';
@@ -546,7 +565,7 @@ export function createHud() {
           ${row('射程', '×' + m.rangeMul.toFixed(2))}
           ${row('弹速', '×' + m.shotSpeedMul.toFixed(2))}
           ${row('弹径', '×' + m.sizeMul.toFixed(2))}
-          <div class="s-moves">A·${moveName(moveA_eff)}${p.moveB ? `　B·${moveName(p.moveB)}` : ''}${consum ? `　携带·${consum.name}` : ''}</div>
+          <div class="s-moves">A·${moveName(moveA_eff)}${moveB_eff ? `　B·${moveName(moveB_eff)}` : ''}${consum ? `　携带·${consum.name}` : ''}</div>
           ${chips.length ? '<div class="s-chips">' + chips.map(([t, c]) => `<span style="border-color:${c};color:${c}">${t}</span>`).join('') + '</div>' : ''}
           <div class="sh-title sh-title2">道具收藏</div>
           <div class="s-items">${itemHtml}</div>
@@ -572,9 +591,10 @@ export function createHud() {
       el.style.top = sy + 'px';
     },
     clearPrices() { pricesEl.innerHTML = ''; },
-    itemCard(name, desc, quality, icon) {
+    itemCard(name, desc, quality, icon, kind) {
       const q = ['', '白', '绿', '蓝', '紫', '红金'][quality + 1] || '';
-      itemcardEl.innerHTML = `<div class="ic-q${quality}">${icon ? `<img src="assets/items/${icon}.png">` : ''}<div><b>${name}</b><span>${desc}</span></div></div>`;
+      const k = KIND_TAG[kind] || '';
+      itemcardEl.innerHTML = `<div class="ic-q${quality}">${icon ? `<img src="assets/items/${icon}.png">` : ''}<div><b>${name}${k ? ` <i class="k-tag">${k.t}</i>` : ''}</b><span>${desc}${k ? `<br><em class="k-sub">${k.s}</em>` : ''}</span></div></div>`;
       itemcardEl.classList.remove('hidden');
       clearTimeout(itemcardTimer);
       itemcardTimer = setTimeout(() => itemcardEl.classList.add('hidden'), 1600);

@@ -1,9 +1,9 @@
 // 战斗与房间行为系统：玩家/弹体/敌人三族/波次/多房间楼层/拾取经济/台座。
 // 全部纯数据变换；事件写进 state.events 供表现层消费。
-import { computeHit } from './combat.js?v=m7a';
-import { fireInterval } from './combat.js?v=m7a';
-import { rollItem } from './items.js?v=m7a';
-import { spawnBoss, stepBoss } from './boss.js?v=m7a';
+import { computeHit } from './combat.js?v=m7b';
+import { fireInterval } from './combat.js?v=m7b';
+import { rollItem } from './items.js?v=m7b';
+import { spawnBoss, stepBoss } from './boss.js?v=m7b';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -112,7 +112,10 @@ export function enterRoom(state, data, cellKey) {
       }
       break;
     case 'treasure':
+      // 宝物免费但不再强制拿取才开门（M7.1 用户反馈：被锁在房里）。道具留台座，离房暂存保留
       if (!stash) addPedestal(state, data, 'treasure', 0);      // 有暂存则恢复原道具（防重 roll 刷道具）
+      state.room.cleared = true; state.room.doorOpen = true;
+      cell.cleared = true;
       break;
     case 'shop':
       const excl = [];
@@ -200,12 +203,17 @@ export function enterRoom(state, data, cellKey) {
   state.events.push({ t: 'room-enter', cell: cellKey, type: cell.type, cleared: false });
 }
 
-// 替补上场用的 A 槽招式（按主属性映射到玩家可用招式；无对应属性用高速星星）
+// 替补 A 槽保底映射（enemies.json 已全量配物种专属 moveA/zmove，此处只兜新物种漏配）
 const COMPANION_MOVES = {
   electric: 'thunder-shock', water: 'bubble', fire: 'fire-spin', grass: 'grass-knot',
   normal: 'swift', ground: 'bone-club', rock: 'bone-club', fighting: 'bone-club',
   poison: 'swift', psychic: 'swift', ghost: 'swift', bug: 'swift', steel: 'thunder-shock',
 };
+
+// 当前上场侧载体（主力 | 替补同行）：A/B 槽、Z 招式、PP 条各自独立——换宠=换 Build 载体
+function sideOf(p) {
+  return (p.activeSide === 'companion' && p.companion) ? p.companion : p;
+}
 
 function addCampPedestal(state, data, slotIdx) {
   // 从当层敌群抽物种（排除 boss/bomber 自爆型），做成结伴台座
@@ -292,21 +300,23 @@ export function stepPlayer(state, input, data) {
 
   if (!p.alive) { p.deathT += state.dt; return; }
 
-  // Q 切换 A/B 槽
+  // Q 切换 A/B 槽（B 槽看上场侧自己的技能机）
   if (input.slotEdge) {
-    if (p.slot === 'A' && p.moveB && !p.mods.lockB) p.slot = 'B';
+    const sideB = sideOf(p).moveB;
+    if (p.slot === 'A' && sideB && !p.mods.lockB) p.slot = 'B';
     else p.slot = 'A';
   }
   // E 使用消耗品
   if (input.useEdge && p.inv.consumable) {
     const it = data.items[p.inv.consumable];
     const e = it.effect || {};
-    // 进化守卫：雷之石对无进化链的搭档无效——不消耗，留在背包
-    if (e.evolve && !p.evolveTo) {
-      state.events.push({ t: 'use-blocked', id: p.inv.consumable, reason: 'no-evolve' });
+    // 进化守卫：石头类在条件不满足时一律不消耗（M7.1 用户反馈：F1 使用白白蒸发）
+    //   ① 搭档没有进化链；② 还在第 1 层（进化从第 2 层起）；③ 已经进化过
+    if (e.evolve && (!p.evolveTo || state.floorNo < 2 || p.evolved)) {
+      state.events.push({ t: 'use-blocked', id: p.inv.consumable, reason: p.evolved ? 'evolved' : (p.evolveTo ? 'floor' : 'no-evolve') });
     } else {
       if (e.heal) p.hp = Math.min(p.maxHp, p.hp + e.heal);
-      if (e.ppFull) { p.pp = 100; state.events.push({ t: 'pp-full' }); }
+      if (e.ppFull) { sideOf(p).pp = 100; state.events.push({ t: 'pp-full' }); }
       if (e.cure && state.reverseT > 0) { state.reverseT = 0; state.events.push({ t: 'cured' }); }
       if (e.buffSpeed) p.buffs.speed = Math.max(p.buffs.speed, e.buffSpeed);
       if (e.buffDmg) p.buffs.dmg = Math.max(p.buffs.dmg, e.buffDmg);
@@ -339,32 +349,35 @@ export function stepPlayer(state, input, data) {
     if (p.buffs[k] > 0) p.buffs[k] = Math.max(0, p.buffs[k] - state.dt);
   }
 
-  // R：Z 招式（PP 满）或死亡重开由 main 处理
-  if (input.zEdge && p.pp >= 100 * p.mods.ppCost) {
-    const zid = p.evolved ? (p.zmoveEvolved || 'thunder-z') : (p.zmove || 'thunderbolt-z');
-    const zm = data.moves[zid];
-    p.pp = 0;
-    // 全场/近场 AoE：以玩家为圆心，走属性克制（免疫按 ×0.5 防卡关）
-    let hits = 0;
-    for (const e of state.enemies) {
-      if (e.state === 'spawning' || e.state === 'dead') continue;
-      const d = Math.hypot(e.x - p.x, e.y - p.y);
-      if (d <= zm.radius) {
-        const hit = computeHit({
-          D: p.stats.damage, power: zm.power * 0.5, moveType: zm.type,   // AoE 打 5 折换覆盖面
-          atkTypes: p.types || ['electric'], defTypes: e.types, spdMod: e.spdMod,
-          critChance: 0, rng01: 0.5, stabMul: 1.5, chart: data.typechart,
-          immuneFloor: 0.5,
-        });
-        e.hp -= hit.dmg;
-        e.flash = 0.2;
-        const kd = Math.hypot(e.x - p.x, e.y - p.y) || 1;
-        e.kx = (e.x - p.x) / kd * 9; e.ky = (e.y - p.y) / kd * 9;
-        if (e.hp <= 0) killEnemy(state, e, hit.kind === 'immune' ? 'normal' : hit.kind);
-        hits++;
+  // R：Z 招式（PP 满）——主力/替补各自独立的 Z 与 PP 条；死亡重开由 main 处理
+  if (input.zEdge) {
+    const side = sideOf(p);
+    if (side.pp >= 100 * p.mods.ppCost) {
+      const zid = side !== p ? side.zmove : (p.evolved ? (p.zmoveEvolved || 'thunder-z') : (p.zmove || 'thunderbolt-z'));
+      const zm = data.moves[zid];
+      side.pp = 0;
+      // 全场/近场 AoE：以玩家为圆心，走属性克制（免疫按 ×0.5 防卡关）
+      let hits = 0;
+      for (const e of state.enemies) {
+        if (e.state === 'spawning' || e.state === 'dead') continue;
+        const d = Math.hypot(e.x - p.x, e.y - p.y);
+        if (d <= zm.radius) {
+          const hit = computeHit({
+            D: p.stats.damage, power: zm.power * 0.5, moveType: zm.type,   // AoE 打 5 折换覆盖面
+            atkTypes: side.types || ['electric'], defTypes: e.types, spdMod: e.spdMod,
+            critChance: 0, rng01: 0.5, stabMul: 1.5, chart: data.typechart,
+            immuneFloor: 0.5,
+          });
+          e.hp -= hit.dmg;
+          e.flash = 0.2;
+          const kd = Math.hypot(e.x - p.x, e.y - p.y) || 1;
+          e.kx = (e.x - p.x) / kd * 9; e.ky = (e.y - p.y) / kd * 9;
+          if (e.hp <= 0) killEnemy(state, e, hit.kind === 'immune' ? 'normal' : hit.kind);
+          hits++;
+        }
       }
+      state.events.push({ t: 'zmove', id: zid, name: zm.name, x: p.x, y: p.y, radius: zm.radius, hits });
     }
-    state.events.push({ t: 'zmove', id: zid, name: zm.name, x: p.x, y: p.y, radius: zm.radius, hits });
   }
 
   // F：换替补同行（换人瞬间无敌 0.5s）
@@ -451,9 +464,10 @@ export function stepPlayer(state, input, data) {
   // 射击
   p.fireCd -= state.dt;
   if (input.fire && p.fireCd <= 0) {
-    // 替补上场时 A 槽换成替补的招式（换宠=换 Build 载体）；B 槽技能机照常可用
-    const moveA_eff = (p.activeSide === 'companion' && p.companion) ? p.companion.moveA : p.moveA;
-    const moveId = p.slot === 'B' && p.moveB && !p.mods.lockB ? p.moveB : moveA_eff;
+    // A/B 槽都按上场侧取各自招式（换宠=换 Build 载体，B 槽技能机也不共用）
+    const side = sideOf(p);
+    const moveA_eff = side.moveA;
+    const moveId = p.slot === 'B' && side.moveB && !p.mods.lockB ? side.moveB : moveA_eff;
     const mv = data.moves[moveId];
     const aim = input.aim;
     const m = p.mods;
@@ -709,7 +723,9 @@ function applyHit(state, e, b, data) {
       if (p.hp < p.maxHp) { p.hp += 1; state.events.push({ t: 'regen', heal: 1, echo: true }); }
     }
   }
-  state.player.pp = Math.min(100, state.player.pp + dmg * data.balance.player.ppPerDamage * (hit.kind === 'super' ? data.balance.player.ppSuperMul : 1) * m.ppMul);
+  // PP 充能给上场侧自己的 PP 条（旧存档缺 companion.pp 时 ||0 自愈）
+  const ppSide = sideOf(state.player);
+  ppSide.pp = Math.min(100, (ppSide.pp || 0) + dmg * data.balance.player.ppPerDamage * (hit.kind === 'super' ? data.balance.player.ppSuperMul : 1) * m.ppMul);
   // 电气种子连锁闪电：跳向 2.2 内最近的另一只敌（50% 伤害，视觉由 chain-hit 表现）
   if (b.chain && e.hp > 0) {
     let tgt = null, nd = 2.2 * 2.2;
@@ -1276,10 +1292,7 @@ export function stepRoom(state, input, data) {
       spawnWave(state, data);
     }
   }
-  // 非战斗房直接算清空（treasure 拿完台座清、shop/secret 入内即清）
-  if (!r.cleared && cell.type === 'treasure' && state.pedestals.every((d) => d.taken)) {
-    clearRoom(state, data, cell);
-  }
+  // 非战斗房进门即清（shop/treasure/secret/camp/vault/事件房——enterRoom 各 case 已置位）
 
   // 拾取
   stepPickups(state, data);
@@ -1434,6 +1447,10 @@ function stepPickups(state, data) {
           state.stats.coins += 2; break;
         case 'key':
           p.inv.keys = (p.inv.keys || 0) + 1; break;
+        case 'trinket':
+          if (!p.inv.trinket) p.inv.trinket = k.itemId;
+          else taken = false;                             // 单件槽满：安静躺在原地
+          break;
         case 'heart':
           if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + data.balance.pickup.heartHeal); state.events.push({ t: 'heal', heal: data.balance.pickup.heartHeal }); }
           else taken = false;
@@ -1462,8 +1479,10 @@ function takePedestal(state, data, d) {
       p.companion = {
         eid, name: spec.name, types: spec.types,
         hp: 4 + Math.floor(spec.score), maxHp: 4 + Math.floor(spec.score),
-        // 上场 A 槽招式：主属性映射（敌版招式威力为 0，不能用）
-        moveA: COMPANION_MOVES[spec.types[0]] || 'swift',
+        // 每只宝可梦自己的默认攻击与 Z 招式（enemies.json 物种专属；敌版招式威力为 0，不能用）
+        moveA: spec.moveA || COMPANION_MOVES[spec.types[0]] || 'swift',
+        zmove: spec.zmove || 'thunderbolt-z',
+        moveB: null, tmItem: null, pp: 0,   // 替补自己的 B 槽技能机与 PP 条
       };
       state.events.push({ t: 'companion-join', name: spec.name, eid });
     }
@@ -1504,6 +1523,14 @@ function takePedestal(state, data, d) {
   }
   switch (it.kind) {
     case 'passive':
+      if (it.effect.tm && p.activeSide === 'companion' && p.companion) {
+        // 技能机归属上场侧：替补上场捡的进替补自己的 B 槽（与主力互不共用；learn 表只登记主力物种，替补不受限）
+        const prevCompTm = p.companion.tmItem;
+        p.companion.tmItem = d.itemId;
+        p.companion.moveB = it.effect.tm;
+        if (prevCompTm) state.events.push({ t: 'tm-replace', lost: prevCompTm, gain: d.itemId, x: p.x, y: p.y, side: 'companion' });
+        break;
+      }
       if (it.effect.tm) {
         // 只保留最新技能机（B 槽一格）；有替换时明示——无声消失会被当成"被动只能有一个"（M7.1 用户反馈）
         const prevTm = p.inv.passives.find((id) => data.items[id] && data.items[id].effect.tm);
@@ -1540,7 +1567,12 @@ function takePedestal(state, data, d) {
         state.events.push({ t: 'consumable-swap', lost: p.inv.consumable, gain: d.itemId, x: p.x, y: p.y });
       }
       p.inv.consumable = d.itemId; break;
-    case 'trinket': p.inv.trinket = d.itemId; break;
+    case 'trinket':
+      if (p.inv.trinket && p.inv.trinket !== d.itemId) {        // 单件槽：旧的掉脚边，不静默蒸发
+        state.pickups.push(mkPickup(state, 'trinket', p.x + 0.9, p.y + 0.5, p.inv.trinket));
+        state.events.push({ t: 'trinket-swap', lost: p.inv.trinket, gain: d.itemId, x: p.x, y: p.y });
+      }
+      p.inv.trinket = d.itemId; break;
     case 'badge': p.inv.badges.push(d.itemId); break;
     default: break;
   }
@@ -1551,4 +1583,4 @@ function takePedestal(state, data, d) {
 }
 
 // 规避循环 import：engine.recompute 通过事件总线由调用方重算——这里直接内联等价逻辑
-import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m7a';
+import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m7b';

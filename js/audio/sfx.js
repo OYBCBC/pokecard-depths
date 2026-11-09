@@ -1,8 +1,10 @@
-// 合成音效（M5 首批 16 个）：振荡器/噪声短音，零素材。
-// 与 cries/bgm 共享 AudioContext（手势解锁后生效）；M 键静音与 BGM 联动（setMuted）。
+// 合成音效（M5 首批 16 个 + 二批受击补齐：弱抗/格挡/灼烧/自伤/拍地/预警/再生）：振荡器/噪声短音，零素材。
+// 受击类逐发音高抖动（JITTER），连打不再是同一声；与 cries/bgm 共享 AudioContext（手势解锁后生效）；
+// M 键静音与 BGM 联动（setMuted）。
 export function createSfx({ ensureCtx } = {}) {
   let ctx = null, master = null, muted = false;
   let lastPlay = {};                       // 节流：同类音效最小间隔（防帧内重复炸耳）
+  let jitP = 0;                            // 本次播放的音高抖动幅度（±比例，0=关），播放完复位
 
   function ensure() {
     if (!ctx) {
@@ -16,27 +18,30 @@ export function createSfx({ ensureCtx } = {}) {
     return ctx;
   }
 
-  // 基元：单音（type/f0→f1 扫频 + 包络）
+  // 基元：单音（type/f0→f1 扫频 + 包络）；jitP 生效时 f0/f1/vol 逐发随机偏移
   function tone({ type = 'square', f0 = 440, f1 = null, dur = 0.09, vol = 0.2, delay = 0, slide = 'exp' }) {
     const t = ctx.currentTime + delay;
+    const k = jitP ? 1 + (Math.random() * 2 - 1) * jitP : 1;
+    const v = jitP ? vol * (1 + (Math.random() * 2 - 1) * 0.12) : vol;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = type;
-    o.frequency.setValueAtTime(f0, t);
+    o.frequency.setValueAtTime(f0 * k, t);
     if (f1 != null) {
-      if (slide === 'exp') o.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), t + dur);
-      else o.frequency.linearRampToValueAtTime(f1, t + dur);
+      if (slide === 'exp') o.frequency.exponentialRampToValueAtTime(Math.max(f1 * k, 1), t + dur);
+      else o.frequency.linearRampToValueAtTime(f1 * k, t + dur);
     }
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.008);
+    g.gain.linearRampToValueAtTime(v, t + 0.008);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g).connect(master);
     o.start(t); o.stop(t + dur + 0.02);
   }
 
-  // 基元：噪声（滤波打击）
+  // 基元：噪声（滤波打击）；同样吃 jitP
   function noise({ dur = 0.12, vol = 0.2, freq = 2000, q = 1, type = 'bandpass', delay = 0 }) {
     const t = ctx.currentTime + delay;
+    const k = jitP ? 1 + (Math.random() * 2 - 1) * jitP : 1;
     const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const ch = buf.getChannelData(0);
@@ -44,9 +49,9 @@ export function createSfx({ ensureCtx } = {}) {
     const src = ctx.createBufferSource();
     src.buffer = buf;
     const f = ctx.createBiquadFilter();
-    f.type = type; f.frequency.value = freq; f.Q.value = q;
+    f.type = type; f.frequency.value = freq * k; f.Q.value = q;
     const g = ctx.createGain();
-    g.gain.setValueAtTime(vol, t);
+    g.gain.setValueAtTime(jitP ? vol * (1 + (Math.random() * 2 - 1) * 0.12) : vol, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(f).connect(g).connect(master);
     src.start(t);
@@ -75,9 +80,21 @@ export function createSfx({ ensureCtx } = {}) {
     chain:    () => { tone({ type: 'square', f0: 1560, f1: 2400, dur: 0.06, vol: 0.09 }); noise({ dur: 0.05, vol: 0.07, freq: 4200 }); },
     freeze:   () => { tone({ type: 'sine', f0: 1980, f1: 1180, dur: 0.14, vol: 0.10 }); tone({ type: 'sine', f0: 2640, f1: 1560, dur: 0.12, vol: 0.06, delay: 0.04 }); },
     poison:   () => noise({ dur: 0.10, vol: 0.08, freq: 620, q: 2, type: 'lowpass' }),
+    weakhit:  () => { tone({ type: 'triangle', f0: 320, f1: 150, dur: 0.06, vol: 0.10 }); noise({ dur: 0.04, vol: 0.05, freq: 1300 }); },
+    block:    () => { tone({ type: 'square', f0: 1760, f1: 1170, dur: 0.06, vol: 0.09 }); noise({ dur: 0.04, vol: 0.06, freq: 4800, q: 0.8 }); },
+    burn:     () => { noise({ dur: 0.16, vol: 0.08, freq: 900, q: 1.2 }); tone({ type: 'sawtooth', f0: 210, f1: 110, dur: 0.14, vol: 0.05 }); },
+    selfdot:  () => { tone({ type: 'sine', f0: 180, f1: 90, dur: 0.13, vol: 0.11 }); noise({ dur: 0.08, vol: 0.05, freq: 420, q: 2, type: 'lowpass' }); },
+    slam:     () => { tone({ type: 'sine', f0: 130, f1: 42, dur: 0.28, vol: 0.30 }); noise({ dur: 0.20, vol: 0.18, freq: 260, type: 'lowpass' }); },
+    windup:   () => tone({ type: 'square', f0: 620, f1: 980, dur: 0.13, vol: 0.06 }),
+    regen:    () => tone({ type: 'sine', f0: 520, f1: 700, dur: 0.10, vol: 0.09 }),
   };
   // 节流表（ms）：高频事件不逐发
-  const THROTTLE = { shot: 55, hit: 45, superhit: 60, coin: 40, kill: 60, chain: 90 };
+  const THROTTLE = { shot: 55, hit: 45, superhit: 60, coin: 40, kill: 60, chain: 90,
+                     burn: 350, selfdot: 400, slam: 150, windup: 120, regen: 450 };
+  // 音高抖动（±比例）：受击类逐发变调，连打不单调；未列出的音效保持固定音高
+  const JITTER = { shot: 0.05, hit: 0.09, superhit: 0.06, weakhit: 0.10, hurt: 0.06, kill: 0.07,
+                   block: 0.04, burn: 0.10, selfdot: 0.08, slam: 0.03, windup: 0.05, regen: 0.04,
+                   coin: 0.03, dash: 0.06, chain: 0.06, freeze: 0.04, poison: 0.12 };
 
   return {
     play(name) {
@@ -88,7 +105,9 @@ export function createSfx({ ensureCtx } = {}) {
       if (min && now - (lastPlay[name] || -9) < min / 1000) return false;
       if (!ensure()) return false;
       lastPlay[name] = ctx.currentTime;
+      jitP = JITTER[name] || 0;
       try { r(); } catch (e) { /* 音频失败静默 */ }
+      jitP = 0;
       return true;
     },
     setMuted(m) {

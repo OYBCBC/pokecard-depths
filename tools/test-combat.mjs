@@ -11,12 +11,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { damageStat, fireInterval, typeMultiplier, stabMultiplier, computeHit, enemyPanel } =
-  await import(join(ROOT, 'js/sim/combat.js?v=m7a'));
-const { createRun, stepRun, recompute } = await import(join(ROOT, 'js/sim/engine.js?v=m7a'));
-const _engine = await import(join(ROOT, 'js/sim/engine.js?v=m7a'));
-const { enterRoom, spawnWave } = await import(join(ROOT, 'js/sim/actors.js?v=m7a'));
-const _save = await import(join(ROOT, 'js/sim/save.js?v=m7a'));
-const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m7a'));
+  await import(join(ROOT, 'js/sim/combat.js?v=m7b'));
+const { createRun, stepRun, recompute, goNextFloor: goNextFloorRef } = await import(join(ROOT, 'js/sim/engine.js?v=m7b'));
+const _engine = await import(join(ROOT, 'js/sim/engine.js?v=m7b'));
+const { enterRoom, spawnWave } = await import(join(ROOT, 'js/sim/actors.js?v=m7b'));
+const _save = await import(join(ROOT, 'js/sim/save.js?v=m7b'));
+const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m7b'));
 function combatNeighbor(run, d) {
   const cell = run.map.get(run.cellKey);
   for (const [dk] of Object.entries(cell.doors)) {
@@ -179,7 +179,7 @@ test('引擎：冲刺给无敌与位移', () => {
 
 
 // ---------- M4：多层塔 / Z 招式 / 进化 / 替补 ----------
-const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m7a'));
+const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m7b'));
 
 function idleInput() {
   return { move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false, slotEdge: false, useEdge: false, zEdge: false, swapEdge: false };
@@ -466,7 +466,7 @@ test('图鉴：事件点亮（遭遇/击杀/馆主搭档/进化/结伴/别名）
 
 // ---------- M5 第二批：道具全量 / 黑市祭坛 / 徽章 / 异常状态 ----------
 
-const _items = await import(join(ROOT, 'js/sim/items.js?v=m7a'));
+const _items = await import(join(ROOT, 'js/sim/items.js?v=m7b'));
 const items = data.items;
 
 test('道具全量：74 件（被动42+强化8+消耗11+纪念10+徽章3），图标齐全、池合法', () => {
@@ -1255,4 +1255,136 @@ test('M7.1 消耗品台座交换：旧的掉脚边不再静默覆盖', () => {
   const n0 = run.pickups.length;
   for (let i = 0; i < 10; i++) stepRun(run, IDLE, d);
   assert.equal(run.pickups.length, n0, '满槽时拾取物不被吞');
+});
+
+// ==================== M7.1b：门判定 / 雷之石消耗 / 纪念品交换 ====================
+
+// 站到某个已存在门的门位并步进一帧，返回是否完成了房间传送
+function tryDoor(run, d) {
+  const cell = run.map.get(run.cellKey);
+  const dk = Object.entries(cell.doors).find(([k, t]) => t === 'normal' || t === 'revealed');
+  if (!dk) return false;
+  const [dx, dy] = dk[0].split(',').map(Number);
+  const p = run.player;
+  p.px = p.x = (dx === 0) ? run.roomW / 2 : (dx < 0 ? 0.7 : run.roomW - 0.7);
+  p.py = p.y = (dy === 0) ? run.roomH / 2 : (dy < 0 ? 0.7 : run.roomH - 0.7);
+  const before = run.cellKey;
+  stepRun(run, IDLE, d);
+  return run.cellKey !== before;
+}
+
+test('M7.1b 宝箱房进门即开门：不拿台座也能直接走人', () => {
+  const run = createRun(data, 27182, 'pikachu', 'normal');
+  const d = data;
+  const tk = [...run.map.values()].find((c) => c.type === 'treasure');
+  enterRoom(run, d, tk.x + ',' + tk.y);
+  assert.equal(run.pedestals.length, 1, '台座在');
+  assert.equal(run.pedestals[0].taken, false, '没拿');
+  assert.ok(run.room.cleared, '进门即视为可离开');
+  assert.ok(tryDoor(run, d), '不拿道具也能过门');
+  // 台座留在房里（离房暂存），重进还在
+  const back = tk.x + ',' + tk.y;
+  enterRoom(run, d, back);
+  assert.equal(run.pedestals.filter((x) => !x.taken).length, 1, '道具留在原房');
+});
+
+test('M7.1b 全房型开门审计：特殊房进门即可离开（无需清台座/买东西）', () => {
+  for (const seed of [11, 22, 33]) {
+    const run = createRun(data, seed * 91, 'pikachu', 'normal');
+    const d = data;
+    // F2 一次拿齐：shop/camp/treasure/vault + 事件房 roll 一间
+    goNextFloorRef(run, d);
+    goNextFloorRef(run, d);   // 到 F3（多房型）
+    const byType = {};
+    for (const c of run.map.values()) byType[c.type] = c;
+    for (const t of ['shop', 'treasure', 'camp', 'vault']) {
+      const c = byType[t];
+      if (!c) continue;
+      if (t === 'vault') {                                  // 模拟真实开锁流程：两侧 locked→normal
+        for (const [dk0, dt0] of Object.entries(c.doors)) {
+          if (dt0 !== 'locked') continue;
+          const [ddx, ddy] = dk0.split(',').map(Number);
+          const nb = run.map.get((c.x + ddx) + ',' + (c.y + ddy));
+          c.doors[dk0] = 'normal';
+          if (nb) nb.doors[(-ddx) + ',' + (-ddy)] = 'normal';
+        }
+      }
+      enterRoom(run, d, c.x + ',' + c.y);
+      const untouched = run.pedestals.every((x) => !x.taken);
+      assert.ok(run.room.cleared, `${t} 进门即开`);
+      assert.ok(tryDoor(run, d), `${t} 不动台座也能走（seed ${seed}）`);
+      if (untouched && t === 'shop') assert.ok(true);
+    }
+    // 战斗房对照组：不清怪不能走
+    const cb = [...run.map.values()].find((c) => c.type === 'combat');
+    enterRoom(run, d, cb.x + ',' + cb.y);
+    run.enemies.forEach((e) => { e.state = 'active'; });
+    if (run.enemies.length) assert.ok(!tryDoor(run, d), '战斗房封门（对照）');
+  }
+});
+
+test('M7.1b 雷之石 F1 使用：不消耗 + floor 提示；无链/已进化同样保留', () => {
+  const run = createRun(data, 3141, 'pikachu', 'normal');
+  const d = data;
+  run.player.inv.consumable = 'thunder-stone';
+  run.player.x = 8; run.player.y = 5;   // 出生房安全位
+  let evs = [];
+  for (let i = 0; i < 3; i++) { stepRun(run, { ...IDLE, useEdge: i === 0 }, d); evs.push(...run.events); }
+  const blocked = evs.find((e) => e.t === 'use-blocked');
+  assert.ok(blocked, '应有 use-blocked');
+  assert.equal(blocked.reason, 'floor', '原因=层数不够');
+  assert.equal(run.player.inv.consumable, 'thunder-stone', '石头还在背包');
+  // 已进化（直接造态）：同样保留
+  run.player.evolved = true;
+  evs = [];
+  for (let i = 0; i < 3; i++) { stepRun(run, { ...IDLE, useEdge: i === 0 }, d); evs.push(...run.events); }
+  const b2 = evs.find((e) => e.t === 'use-blocked');
+  assert.ok(b2 && b2.reason === 'evolved');
+  assert.equal(run.player.inv.consumable, 'thunder-stone', '已进化也不消耗');
+  // 无链搭档（伊布没有 evolveTo? eevee 无链——species 表查）
+  const eevee = d.species.eevee;
+  if (eevee && !eevee.evolveTo) {
+    run.player.evolved = false; run.player.evolveTo = null; run.player.species = 'eevee';
+    evs = [];
+    for (let i = 0; i < 3; i++) { stepRun(run, { ...IDLE, useEdge: i === 0 }, d); evs.push(...run.events); }
+    assert.ok(evs.some((e) => e.t === 'use-blocked' && e.reason === 'no-evolve'));
+    assert.equal(run.player.inv.consumable, 'thunder-stone');
+  }
+});
+
+test('M7.1b 雷之石 F2 使用：正常进化并消耗（回归）', () => {
+  const run = createRun(data, 3142, 'pikachu', 'normal');
+  const d = data;
+  goNextFloorRef(run, d);   // F2
+  run.player.inv.consumable = 'thunder-stone';
+  run.player.x = 8; run.player.y = 5;
+  const evs = [];
+  for (let i = 0; i < 3; i++) { stepRun(run, { ...IDLE, useEdge: i === 0 }, d); evs.push(...run.events); }
+  assert.ok(evs.some((e) => e.t === 'evolve' && e.to === 'raichu'), 'F2 进化');
+  assert.equal(run.player.inv.consumable, null, '消耗');
+  assert.equal(run.player.species, 'raichu');
+});
+
+test('M7.1b 纪念品交换：旧的掉脚边；地上纪念品满槽不吞', () => {
+  const run = createRun(data, 3143, 'pikachu', 'normal');
+  const d = data;
+  run.player.inv.trinket = 'leftovers';       // 已持有剩饭
+  run.player.x = 8; run.player.y = 5;
+  run.pedestals.push({ id: run.nextId++, itemId: 'lucky-egg', price: 0, priceHp: 0, x: 8, y: 5, taken: false });
+  const evs = [];
+  for (let i = 0; i < 3; i++) { stepRun(run, IDLE, d); evs.push(...run.events); }
+  assert.equal(run.player.inv.trinket, 'lucky-egg', '装备新的');
+  const dropped = run.pickups.find((k) => k.kind === 'trinket' && k.itemId === 'leftovers');
+  assert.ok(dropped, '旧的掉脚边');
+  assert.ok(evs.some((e) => e.t === 'trinket-swap'));
+  // 满槽踩过地上的剩饭：不拾取
+  run.player.x = dropped.x; run.player.y = dropped.y;
+  const n0 = run.pickups.length;
+  for (let i = 0; i < 8; i++) stepRun(run, IDLE, d);
+  assert.equal(run.pickups.length, n0, '满槽不吞地上纪念品');
+  // 空槽（卸下？无卸下机制——换一只上去掉下来后捡回）：模拟空槽
+  run.player.inv.trinket = null;
+  run.player.x = dropped.x; run.player.y = dropped.y;
+  for (let i = 0; i < 8; i++) stepRun(run, IDLE, d);
+  assert.equal(run.player.inv.trinket, 'leftovers', '空槽可捡回');
 });

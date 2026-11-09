@@ -22,7 +22,9 @@
    "spdMod": 1.4,
    "family": "charger",
    "score": 2,
-   "radius": 0.42
+   "radius": 0.42,
+   "moveA": "quick-attack",
+   "zmove": "quick-attack-z"
   },
   "caterpie": {
    "dex": 10,
@@ -44,7 +46,9 @@
    "spdMod": 1.4,
    "family": "wanderer",
    "score": 1,
-   "radius": 0.4
+   "radius": 0.4,
+   "moveA": "string-shot",
+   "zmove": "string-shot-z"
   },
   "oddish": {
    "dex": 43,
@@ -74,7 +78,9 @@
     "spread": 3,
     "arcDeg": 50,
     "firstDelay": 1.2
-   }
+   },
+   "moveA": "acid-spray",
+   "zmove": "acid-spray-z"
   },
   "brock": {
    "dex": 0,
@@ -184,7 +190,9 @@
     "spread": 1,
     "arcDeg": 0,
     "firstDelay": 1.0
-   }
+   },
+   "moveA": "sonic-boom",
+   "zmove": "sonic-boom-z"
   },
   "grimer": {
    "dex": 88,
@@ -208,7 +216,9 @@
    "family": "wanderer",
    "score": 3,
    "radius": 0.42,
-   "splitOnDeath": "grimer-small"
+   "splitOnDeath": "grimer-small",
+   "moveA": "sludge",
+   "zmove": "sludge-z"
   },
   "grimer-small": {
    "dex": 88,
@@ -231,7 +241,9 @@
    "spdMod": 1.18,
    "family": "wanderer",
    "score": 1,
-   "radius": 0.42
+   "radius": 0.42,
+   "moveA": "mud-shot",
+   "zmove": "mud-shot-z"
   },
   "koffing": {
    "dex": 109,
@@ -287,7 +299,9 @@
     "spread": 3,
     "arcDeg": 40,
     "firstDelay": 1.2
-   }
+   },
+   "moveA": "bubble",
+   "zmove": "hydro-pump-z"
   },
   "meowth": {
    "dex": 52,
@@ -311,7 +325,9 @@
    "family": "thief",
    "score": 3,
    "radius": 0.42,
-   "steal": 1
+   "steal": 1,
+   "moveA": "bite",
+   "zmove": "payday-z"
   },
   "electrode": {
    "dex": 101,
@@ -370,7 +386,9 @@
     "arcDeg": 50,
     "firstDelay": 0.8
    },
-   "elite": true
+   "elite": true,
+   "moveA": "zap-cannon",
+   "zmove": "magnet-bomb-z"
   },
   "abra": {
    "dex": 63,
@@ -401,7 +419,9 @@
     "spread": 1,
     "arcDeg": 0,
     "firstDelay": 0.6
-   }
+   },
+   "moveA": "confusion",
+   "zmove": "psychic-z"
   },
   "gastly": {
    "dex": 92,
@@ -426,7 +446,9 @@
    "family": "wanderer",
    "score": 3,
    "radius": 0.42,
-   "passWalls": true
+   "passWalls": true,
+   "moveA": "lick",
+   "zmove": "night-shade-z"
   },
   "sandshrew": {
    "dex": 27,
@@ -449,7 +471,9 @@
    "spdMod": 1.4,
    "family": "charger",
    "score": 2,
-   "radius": 0.42
+   "radius": 0.42,
+   "moveA": "sand-tomb",
+   "zmove": "sandstorm-z"
   },
   "machop": {
    "dex": 66,
@@ -473,7 +497,9 @@
    "family": "charger",
    "score": 3,
    "radius": 0.42,
-   "lunge": true
+   "lunge": true,
+   "moveA": "karate-chop",
+   "zmove": "karate-chop-z"
   },
   "rhyhorn": {
    "dex": 111,
@@ -497,7 +523,9 @@
    "spdMod": 1.4,
    "family": "charger",
    "score": 4,
-   "radius": 0.42
+   "radius": 0.42,
+   "moveA": "horn-attack",
+   "zmove": "horn-drill-z"
   },
   "kecleon": {
    "dex": 352,
@@ -523,7 +551,9 @@
    "radius": 0.42,
    "steal": 2,
    "stealth": true,
-   "elite": true
+   "elite": true,
+   "moveA": "feint-attack",
+   "zmove": "feint-z"
   },
   "sandslash": {
    "dex": 28,
@@ -546,7 +576,9 @@
    "spdMod": 1.13,
    "family": "charger",
    "score": 6,
-   "radius": 0.42
+   "radius": 0.42,
+   "moveA": "fury-swipes",
+   "zmove": "thousand-arrows-z"
   },
   "gengar": {
    "dex": 94,
@@ -579,7 +611,9 @@
     "arcDeg": 60,
     "firstDelay": 1.0
    },
-   "elite": true
+   "elite": true,
+   "moveA": "shadow-ball",
+   "zmove": "shadow-sneak-z"
   },
   "surge": {
    "dex": 0,
@@ -768,7 +802,9 @@
     "cooldown": 4.2,
     "firstDelay": 2.0
    },
-   "comment": "唱治愈之歌周期奶周围同伴；击杀掉心"
+   "comment": "唱治愈之歌周期奶周围同伴；击杀掉心",
+   "moveA": "moonblast",
+   "zmove": "moonblast-z"
   },
   "jigglypuff": {
    "dex": 39,
@@ -798,7 +834,9 @@
     "cooldown": 2.6,
     "firstDelay": 1.0
    },
-   "comment": "眨现到玩家附近唱摇篮曲（慢速大弹）"
+   "comment": "眨现到玩家附近唱摇篮曲（慢速大弹）",
+   "moveA": "pound",
+   "zmove": "hyper-voice-z"
   },
   "geodude": {
    "dex": 74,
@@ -830,7 +868,9 @@
     "firstDelay": 1.6,
     "spread": 1.6
    },
-   "comment": "抛掷岩石：玩家当前位置+散布预警圈"
+   "comment": "抛掷岩石：玩家当前位置+散布预警圈",
+   "moveA": "rollout",
+   "zmove": "rock-slide-z"
   },
   "drowzee": {
    "dex": 96,
@@ -860,7 +900,9 @@
     "cooldown": 3.6,
     "firstDelay": 1.4
    },
-   "comment": "蓄力 1 秒后高速狙击（弹速快，蓄力时闪黄）"
+   "comment": "蓄力 1 秒后高速狙击（弹速快，蓄力时闪黄）",
+   "moveA": "psybeam",
+   "zmove": "hypnosis-z"
   },
   "chansey": {
    "dex": 113,
@@ -890,7 +932,9 @@
     "firstDelay": 1.2
    },
    "dropHearts": 2,
-   "comment": "蛋蛋大厨：奶量最大；击杀必掉 2 颗心"
+   "comment": "蛋蛋大厨：奶量最大；击杀必掉 2 颗心",
+   "moveA": "egg-bomb",
+   "zmove": "egg-rain-z"
   },
   "scyther": {
    "dex": 123,
@@ -922,7 +966,9 @@
     "cooldown": 2.8,
     "firstDelay": 1.2
    },
-   "comment": "锁定一条直线蓄力后横冲（冲线路径有预警标记）"
+   "comment": "锁定一条直线蓄力后横冲（冲线路径有预警标记）",
+   "moveA": "fury-cutter",
+   "zmove": "x-scissor-z"
   },
   "magikarp": {
    "dex": 129,
@@ -947,7 +993,9 @@
    "family": "flopper",
    "transformTo": "gyarados",
    "transformT": 9.0,
-   "comment": "无害弹跳；9 秒后或受击怒变暴鲤龙"
+   "comment": "无害弹跳；9 秒后或受击怒变暴鲤龙",
+   "moveA": "splash",
+   "zmove": "splash-z"
   },
   "gyarados": {
    "dex": 130,
@@ -972,7 +1020,9 @@
    "score": 6,
    "family": "charger",
    "lunge": true,
-   "comment": "怒化的暴鲤龙：高血重型，扑击带击退"
+   "comment": "怒化的暴鲤龙：高血重型，扑击带击退",
+   "moveA": "twister",
+   "zmove": "dragon-rage-z"
   },
   "ditto": {
    "dex": 132,
@@ -1000,7 +1050,9 @@
     "firstDelay": 1.5,
     "spreadCap": 3
    },
-   "comment": "变化：复制玩家当前 A 槽招式反弹回来"
+   "comment": "变化：复制玩家当前 A 槽招式反弹回来",
+   "moveA": "mirror-shot",
+   "zmove": "transform-z"
   },
   "snorlax": {
    "dex": 143,
@@ -1024,7 +1076,9 @@
    "score": 6,
    "family": "tank",
    "kbRes": 0.72,
-   "comment": "路障：高血击退抗性，逼你绕位或贴脸磨"
+   "comment": "路障：高血击退抗性，逼你绕位或贴脸磨",
+   "moveA": "body-slam",
+   "zmove": "body-slam-z"
   },
   "dragonite": {
    "dex": 149,
@@ -1055,7 +1109,9 @@
     "spread": 3,
     "arcDeg": 26
    },
-   "comment": "遗迹守卫：三连龙波（飞行系，燕返克制）"
+   "comment": "遗迹守卫：三连龙波（飞行系，燕返克制）",
+   "moveA": "dragon-claw",
+   "zmove": "extreme-speed-z"
   },
   "mewtwo": {
    "dex": 150,

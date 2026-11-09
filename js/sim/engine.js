@@ -1,10 +1,10 @@
 // 模拟层引擎：多层塔状态机。纯数据变换，无 DOM/three（node 可无头跑）。
 // 坐标：模拟层 (x, y) 平面，y+ = 南；渲染层映射为 (x, 0, y)。
-import { makeRng, rngNext } from './rng.js?v=m7a';
-import { genMap } from './genmap.js?v=m7a';
-import { applyItems, playerStats } from './items.js?v=m7a';
-import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom } from './actors.js?v=m7a';
-import { stepTelegraphs } from './boss.js?v=m7a';
+import { makeRng, rngNext } from './rng.js?v=m7b';
+import { genMap } from './genmap.js?v=m7b';
+import { applyItems, playerStats } from './items.js?v=m7b';
+import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom } from './actors.js?v=m7b';
+import { stepTelegraphs } from './boss.js?v=m7b';
 
 export const STEP = 1 / 60;
 export const ROOM_W = 17;
@@ -78,7 +78,7 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
       inv: { passives: [], trinket: null, consumable: null, badges: [], keys: 0 },   // keys=密室钥匙（M7）
       mods: null, stats: null,
       lethalGuardUsed: false,
-      companion: null,                                   // 救援营地替补 {eid, name, hp, maxHp, types, moveA}
+      companion: null,                                   // 救援营地替补 {eid, name, hp, maxHp, types, moveA, zmove, moveB, tmItem, pp}
       activeSide: 'main',                                // main | companion
       buffs: { speed: 0, dmg: 0, guard: 0, contact: 0 }, // 消耗品时限增益（秒）
       hitStreak: 0,                                      // 节拍器连击计数
@@ -121,7 +121,9 @@ export function recompute(state, data) {
   p.maxHp = newMax;
   p.hp = Math.min(p.hp, p.maxHp);
   p.moveB = p.mods.tm || null;
-  if (p.slot === 'B' && (!p.moveB || p.mods.lockB)) p.slot = 'A';
+  // B 槽切换门槛看上场侧自己的技能机（替补的 moveB 独立于主力）
+  const sideB = (p.activeSide === 'companion' && p.companion) ? p.companion.moveB : p.moveB;
+  if (p.slot === 'B' && (!sideB || p.mods.lockB)) p.slot = 'A';
 }
 
 // 进入下一层（Boss 房楼梯触发）。保留成长，重置地图。
@@ -176,9 +178,10 @@ export function goNextFloor(state, data) {
   state.player.lethalGuardUsed = false;                  // 气势披带每层一次
   const heal = 2;
   state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
-  // 月之石：进新层 PP 回满 + 回 1 格
+  // 月之石：进新层 PP 回满 + 回 1 格（主力/替补两条 PP 都回满）
   if (state.player.mods && state.player.mods.floorPp) {
     state.player.pp = 100;
+    if (state.player.companion) state.player.companion.pp = 100;
     state.player.hp = Math.min(state.player.maxHp, state.player.hp + 1);
   }
   if (state.player.companion) state.player.companion.hp = state.player.companion.maxHp;

@@ -177,6 +177,9 @@ body.touchmode .kb-only { display: none; }
 .st-code-row input { flex: 1; min-width: 0; font: inherit; font-size: 13px; color: #ffe9a0; background: rgba(10, 14, 24, .9); border: 1px solid #3a4a6c; border-radius: 3px; padding: 8px 10px; outline: none; }
 .st-code-row input:focus { border-color: #7fd4ff; }
 .pk-q { font-size: 10px; letter-spacing: 2px; margin-left: 6px; }
+.k-tag { display: inline-block; font-style: normal; font-size: 9px; letter-spacing: 1px; color: #7fd4ff;
+  border: 1px solid rgba(127, 212, 255, .45); border-radius: 3px; padding: 0 4px; margin-left: 6px; vertical-align: 1px; }
+#itemcard .k-sub { font-style: normal; font-size: 10px; color: #7d8aa5; }
 .pk-q.q0 { color: #7d8aa5; } .pk-q.q1 { color: #9fe070; } .pk-q.q2 { color: #7fd4ff; }
 .pk-q.q3 { color: #c79fff; } .pk-q.q4 { color: #ffd24a; }
 

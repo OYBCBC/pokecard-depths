@@ -1,5 +1,5 @@
 {
- "v": 1,
+ "v": 2,
  "moves": {
   "thunder-shock": {
    "name": "电击",
@@ -256,6 +256,511 @@
    "radius": 0.18,
    "sprite": "orb-bolt",
    "enemyShot": true
+  },
+  "quick-attack": {
+   "name": "电光一闪",
+   "type": "normal",
+   "power": 32,
+   "kind": "projectile",
+   "speed": 13,
+   "range": 5.5,
+   "radius": 0.17,
+   "sprite": "orb-bolt",
+   "tint": "#f5e9c8"
+  },
+  "string-shot": {
+   "name": "吐丝",
+   "type": "bug",
+   "power": 35,
+   "kind": "projectile",
+   "speed": 6,
+   "range": 5.5,
+   "radius": 0.28,
+   "sprite": "orb-acid",
+   "tint": "#d8e8a0"
+  },
+  "acid-spray": {
+   "name": "溶解液",
+   "type": "poison",
+   "power": 40,
+   "kind": "projectile",
+   "speed": 7.5,
+   "range": 6.5,
+   "radius": 0.2,
+   "sprite": "orb-acid",
+   "tint": "#a868d8"
+  },
+  "sonic-boom": {
+   "name": "音爆",
+   "type": "steel",
+   "power": 40,
+   "kind": "projectile",
+   "speed": 11.5,
+   "range": 7.0,
+   "radius": 0.19,
+   "sprite": "orb-bolt",
+   "tint": "#c8d8e8"
+  },
+  "sludge": {
+   "name": "污泥",
+   "type": "poison",
+   "power": 45,
+   "kind": "projectile",
+   "speed": 5.5,
+   "range": 6.0,
+   "radius": 0.34,
+   "sprite": "orb-acid",
+   "tint": "#b06ad0"
+  },
+  "mud-shot": {
+   "name": "泥巴弹",
+   "type": "ground",
+   "power": 30,
+   "kind": "projectile",
+   "speed": 8.5,
+   "range": 5.5,
+   "radius": 0.2,
+   "sprite": "orb-acid",
+   "tint": "#b09868"
+  },
+  "bite": {
+   "name": "咬住",
+   "type": "normal",
+   "power": 40,
+   "kind": "projectile",
+   "speed": 12,
+   "range": 4.2,
+   "radius": 0.22,
+   "sprite": "orb-bolt",
+   "tint": "#e8c8a0"
+  },
+  "confusion": {
+   "name": "念力",
+   "type": "psychic",
+   "power": 40,
+   "kind": "projectile",
+   "speed": 8.5,
+   "range": 7.0,
+   "radius": 0.19,
+   "sprite": "orb-bolt",
+   "tint": "#ff9fe0"
+  },
+  "lick": {
+   "name": "舔舔",
+   "type": "ghost",
+   "power": 50,
+   "kind": "projectile",
+   "speed": 7,
+   "range": 2.4,
+   "radius": 0.3,
+   "sprite": "orb-acid",
+   "tint": "#c0a8e8"
+  },
+  "sand-tomb": {
+   "name": "流沙",
+   "type": "ground",
+   "power": 42,
+   "kind": "projectile",
+   "speed": 7.5,
+   "range": 5.5,
+   "radius": 0.26,
+   "sprite": "orb-acid",
+   "tint": "#e0c888"
+  },
+  "karate-chop": {
+   "name": "空手劈",
+   "type": "fighting",
+   "power": 48,
+   "kind": "projectile",
+   "speed": 9,
+   "range": 3.2,
+   "radius": 0.3,
+   "sprite": "orb-bolt",
+   "tint": "#e8a080",
+   "knock": 2
+  },
+  "horn-attack": {
+   "name": "角撞",
+   "type": "ground",
+   "power": 52,
+   "kind": "projectile",
+   "speed": 5.5,
+   "range": 2.6,
+   "radius": 0.4,
+   "sprite": "orb-bolt",
+   "tint": "#d8c8a8",
+   "knock": 3
+  },
+  "feint-attack": {
+   "name": "偷袭",
+   "type": "normal",
+   "power": 40,
+   "kind": "projectile",
+   "speed": 9.5,
+   "range": 6.5,
+   "radius": 0.18,
+   "sprite": "orb-bolt",
+   "tint": "#9098a8",
+   "homing": 0.15
+  },
+  "fury-swipes": {
+   "name": "乱抓",
+   "type": "normal",
+   "power": 22,
+   "kind": "projectile",
+   "speed": 11.5,
+   "range": 5.5,
+   "radius": 0.16,
+   "sprite": "orb-bolt",
+   "tint": "#e8d8a8",
+   "spread": 2,
+   "arcDeg": 12
+  },
+  "shadow-ball": {
+   "name": "暗影球",
+   "type": "ghost",
+   "power": 45,
+   "kind": "projectile",
+   "speed": 8,
+   "range": 7.0,
+   "radius": 0.24,
+   "sprite": "orb-acid",
+   "tint": "#a08fd0",
+   "pierce": 1
+  },
+  "moonblast": {
+   "name": "月亮之力",
+   "type": "fairy",
+   "power": 45,
+   "kind": "projectile",
+   "speed": 8,
+   "range": 6.5,
+   "radius": 0.24,
+   "sprite": "orb-bolt",
+   "tint": "#ffb8e8"
+  },
+  "pound": {
+   "name": "拍击",
+   "type": "normal",
+   "power": 45,
+   "kind": "projectile",
+   "speed": 6.5,
+   "range": 5.5,
+   "radius": 0.32,
+   "sprite": "orb-bolt",
+   "tint": "#f0c8d8"
+  },
+  "rollout": {
+   "name": "滚动",
+   "type": "rock",
+   "power": 45,
+   "kind": "projectile",
+   "speed": 7,
+   "range": 6.0,
+   "radius": 0.36,
+   "sprite": "orb-bolt",
+   "tint": "#c8b090"
+  },
+  "psybeam": {
+   "name": "精神光线",
+   "type": "psychic",
+   "power": 40,
+   "kind": "projectile",
+   "speed": 10.5,
+   "range": 9.0,
+   "radius": 0.18,
+   "sprite": "orb-bolt",
+   "tint": "#ff8fd8"
+  },
+  "egg-bomb": {
+   "name": "蛋炸弹",
+   "type": "normal",
+   "power": 55,
+   "kind": "projectile",
+   "speed": 5.5,
+   "range": 5.5,
+   "radius": 0.42,
+   "sprite": "orb-bolt",
+   "tint": "#f8ecd8"
+  },
+  "fury-cutter": {
+   "name": "连斩",
+   "type": "bug",
+   "power": 26,
+   "kind": "projectile",
+   "speed": 12.5,
+   "range": 6.0,
+   "radius": 0.16,
+   "sprite": "orb-bolt",
+   "tint": "#b8e878",
+   "spread": 2,
+   "arcDeg": 14
+  },
+  "splash": {
+   "name": "溅跳",
+   "type": "water",
+   "power": 16,
+   "kind": "projectile",
+   "speed": 8,
+   "range": 4.5,
+   "radius": 0.16,
+   "sprite": "orb-bolt",
+   "tint": "#9fd8ff",
+   "spread": 3,
+   "arcDeg": 30
+  },
+  "twister": {
+   "name": "龙卷风",
+   "type": "dragon",
+   "power": 46,
+   "kind": "projectile",
+   "speed": 8.5,
+   "range": 6.5,
+   "radius": 0.28,
+   "sprite": "orb-bolt",
+   "tint": "#a8d0f0"
+  },
+  "mirror-shot": {
+   "name": "模仿",
+   "type": "normal",
+   "power": 40,
+   "kind": "projectile",
+   "speed": 9.5,
+   "range": 6.5,
+   "radius": 0.19,
+   "sprite": "orb-bolt",
+   "tint": "#ffb8c8"
+  },
+  "body-slam": {
+   "name": "压扁",
+   "type": "normal",
+   "power": 58,
+   "kind": "projectile",
+   "speed": 4.5,
+   "range": 3.5,
+   "radius": 0.5,
+   "sprite": "orb-bolt",
+   "tint": "#e8e0c8",
+   "knock": 3
+  },
+  "dragon-claw": {
+   "name": "龙爪",
+   "type": "dragon",
+   "power": 48,
+   "kind": "projectile",
+   "speed": 10,
+   "range": 6.5,
+   "radius": 0.26,
+   "sprite": "orb-bolt",
+   "tint": "#f0a858",
+   "pierce": 1
+  },
+  "zap-cannon": {
+   "name": "电磁炮",
+   "type": "electric",
+   "power": 50,
+   "kind": "projectile",
+   "speed": 7.5,
+   "range": 6.5,
+   "radius": 0.26,
+   "sprite": "orb-bolt",
+   "tint": "#ffe08a"
+  },
+  "quick-attack-z": {
+   "name": "必杀门牙·Z",
+   "type": "normal",
+   "power": 100,
+   "kind": "zmove",
+   "radius": 3.4
+  },
+  "string-shot-z": {
+   "name": "虫丝封路·Z",
+   "type": "bug",
+   "power": 95,
+   "kind": "zmove",
+   "radius": 3.6
+  },
+  "acid-spray-z": {
+   "name": "剧毒花粉·Z",
+   "type": "poison",
+   "power": 110,
+   "kind": "zmove",
+   "radius": 3.8
+  },
+  "sonic-boom-z": {
+   "name": "电磁风暴·Z",
+   "type": "electric",
+   "power": 120,
+   "kind": "zmove",
+   "radius": 4.0
+  },
+  "magnet-bomb-z": {
+   "name": "磁场风暴·Z",
+   "type": "electric",
+   "power": 135,
+   "kind": "zmove",
+   "radius": 4.6
+  },
+  "sludge-z": {
+   "name": "污泥浊流·Z",
+   "type": "poison",
+   "power": 120,
+   "kind": "zmove",
+   "radius": 4.2
+  },
+  "mud-shot-z": {
+   "name": "泥浆喷发·Z",
+   "type": "ground",
+   "power": 90,
+   "kind": "zmove",
+   "radius": 3.2
+  },
+  "hydro-pump-z": {
+   "name": "水炮·Z",
+   "type": "water",
+   "power": 125,
+   "kind": "zmove",
+   "radius": 4.4
+  },
+  "payday-z": {
+   "name": "撒金爪·Z",
+   "type": "normal",
+   "power": 115,
+   "kind": "zmove",
+   "radius": 3.8
+  },
+  "psychic-z": {
+   "name": "精神强念·Z",
+   "type": "psychic",
+   "power": 125,
+   "kind": "zmove",
+   "radius": 4.4
+  },
+  "night-shade-z": {
+   "name": "夜影·Z",
+   "type": "ghost",
+   "power": 130,
+   "kind": "zmove",
+   "radius": 4.2
+  },
+  "sandstorm-z": {
+   "name": "飞沙走石·Z",
+   "type": "ground",
+   "power": 115,
+   "kind": "zmove",
+   "radius": 4.0
+  },
+  "karate-chop-z": {
+   "name": "爆裂拳·Z",
+   "type": "fighting",
+   "power": 125,
+   "kind": "zmove",
+   "radius": 3.8
+  },
+  "horn-drill-z": {
+   "name": "角钻·Z",
+   "type": "ground",
+   "power": 140,
+   "kind": "zmove",
+   "radius": 4.4
+  },
+  "feint-z": {
+   "name": "诡影偷袭·Z",
+   "type": "normal",
+   "power": 120,
+   "kind": "zmove",
+   "radius": 4.0
+  },
+  "thousand-arrows-z": {
+   "name": "千针乱刺·Z",
+   "type": "ground",
+   "power": 130,
+   "kind": "zmove",
+   "radius": 4.2
+  },
+  "shadow-sneak-z": {
+   "name": "影子偷袭·Z",
+   "type": "ghost",
+   "power": 150,
+   "kind": "zmove",
+   "radius": 4.8
+  },
+  "moonblast-z": {
+   "name": "月亮之力·Z",
+   "type": "fairy",
+   "power": 130,
+   "kind": "zmove",
+   "radius": 4.4
+  },
+  "hyper-voice-z": {
+   "name": "巨声·Z",
+   "type": "normal",
+   "power": 125,
+   "kind": "zmove",
+   "radius": 4.6
+  },
+  "rock-slide-z": {
+   "name": "山崩地裂·Z",
+   "type": "rock",
+   "power": 135,
+   "kind": "zmove",
+   "radius": 4.6
+  },
+  "hypnosis-z": {
+   "name": "催入梦乡·Z",
+   "type": "psychic",
+   "power": 120,
+   "kind": "zmove",
+   "radius": 4.4
+  },
+  "egg-rain-z": {
+   "name": "天降蛋雨·Z",
+   "type": "normal",
+   "power": 130,
+   "kind": "zmove",
+   "radius": 4.8
+  },
+  "x-scissor-z": {
+   "name": "十字剪·Z",
+   "type": "bug",
+   "power": 135,
+   "kind": "zmove",
+   "radius": 4.4
+  },
+  "splash-z": {
+   "name": "跃起·Z",
+   "type": "water",
+   "power": 60,
+   "kind": "zmove",
+   "radius": 2.8
+  },
+  "dragon-rage-z": {
+   "name": "破浪龙怒·Z",
+   "type": "water",
+   "power": 160,
+   "kind": "zmove",
+   "radius": 5.5
+  },
+  "transform-z": {
+   "name": "百变乱舞·Z",
+   "type": "normal",
+   "power": 120,
+   "kind": "zmove",
+   "radius": 4.2
+  },
+  "body-slam-z": {
+   "name": "泰山压顶·Z",
+   "type": "normal",
+   "power": 155,
+   "kind": "zmove",
+   "radius": 5.2
+  },
+  "extreme-speed-z": {
+   "name": "神速·Z",
+   "type": "dragon",
+   "power": 155,
+   "kind": "zmove",
+   "radius": 5.0
   }
  }
 }

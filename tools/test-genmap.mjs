@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { genMap } from '../js/sim/genmap.js?v=m7a';
+import { genMap } from '../js/sim/genmap.js?v=m7b';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 void ROOT;
