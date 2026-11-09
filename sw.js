@@ -1,5 +1,5 @@
 // 由 tools/make-sw.py 生成，勿手改。VERSION 变更即全量换缓存。
-const VERSION = '426268628c';
+const VERSION = '0a33f71582';
 const PRECACHE = [
   "assets/atlas/abra.json",
   "assets/atlas/abra.png",
@@ -287,9 +287,12 @@ const PRECACHE = [
   "js/gfx/effects.js",
   "js/gfx/lights.js",
   "js/gfx/postfx.js",
+  "js/gfx/projtex.js",
   "js/gfx/renderer.js",
   "js/gfx/scene.js",
   "js/gfx/sprites.js",
+  "js/gfx/vfxdefs.js",
+  "js/lab.js",
   "js/main.js",
   "js/sim/achv.js",
   "js/sim/actors.js",
@@ -302,6 +305,7 @@ const PRECACHE = [
   "js/sim/rng.js",
   "js/sim/save.js",
   "js/ui/hud.js",
+  "lab.html",
   "vendor/VERSIONS",
   "vendor/postprocessing/index.js",
   "vendor/three/three.core.js",

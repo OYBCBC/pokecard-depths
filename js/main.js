@@ -5,7 +5,8 @@ import { createLights } from './gfx/lights.js?v=m7b';
 import { createCamera } from './gfx/camera.js?v=m7b';
 import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m7b';
 import { createBillboard } from './gfx/sprites.js?v=m7b';
-import { createEffects } from './gfx/effects.js?v=m7b';
+import { createEffects } from './gfx/effects.js?v=m8';
+import { styleOf, TYPE_COLORS } from './gfx/vfxdefs.js?v=m8';
 import { createPostfx } from './gfx/postfx.js?v=m7b';
 import { createHud } from './ui/hud.js?v=m7b';
 import { createCries } from './audio/cries.js?v=m7b';
@@ -224,7 +225,7 @@ async function boot() {
   Object.defineProperty(tex, 'floorBoss', { get: () => themeTex[curTheme()].floorBoss });
   Object.defineProperty(tex, 'wall', { get: () => themeTex[curTheme()].wall });
   Object.defineProperty(tex, 'wallTop', { get: () => themeTex[curTheme()].wallTop });
-  const fx = createEffects(THREE, scene, { bolt: orbBolt, acid: orbAcid });
+  const fx = createEffects(THREE, scene, ringTex, { flashLights: tier !== 'low' });
   const teleFx = createTelegraphFx(THREE, scene, ringTex);
 
   hud.progress(0.65, '后处理链…');
@@ -747,6 +748,8 @@ async function boot() {
   }
 
   const fading = [];
+  // 属性特效辅助：事件里的 moveId → 样式键与配色
+  const mvType = (id) => ((data.moves[id] || {}).type);
   function consumeEvents() {
     for (const ev of run.events) {
       switch (ev.t) {
@@ -780,7 +783,12 @@ async function boot() {
         }
         case 'room-transition': hud.flash(); splay('door'); break;
         case 'dash': splay('dash'); break;
-        case 'shot': splay('shot'); break;
+        case 'shot': {
+          splay('shot');
+          const mt = mvType(ev.moveId);
+          fx.muzzle(ev.x, ev.y, styleOf(ev.moveId, mt), mt);
+          break;
+        }
         case 'spawn': {
           const spec = data.enemies[ev.eid];
           const anim = (spec && spec.anim) || ev.eid;
@@ -806,10 +814,11 @@ async function boot() {
         case 'enemy-hurt': case 'enemy-die': {
           const bb = enemyViews.get(ev.id);
           if (bb) bb.flash(0.12);
-          const color = ev.kind === 'super' ? 0xffd24a : ev.kind === 'weak' ? 0x9aa7bd : 0xffe9a0;
           splay(ev.t === 'enemy-hurt' ? (ev.kind === 'super' ? 'superhit' : ev.kind === 'weak' ? 'weakhit' : 'hit') : 'kill');
-          fx.burst(ev.x, ev.y, ev.t === 'enemy-die' ? 14 : 6, color);
+          const mt = mvType(ev.moveId);
+          fx.hitFx(ev.x, ev.y, styleOf(ev.moveId, mt), mt, ev.kind);
           if (ev.t === 'enemy-die') {
+            fx.burst(ev.x, ev.y, 10, (TYPE_COLORS[mt] || TYPE_COLORS.normal)[0], { spd: 3.4, up: 3, grav: 5, life: 0.55 });   // 击杀补一发属性色大爆发
             hitStopT = Math.max(hitStopT, feel.hitStopKill);
             camCtl.shake(ev.name === '小刚' ? 0.5 : feel.shakeKill, 0.25);
             if (ev.kind === 'super') damageNum(ev.x, ev.y, '克制!', 'super');
@@ -1005,7 +1014,7 @@ async function boot() {
           hud.flash();
           camCtl.shake(0.5, 0.5);
           hitStopT = Math.max(hitStopT, 0.18);
-          fx.burst(ev.x, ev.y, 26, 0xffe24a);
+          fx.zmoveFx(ev.x, ev.y, mvType(ev.id), ev.radius);
           damageNum(ev.x, ev.y, ev.name + '！', 'super');
           break;
         case 'companion-join': {
@@ -1285,7 +1294,7 @@ async function boot() {
     }
     else if (!run.over) hud.hideBossBar();
 
-    fx.syncProjectiles(run.projectiles, alpha);
+    fx.syncProjectiles(run.projectiles, alpha, dt, data);
     teleFx.sync(run.telegraphs);
     fx.update(dt);
     hud.setCompass(!!(run.player.mods && run.player.mods.compass));   // 洞窟罗盘：隐藏房上图

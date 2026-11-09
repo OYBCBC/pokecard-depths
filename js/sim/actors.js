@@ -758,18 +758,18 @@ function applyHit(state, e, b, data) {
   }
 
   if (e.hp <= 0) {
-    killEnemy(state, e, hit.kind);
+    killEnemy(state, e, hit.kind, b.moveId);
     // 大根茎：击杀回血
     if (m.killHeal > 0 && state.rand() < m.killHeal && p.hp < p.maxHp) {
       p.hp = Math.min(p.maxHp, p.hp + 1);
       state.events.push({ t: 'kill-heal', x: e.x, y: e.y });
     }
   } else {
-    state.events.push({ t: 'enemy-hurt', id: e.id, x: e.x, y: e.y, dmg: b.splitChild ? dmg : dmg, kind: hit.kind });
+    state.events.push({ t: 'enemy-hurt', id: e.id, x: e.x, y: e.y, dmg: b.splitChild ? dmg : dmg, kind: hit.kind, moveId: b.moveId });
   }
 }
 
-function killEnemy(state, e, kind = 'normal') {
+function killEnemy(state, e, kind = 'normal', moveId = null) {
   if (e.state === 'dead') return;
   // 分裂（臭泥）：死时裂两只小的
   if (e.splitOnDeath && state.enemies && !e.isSplitChild) {
@@ -807,7 +807,7 @@ function killEnemy(state, e, kind = 'normal') {
         Math.max(1, Math.min(state.roomH - 1, e.y + (state.rand() - 0.5) * 1.6))));
     }
   }
-  state.events.push({ t: 'enemy-die', id: e.id, eid: e.eid, x: e.x, y: e.y, kind, name: e.name, floor: state.floorNo, elite: e.elite });
+  state.events.push({ t: 'enemy-die', id: e.id, eid: e.eid, x: e.x, y: e.y, kind, name: e.name, floor: state.floorNo, elite: e.elite, moveId });
 }
 
 // 鲤鱼王 → 暴鲤龙：原位变身（保 id/位置；视图经 enemy-skin 事件重建贴图）

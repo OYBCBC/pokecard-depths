@@ -14,7 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 INCLUDE_DIRS = ['css', 'js', 'vendor', 'assets/tiles', 'assets/items', 'assets/atlas',
                 'assets/cries', 'assets/fonts', 'assets/orig', 'assets/credits']
-INCLUDE_FILES = ['index.html', 'sw.js']      # sw.js 自身不入缓存清单
+INCLUDE_FILES = ['index.html', 'lab.html', 'sw.js']      # sw.js 自身不入缓存清单
 EXCLUDE_SUFFIX = ('.DS_Store', '.md')
 
 # URL 子路径前缀：GitHub Pages 子路径部署（/pokecard-depths/）与本地根路径都兼容——
