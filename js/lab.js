@@ -2,18 +2,18 @@
 // 结构：左面板（DOM）选攻击方/招式/靶子 → createRun 的沙盒局（出生房清空，塞一只可控 dummy）
 // → stepRun 驱动真实战斗路径 → consumeEvents 出特效/伤害数字/记录。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize } from './gfx/renderer.js?v=m7b';
-import { createLights } from './gfx/lights.js?v=m7b';
-import { createCamera } from './gfx/camera.js?v=m7b';
-import { buildRoom } from './gfx/scene.js?v=m7b';
-import { createBillboard } from './gfx/sprites.js?v=m7b';
-import { createEffects } from './gfx/effects.js?v=m8';
-import { createPostfx } from './gfx/postfx.js?v=m7b';
-import { createInput } from './core/input.js?v=m7b';
-import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m7b';
-import { computeHit } from './sim/combat.js?v=m7b';
-import { styleOf, styleDef, TYPE_COLORS } from './gfx/vfxdefs.js?v=m8';
-import { makeProjTex } from './gfx/projtex.js?v=m8';
+import { detectTier, createRenderer, resize, viewportSize } from './gfx/renderer.js?v=m9';
+import { createLights } from './gfx/lights.js?v=m9';
+import { createCamera } from './gfx/camera.js?v=m9';
+import { buildRoom } from './gfx/scene.js?v=m9';
+import { createBillboard } from './gfx/sprites.js?v=m9';
+import { createEffects } from './gfx/effects.js?v=m9';
+import { createPostfx } from './gfx/postfx.js?v=m9';
+import { createInput } from './core/input.js?v=m9';
+import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m9';
+import { computeHit, moveTag } from './sim/combat.js?v=m9';
+import { styleOf, styleDef, TYPE_COLORS } from './gfx/vfxdefs.js?v=m9';
+import { makeProjTex } from './gfx/projtex.js?v=m9';
 
 const TYPE_ZH = {
   normal: '一般', fire: '火', water: '水', grass: '草', electric: '电', ice: '冰',
@@ -235,17 +235,21 @@ async function boot() {
   }
   function moveRow(m, tag) {
     const mv = data.moves[m.id];
-    return `<label class="move-opt" data-mv="${m.id}"><input type="radio" name="mv">${badge(mv.type)}<span class="mn">${mv.name}</span><span class="pw">${tag || ('威力' + mv.power)}</span></label>`;
+    const cls = moveTag(mv);                         // 物·近 / 特·远 …（Z 招式为空）
+    return `<label class="move-opt" data-mv="${m.id}"><input type="radio" name="mv">${badge(mv.type)}<span class="mn">${mv.name}</span>${cls ? `<span class="mc mc-${mv.reach}">${cls}</span>` : ''}<span class="pw">${tag || ('威力' + mv.power)}</span></label>`;
   }
   function buildMoveList(info) {
     const recIds = new Set(info.recs.map((r) => r.id));
     const recHtml = info.recs.map((r) => moveRow(r, r.tag)).join('');
     const playerMoves = movesArr.filter((m) => m.kind === 'projectile' && m.power > 0 && m.speed > 0 && !m.enemyShot && !recIds.has(m.id));
+    const meleeMoves = playerMoves.filter((m) => m.reach === 'melee');
+    const rangedMoves = playerMoves.filter((m) => m.reach !== 'melee');
     const enemyMoves = movesArr.filter((m) => m.kind === 'projectile' && m.enemyShot && m.speed > 0);
     const zMoves = movesArr.filter((m) => m.kind === 'zmove' && !recIds.has(m.id));
     $('move-list').innerHTML =
       `<h4>◆ ${info.name} 可用招式</h4>${recHtml}` +
-      `<h4>玩家弹幕（全部）</h4>${playerMoves.map((m) => moveRow(m)).join('')}` +
+      `<h4>近战横扫（扇形瞬发，扇内全体命中）</h4>${meleeMoves.map((m) => moveRow(m)).join('')}` +
+      `<h4>远程弹幕</h4>${rangedMoves.map((m) => moveRow(m)).join('')}` +
       `<h4>敌方弹幕</h4>${enemyMoves.map((m) => moveRow(m)).join('')}` +
       `<h4>Z 招式（R 触发）</h4>${zMoves.map((m) => moveRow(m)).join('')}`;
     for (const el of $('move-list').querySelectorAll('.move-opt')) {
@@ -270,14 +274,19 @@ async function boot() {
   // ---- 数据面板 ----
   function refreshMoveInfo() {
     const mv = data.moves[curMoveId] || {};
+    const melee = mv.reach === 'melee';
+    const cls = mv.kind === 'zmove' ? 'Z 招式（以自身为圆心的范围脉冲）'
+      : moveTag(mv, true).replace('·', ' · ') + (melee ? `（扇形 ${mv.sweepDeg}°）` : '（弹道）');
     const rows = [
       ['招式', `${mv.name || '？'} ${badge(mv.type)}`],
-      ['类别', mv.kind === 'zmove' ? 'Z 招式' : '弹幕'],
+      ['类别', cls],
       ['威力', mv.power || 0],
-      ['弹速', mv.speed || 0], ['射程', mv.range || 0], ['弹径', mv.radius || 0],
-      ['散射', mv.spread > 1 ? `${mv.spread} 发 / ${mv.arcDeg}°` : '单发'],
-      ['贯通', mv.pierce ? `+${mv.pierce}` : '—'],
-      ['追踪', mv.homing ? `×${mv.homing}` : '—'],
+      ...(melee
+        ? [['横扫半径', mv.sweepR], ['扇角', mv.sweepDeg + '°']]
+        : [['弹速', mv.speed || 0], ['射程', mv.range || 0], ['弹径', mv.radius || 0],
+          ['散射', mv.spread > 1 ? `${mv.spread} 发 / ${mv.arcDeg}°` : '单发'],
+          ['贯通', mv.pierce ? `+${mv.pierce}` : '—'],
+          ['追踪', mv.homing ? `×${mv.homing}` : '—']]),
       ['击退', mv.knock ? `×${mv.knock}` : '—'],
       ['出招间隔', (p.stats.fireInterval * (mv.intervalMul || 1)).toFixed(3) + ' s'],
     ];
@@ -311,6 +320,7 @@ async function boot() {
       ['特防修正', '×' + (e ? e.spdMod : 1).toFixed(2)],
       ['期望单发', hit.dmg.toFixed(2)],
       ...(mv.kind === 'zmove' ? [['AoE 半威力', 'Z 招式按 50% 威力结算']] : []),
+      ...(mv.reach === 'melee' ? [['横扫', '扇形内每个目标各结算一次（下面是单目标数值）']] : []),
       ['理论 DPS', dps.toFixed(2) + (pellets > 1 ? `（${pellets} 连发）` : '')],
     ].map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join('');
   }
@@ -361,6 +371,11 @@ async function boot() {
         case 'shot': {
           const mt = (data.moves[ev.moveId] || {}).type;
           fx.muzzle(ev.x, ev.y, styleOf(ev.moveId, mt), mt);
+          break;
+        }
+        case 'swing': {
+          const mt = (data.moves[ev.moveId] || {}).type;
+          fx.sweepFx(ev.x, ev.y, ev.a, ev.arc, ev.r, mt, styleOf(ev.moveId, mt));
           break;
         }
         case 'enemy-hurt': {

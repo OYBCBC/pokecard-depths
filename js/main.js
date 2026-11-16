@@ -1,23 +1,23 @@
 // 启动入口 M3：楼层/多房间/道具/Boss 全链路。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m7b';
-import { createLights } from './gfx/lights.js?v=m7b';
-import { createCamera } from './gfx/camera.js?v=m7b';
-import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m7b';
-import { createBillboard } from './gfx/sprites.js?v=m7b';
-import { createEffects } from './gfx/effects.js?v=m8';
-import { styleOf, TYPE_COLORS } from './gfx/vfxdefs.js?v=m8';
-import { createPostfx } from './gfx/postfx.js?v=m7b';
-import { createHud } from './ui/hud.js?v=m7b';
-import { createCries } from './audio/cries.js?v=m7b';
-import { createBgm } from './audio/bgm.js?v=m7b';
-import { createSfx } from './audio/sfx.js?v=m7b';
-import { createInput } from './core/input.js?v=m7b';
-import { createRun, stepRun, recompute, goNextFloor, STEP } from './sim/engine.js?v=m7b';
-import { enterRoom } from './sim/actors.js?v=m7b';
-import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m7b';
-import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m7b';
-import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m7b';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m9';
+import { createLights } from './gfx/lights.js?v=m9';
+import { createCamera } from './gfx/camera.js?v=m9';
+import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m9';
+import { createBillboard } from './gfx/sprites.js?v=m9';
+import { createEffects } from './gfx/effects.js?v=m9';
+import { styleOf, TYPE_COLORS } from './gfx/vfxdefs.js?v=m9';
+import { createPostfx } from './gfx/postfx.js?v=m9';
+import { createHud } from './ui/hud.js?v=m9';
+import { createCries } from './audio/cries.js?v=m9';
+import { createBgm } from './audio/bgm.js?v=m9';
+import { createSfx } from './audio/sfx.js?v=m9';
+import { createInput } from './core/input.js?v=m9';
+import { createRun, stepRun, recompute, goNextFloor, STEP } from './sim/engine.js?v=m9';
+import { enterRoom } from './sim/actors.js?v=m9';
+import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m9';
+import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m9';
+import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m9';
 
 const hud = createHud();
 const tier = detectTier();
@@ -147,6 +147,7 @@ async function boot() {
     }
   }
   if (modApplied) applyMod(data, modApplied);
+  hud.bindMoves(data.moves);                                  // 技能栏/面板的招式名与分类标签（MOD 改名后再绑）
   const atlasDir = manifest ? manifest.atlasDir : 'assets/atlas';
 
   hud.progress(0.15, '读取图集…');
@@ -255,6 +256,24 @@ async function boot() {
   const input = createInput();
   input.onFirstInteraction(() => { cries.ensureCtx(); if (!selfcheckOn) bgm.start(); });
   input.onPadConnect((id) => hud.toast('手柄已连接', (id || '').slice(0, 30)));
+  // ---- 操作布局（M9 固定双摇杆）：位置存视口比例（null=CSS 默认位，随安全区/屏幕自适应），
+  // 大小/透明度存倍率；读写同 depths-quality 范式（开机读、改了写、值校验兜底）----
+  const LAYOUT_KEY = 'depths-layout';
+  const LAYOUT_DEFAULT = { v: 1, l: null, r: null, size: 1, alpha: 0.8 };
+  function loadLayout() {
+    try {
+      const o = JSON.parse(localStorage.getItem(LAYOUT_KEY) || 'null');
+      if (!o || o.v !== 1) return { ...LAYOUT_DEFAULT };
+      const pos = (p) => (Array.isArray(p) && p.length === 2 && p.every((n) => Number.isFinite(n) && n >= 0 && n <= 1) ? [p[0], p[1]] : null);
+      const num = (n, lo, hi, d) => (Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d);
+      return { v: 1, l: pos(o.l), r: pos(o.r), size: num(o.size, 0.7, 1.4, 1), alpha: num(o.alpha, 0.3, 1, 0.8) };
+    } catch (e) { return { ...LAYOUT_DEFAULT }; }
+  }
+  let layoutCfg = loadLayout();
+  hud.applyLayout(layoutCfg);
+  // 摇杆几何以 DOM 实测为准（安全区/媒体查询/大小倍率一处说了算）：脏了就在下一帧量一次喂给 input
+  let layoutDirty = true;
+  input.onModeChange(() => { layoutDirty = true; });
   // 音频解锁（M6）：touchend/click/keydown 才算浏览器认可的"用户激活"（touchstart 不算）；
   // 每次都试到 BGM 真正跑起来为止（iOS 来电/切后台后 ctx 变 interrupted 也靠这里恢复）
   const unlockAudio = () => { cries.ensureCtx(); if (!selfcheckOn && !bgm.running) bgm.start(); };
@@ -374,7 +393,9 @@ async function boot() {
   }
   rebuildRoom();
 
-  window.__depths = { run, renderer, scene, camera: camCtl.camera, cries, sfx, tier, postfx, input, lightOk, data,
+  window.__depths = { run, renderer, scene, camera: camCtl.camera, cries, sfx, tier, postfx, input, lightOk, data, hud,
+    get layout() { return layoutCfg; },
+    openLayout: () => { if (!paused) setPaused(true); openLayoutEditor(); },   // 布局编辑器（实测用：先进暂停）
     get roomView() { return roomView; },
     get views() { return enemyViews; },          // selfcheck 按 id 精确取面片
     get player() { return player; }, pump: null,
@@ -639,6 +660,7 @@ async function boot() {
         else if (a === 'dex') refreshDex();
         else if (a === 'achv') refreshAchv();
         else if (a === 'fs') { goFullscreen(); setPaused(false); }
+        else if (a === 'layout') openLayoutEditor();
         else if (a === 'restart') { restartRun(); }
         else if (a === 'title') backToTitle();
       },
@@ -650,8 +672,40 @@ async function boot() {
       },
     });
   }
+  // 操作布局编辑器（M9，暂停菜单进入）：改动实时预览在真摇杆上；完成=存盘，取消/Esc/退出暂停=还原
+  let layoutClose = null;                          // 编辑器开着时 = 关闭函数（keep=是否保存）
+  function openLayoutEditor() {
+    hud.pauseMenu(false);
+    let cfg = { ...layoutCfg };
+    const preview = () => { hud.applyLayout(cfg); layoutDirty = true; };
+    const open = () => hud.layoutEditor(true, {
+      size: cfg.size, alpha: cfg.alpha,
+      onTune: (k, v) => { cfg = { ...cfg, [k]: v }; preview(); },
+      onDrag: (side, cx, cy) => {
+        const W = window.innerWidth || 1, H = window.innerHeight || 1;
+        cfg = { ...cfg, [side]: [Math.min(1, Math.max(0, cx / W)), Math.min(1, Math.max(0, cy / H))] };
+        preview();
+      },
+      onDefault: () => { cfg = { ...LAYOUT_DEFAULT }; preview(); open(); },
+      onCancel: () => layoutClose(false),
+      onSave: () => layoutClose(true),
+    });
+    layoutClose = (keep) => {
+      layoutClose = null;
+      if (keep) {
+        layoutCfg = cfg;
+        try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(cfg)); } catch (e) { /* ignore */ }
+      }
+      hud.applyLayout(layoutCfg);
+      layoutDirty = true;
+      hud.layoutEditor(false);
+      if (paused) showPauseMenu();
+    };
+    open();
+  }
   function setPaused(on) {
     paused = !!on && canPause();
+    if (!paused && layoutClose) layoutClose(false);   // 编辑中直接继续游戏：未保存的布局作废
     if (paused) { saveNow(); showPauseMenu(); }
     else hud.pauseMenu(false);
   }
@@ -691,10 +745,22 @@ async function boot() {
     }
     return best || { x: v.x, y: v.y };
   }
+  // 攻击摇杆按住未推（M9 固定摇杆常被当按钮点）：自动瞄 10 格内最近的敌人；没有就朝最后移动方向
+  function autoAim() {
+    const p = run.player;
+    let best = null, bd = 100;
+    for (const e of run.enemies) {
+      if (e.state !== 'active' || e.hidden) continue;
+      const dx = e.x - p.x, dy = e.y - p.y, d2 = dx * dx + dy * dy;
+      if (d2 < bd) { bd = d2; best = { x: dx, y: dy }; }
+    }
+    return best || { x: p.lastDir.x, y: p.lastDir.y };
+  }
 
   function aimVector() {
     const ta = input.touchAim();
     if (ta) return assistAim(ta);                   // 触屏右摇杆：朝推动方向射击（带轻度吸附）
+    if (input.touchHeld('r')) return autoAim();     // 触屏右摇杆按住不推：自动瞄准
     const pa = input.padAim();
     if (pa) return { x: pa.x, y: pa.y };            // 手柄右摇杆：朝推动方向射击
     raycaster.setFromCamera(input.mouse, camCtl.camera);
@@ -712,6 +778,8 @@ async function boot() {
   }
 
   // 台座详情（靠近 2.8 格内最近未拿台座）
+  // 技能机/替补带招式分类标签（M9：「物攻·近战」）
+  const tmTag = (it) => (it && it.effect && it.effect.tm ? hud.moveTag(it.effect.tm, true) : '');
   function peekInfo(d) {
     if (d.event === 'gacha') {
       return { name: '？？？晶石', quality: 0, icon: null, price: d.price, desc: '赌石：开了才知道是什么（道具/树果/……或空气）' };
@@ -719,22 +787,24 @@ async function boot() {
     if (d.event === 'forge') {
       const it = data.items[d.itemId];
       return { name: it.name + '（重铸）', quality: it.quality, icon: it.icon, price: d.price,
-        desc: '烧掉一件随机被动道具，铸成这件' };
+        desc: '烧掉一件随机被动道具，铸成这件', mtag: tmTag(it) };
     }
     if (d.event === 'blood') {
       const it = data.items[d.itemId];
       return { name: it.name, quality: it.quality, icon: it.icon, price: 0, priceHp: d.priceHp,
-        desc: it.desc, hpShort: d.priceHp > 0 && run.player.maxHp - d.priceHp < 2 };
+        desc: it.desc, hpShort: d.priceHp > 0 && run.player.maxHp - d.priceHp < 2, mtag: tmTag(it) };
     }
     if (d.event === 'gift') {
       const it = data.items[d.itemId];
-      return { name: it.name, quality: it.quality, icon: it.icon, price: 0, free: true, desc: it.desc };
+      return { name: it.name, quality: it.quality, icon: it.icon, price: 0, free: true, desc: it.desc, mtag: tmTag(it) };
     }
     if (d.itemId.startsWith('companion:')) {
       const spec = data.enemies[d.itemId.slice('companion:'.length)];
+      const mv = spec && data.moves[spec.moveA];
       return spec ? {
         name: spec.name + '（受困）', quality: 1, icon: null, price: 0, free: true,
         desc: `踏上台座免费结伴：${keyHint('KeyF')}换它上场，替你承受伤害`,
+        mtag: mv ? `${mv.name} ${hud.moveTag(spec.moveA, true)}` : '',
       } : null;
     }
     const it = data.items[d.itemId];
@@ -744,6 +814,7 @@ async function boot() {
       name: it.name, desc: it.desc, quality: it.quality, icon: it.icon, kind: it.kind,
       price: d.price, free: d.price === 0 && !d.priceHp, priceHp,
       hpShort: d.priceHp > 0 && run.player.maxHp - d.priceHp < 2,   // 上限不足
+      mtag: tmTag(it),
     };
   }
 
@@ -787,6 +858,12 @@ async function boot() {
           splay('shot');
           const mt = mvType(ev.moveId);
           fx.muzzle(ev.x, ev.y, styleOf(ev.moveId, mt), mt);
+          break;
+        }
+        case 'swing': {                                       // 近战横扫（M9）：扇形弧光 + 挥击声
+          splay('swing');
+          const mt = mvType(ev.moveId);
+          fx.sweepFx(ev.x, ev.y, ev.a, ev.arc, ev.r, mt, styleOf(ev.moveId, mt));
           break;
         }
         case 'spawn': {
@@ -925,7 +1002,7 @@ async function boot() {
         case 'item-take':
           splay(ev.kind === 'passive' && ev.id && ev.id.startsWith('tm-') ? 'tm' : 'item');
           props && props.removePedestal(run.pedestals.find((d) => d.itemId === ev.id)?.id ?? -1);
-          hud.itemCard(ev.name, ev.desc, ev.quality, ev.icon, ev.id && data.items[ev.id] ? data.items[ev.id].kind : ev.kind);
+          hud.itemCard(ev.name, ev.desc, ev.quality, ev.icon, ev.id && data.items[ev.id] ? data.items[ev.id].kind : ev.kind, tmTag(data.items[ev.id]));
           hud.slots(effMoveA(run), effMoveB(run), run.player.slot, run.player.mods.lockB);
           break;
         case 'choice-vanish':   // 三选一台座联动消失
@@ -1117,7 +1194,7 @@ async function boot() {
   // 现在边沿先进 pend，只交给下一个真正执行的模拟步，消费即清。
   const pend = { dash: false, slot: false, use: false, z: false, swap: false };
   const clearPend = () => { pend.dash = pend.slot = pend.use = pend.z = pend.swap = false; };
-  // 触屏引导：幽灵底座附文字，直到两根摇杆都用够 6 秒
+  // 触屏引导：摇杆下方附「移动/攻击」文字，直到两根摇杆都用够 6 秒
   let touchTut = (() => { try { return localStorage.getItem('depths-touch-tut') !== '1'; } catch (e) { return true; } })();
   const tutUse = { l: 0, r: 0 };
   // 动态分辨率（M6，仅触屏）：2.5s 平均帧率 <45 就逐级降像素比（不重载、不丢局）；
@@ -1168,9 +1245,10 @@ async function boot() {
     input.poll();                                             // 手柄：帧首统一轮询
     if (input.consumePress('KeyC')) cry((data.species[run.player.species] || {}).cry ?? 25);
     if (input.consumePress('KeyM')) toggleMute();
-    // Esc：先关浮层（图鉴/成就/触屏面板），都没开就切暂停；B 仍是图鉴，P 也能暂停
+    // Esc：先关浮层（布局编辑/图鉴/成就/触屏面板），都没开就切暂停；B 仍是图鉴，P 也能暂停
     if (input.consumePress('Escape')) {
-      if (hud.dexOpen) hud.hideDex();
+      if (layoutClose) layoutClose(false);
+      else if (hud.dexOpen) hud.hideDex();
       else if (hud.achvOpen) hud.hideAchv();
       else if (sheetToggle) sheetToggle = false;
       else if (paused) setPaused(false);
@@ -1213,7 +1291,7 @@ async function boot() {
     const gameInput = {
       move: input.getMove(),
       aim: aimVector(),
-      fire: (input.fire || !!input.touchAim() || !!input.padAim() || input.padFire()) && live,
+      fire: (input.fire || input.touchHeld('r') || !!input.padAim() || input.padFire()) && live,
       dashEdge: pend.dash, slotEdge: pend.slot, useEdge: pend.use, zEdge: pend.z, swapEdge: pend.swap,
     };
 
@@ -1334,10 +1412,14 @@ async function boot() {
       }
     }
 
-    // 触屏层（M6）：ingame 类控制按键/幽灵底座显隐；摇杆跟手；按键状态（冲刺格/PP 环/B 槽/道具图标/替补）
+    // 触屏层（M6→M9）：ingame 类控制按键/固定摇杆显隐；推摇杆头；按键状态（冲刺格/PP 环/B 槽/道具图标/替补）
     const ingame = started && p.alive && !run.over && !paused && !hud.dexOpen && !hud.achvOpen;
     if (ingame !== ingameSeen) { ingameSeen = ingame; document.body.classList.toggle('ingame', ingame); }
     if (input.touchMode) {
+      if (layoutDirty) {                            // 布局变了（开机/转屏/改布局）：量 DOM 喂给 input；量不到下帧再量
+        const g = hud.stickGeom();
+        if (g) { input.setStickLayout(g); layoutDirty = false; }
+      }
       const stks = input.sticks();
       if (touchTut && ingame) {
         if (stks.l) tutUse.l += rawDt;
@@ -1402,6 +1484,7 @@ async function boot() {
     fitView();
     if (postfx) postfx.setSize(...viewportSize());
     updateRotate();
+    layoutDirty = true;                            // 转屏/缩放：固定摇杆位置跟着视口变，重量
   };
   window.addEventListener('resize', onViewport);
   window.addEventListener('orientationchange', () => setTimeout(onViewport, 120));   // iOS 转屏后尺寸晚一拍

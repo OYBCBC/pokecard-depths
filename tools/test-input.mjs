@@ -1,4 +1,4 @@
-// 触屏输入回归（M6）：node --test tools/test-input.mjs
+// 触屏输入回归（M6→M9 固定双摇杆）：node --test tools/test-input.mjs
 // 无 DOM：桩 window/document/location，直接喂 TouchEvent 形状的对象给 createInput。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -44,11 +44,19 @@ function tev(target, touches) {
 }
 const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
 
-const { createInput, touchPreferred } = await import('../js/core/input.js?v=m7b');
+const { createInput, touchPreferred } = await import('../js/core/input.js?v=m9');
 
-test('左半屏拖动=移动：方向/幅度正确，超半径归一化', () => {
-  const { win } = setup();
+// M9 固定双摇杆：测试统一注入布局（左=移动 (100,300)，右=攻击 (600,250)，半径 52）
+const LAYOUT = { l: { x: 100, y: 300, r: 52 }, r: { x: 600, y: 250, r: 52 } };
+function mk(win) {
   const inp = createInput(win);
+  inp.setStickLayout(LAYOUT);
+  return inp;
+}
+
+test('移动摇杆：方向/幅度正确，超半径归一化', () => {
+  const { win } = setup();
+  const inp = mk(win);
   win.emit('touchstart', tev(canvasEl, [[1, 100, 300]]));
   win.emit('touchmove', tev(canvasEl, [[1, 126, 300]]));   // 右 26px = 半径一半
   let m = inp.getMove();
@@ -58,41 +66,47 @@ test('左半屏拖动=移动：方向/幅度正确，超半径归一化', () => 
   assert.ok(near(m.x, 0) && near(m.y, -1), `超半径应归一化为 (0,-1)，得 ${JSON.stringify(m)}`);
 });
 
-test('底座跟手：拖出半径后反向立即生效（不用拉回原点）', () => {
+test('底座固定：拖出半径再回拉，方向始终以固定圆心为准（不跟手）', () => {
   const { win } = setup();
-  const inp = createInput(win);
+  const inp = mk(win);
   win.emit('touchstart', tev(canvasEl, [[1, 100, 300]]));
-  win.emit('touchmove', tev(canvasEl, [[1, 300, 300]]));   // 向右拖 200px，底座跟到 248
-  win.emit('touchmove', tev(canvasEl, [[1, 190, 300]]));   // 回拉 110px（仍在原点右侧 90px：无跟手时这里还是"向右"）
+  win.emit('touchmove', tev(canvasEl, [[1, 300, 300]]));   // 向右拖 200px（浮动版底座会跟到 248）
+  win.emit('touchmove', tev(canvasEl, [[1, 190, 300]]));   // 回拉到圆心右侧 90px：固定底座下仍是"向右推满"
   const m = inp.getMove();
-  assert.ok(m.x < -0.9, `回拉应立刻变向左，得 ${JSON.stringify(m)}`);
+  assert.ok(near(m.x, 1) && near(m.y, 0), `应仍向右推满，得 ${JSON.stringify(m)}`);
+  const s = inp.sticks();
+  assert.ok(near(s.l.kx, 1), `摇杆头贴边，得 ${JSON.stringify(s.l)}`);
+  assert.equal(s.l.ox, undefined, 'sticks() 不再回传底座坐标（底座由 HUD 布局决定）');
 });
 
 test('死区：轻微抖动不算移动', () => {
   const { win } = setup();
-  const inp = createInput(win);
+  const inp = mk(win);
   win.emit('touchstart', tev(canvasEl, [[1, 100, 300]]));
   win.emit('touchmove', tev(canvasEl, [[1, 104, 302]]));   // 约 0.086 < 0.14
   const m = inp.getMove();
   assert.equal(m.x, 0); assert.equal(m.y, 0);
 });
 
-test('右半屏拖动=瞄准射击；松手停火', () => {
+test('攻击摇杆：推过死区=瞄准射击；按住未推=touchHeld；松手停火', () => {
   const { win } = setup();
-  const inp = createInput(win);
+  const inp = mk(win);
   assert.equal(inp.touchAim(), null);
   win.emit('touchstart', tev(canvasEl, [[2, 600, 250]]));
-  assert.equal(inp.touchAim(), null, '刚按下（未推过死区）不射击');
+  assert.equal(inp.touchAim(), null, '刚按下（未推过死区）没有方向');
+  assert.equal(inp.touchHeld('r'), true, '但算按住（main 据此自动瞄准开火）');
+  assert.equal(inp.touchHeld('l'), false);
   win.emit('touchmove', tev(canvasEl, [[2, 600, 300]]));   // 向下（南）
   const a = inp.touchAim();
   assert.ok(a && near(a.y, 50 / 52) && near(a.x, 0), `应朝南，得 ${JSON.stringify(a)}`);
   win.emit('touchend', tev(canvasEl, [[2, 600, 300]]));
   assert.equal(inp.touchAim(), null);
+  assert.equal(inp.touchHeld('r'), false);
 });
 
-test('双摇杆同时：两指各管一侧', () => {
+test('双摇杆同时：两指各管一根', () => {
   const { win } = setup();
-  const inp = createInput(win);
+  const inp = mk(win);
   win.emit('touchstart', tev(canvasEl, [[1, 100, 300], [2, 600, 250]]));
   win.emit('touchmove', tev(canvasEl, [[1, 100, 352], [2, 652, 250]]));
   const m = inp.getMove(), a = inp.touchAim();
@@ -101,28 +115,46 @@ test('双摇杆同时：两指各管一侧', () => {
   assert.ok(s.l && s.r, 'sticks() 两侧都有');
 });
 
-test('两指落同侧：后到的接管空闲摇杆', () => {
+test('接管范围：1.8R 内接管（按偏也算），远处触摸忽略，已占用的摇杆不被第二指抢', () => {
   const { win } = setup();
+  const inp = mk(win);
+  win.emit('touchstart', tev(canvasEl, [[1, 100 + 52 * 1.7, 300]]));   // 底座外但在 1.8R 内
+  assert.equal(inp.touchHeld('l'), true, '1.7R 处按下应接管移动摇杆');
+  assert.ok(near(inp.getMove().x, 1), '按在右侧边外=向右推满');
+  win.emit('touchstart', tev(canvasEl, [[2, 350, 100]]));               // 离两根都远
+  assert.equal(inp.touchHeld('r'), false, '远处触摸不接管攻击摇杆');
+  win.emit('touchstart', tev(canvasEl, [[3, 110, 300]]));               // 落在已占用的移动摇杆上
+  assert.equal(inp.touchHeld('r'), false, '第二指不跨区抢攻击摇杆');
+  win.emit('touchend', tev(canvasEl, [[1, 0, 0]]));
+  assert.equal(inp.touchHeld('l'), false, '第三指没登记：首指抬起后移动摇杆空闲');
+  win.emit('touchstart', tev(canvasEl, [[4, 100 + 52 * 1.9, 300]]));   // 1.9R：超出接管半径
+  assert.equal(inp.touchHeld('l'), false, '1.9R 外不接管');
+});
+
+test('未注入布局时按窗口尺寸兜底（靶场页/HUD 未量到时仍可用）', () => {
+  const { win } = setup({ W: 800, H: 400 });
   const inp = createInput(win);
-  win.emit('touchstart', tev(canvasEl, [[1, 100, 300]]));
-  win.emit('touchstart', tev(canvasEl, [[2, 380, 200]]));   // 也在左半屏（W/2=400），但右摇杆空闲
-  win.emit('touchmove', tev(canvasEl, [[2, 380, 150]]));
-  const a = inp.touchAim();
-  assert.ok(a && a.y < -0.9, `第二指应成为瞄准摇杆，得 ${JSON.stringify(a)}`);
+  const L = inp.stickLayout;
+  assert.equal(L.l.x, 118); assert.equal(L.l.y, 292);
+  win.emit('touchstart', tev(canvasEl, [[1, 118, 292]]));
+  win.emit('touchmove', tev(canvasEl, [[1, 144, 292]]));
+  assert.ok(near(inp.getMove().x, 0.5));
+  inp.setStickLayout(LAYOUT);
+  assert.equal(inp.stickLayout.l.x, 100, '注入后以注入布局为准');
 });
 
 test('按钮/浮层上的触摸不进摇杆、不拦默认行为（合成 click 可用）', () => {
   const { win } = setup();
-  const inp = createInput(win);
-  const ev = tev(buttonEl, [[5, 700, 350]]);
+  const inp = mk(win);
+  const ev = tev(buttonEl, [[5, 600, 250]]);             // 即便按钮压在攻击摇杆圆心上
   win.emit('touchstart', ev);
   assert.equal(ev.prevented, false, '按钮触摸不能 preventDefault（否则 click 不触发）');
-  win.emit('touchmove', tev(buttonEl, [[5, 760, 350]]));
+  win.emit('touchmove', tev(buttonEl, [[5, 640, 250]]));
   assert.equal(inp.touchAim(), null);
   assert.equal(inp.sticks().r, null);
   const ev2 = tev(canvasEl, [[6, 700, 350]]);
   win.emit('touchstart', ev2);
-  assert.equal(ev2.prevented, true, '画布触摸必须 preventDefault（防滚动/缩放/合成鼠标）');
+  assert.equal(ev2.prevented, true, '画布触摸必须 preventDefault（防滚动/缩放/合成鼠标），没接管摇杆也一样');
 });
 
 test('触屏模式：触摸进入、外接键盘游戏键退出；?touch=1 强制不退出', () => {
@@ -214,7 +246,7 @@ test('pressButton 边沿：consumePress 只生效一次；endFrame 清空', () =
 
 test('切后台（visibilitychange hidden）清空触点，防"幽灵摇杆"', () => {
   const { win, doc } = setup();
-  const inp = createInput(win);
+  const inp = mk(win);
   win.emit('touchstart', tev(canvasEl, [[1, 100, 300]]));
   win.emit('touchmove', tev(canvasEl, [[1, 100, 352]]));
   assert.ok(inp.getMove().y > 0.9);

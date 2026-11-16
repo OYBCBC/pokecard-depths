@@ -179,6 +179,10 @@ body.touchmode .kb-only { display: none; }
 .pk-q { font-size: 10px; letter-spacing: 2px; margin-left: 6px; }
 .k-tag { display: inline-block; font-style: normal; font-size: 9px; letter-spacing: 1px; color: #7fd4ff;
   border: 1px solid rgba(127, 212, 255, .45); border-radius: 3px; padding: 0 4px; margin-left: 6px; vertical-align: 1px; }
+/* 招式分类标签（M9）：物攻/特攻/变化 · 近战/远程（技能栏短写，面板/技能机全称） */
+.m-tag { display: inline-block; font-style: normal; font-size: 9px; letter-spacing: 1px; color: #c8b8e8;
+  border: 1px solid rgba(200, 184, 232, .4); border-radius: 3px; padding: 0 3px; margin-left: 5px; vertical-align: 1px; }
+.k-tag.m-tag { margin-left: 4px; }
 #itemcard .k-sub { font-style: normal; font-size: 10px; color: #7d8aa5; }
 .pk-q.q0 { color: #7d8aa5; } .pk-q.q1 { color: #9fe070; } .pk-q.q2 { color: #7fd4ff; }
 .pk-q.q3 { color: #c79fff; } .pk-q.q4 { color: #ffd24a; }
@@ -283,26 +287,43 @@ body.reversed::after { content: ''; position: fixed; inset: 0; pointer-events: n
 .dx-hint { margin-top: 12px; font-size: 10px; color: #5d6a85; text-align: center; }
 .st-sub-btn { padding: 8px 0 !important; font-size: 13px !important; }
 
-/* ---------- 触屏操作层（M6）：浮动双摇杆 + 幽灵底座 + 右下弧形按键 + 右上地图/暂停 ---------- */
-.stick { position: absolute; width: 104px; height: 104px; margin: -52px 0 0 -52px; border-radius: 50%;
-  border: 2px solid rgba(127, 212, 255, .35); background: rgba(20, 28, 44, .35);
-  pointer-events: none; display: none; }
-.stick .knob { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px;
-  border-radius: 50%; background: rgba(127, 212, 255, .5); border: 2px solid rgba(127, 212, 255, .7); }
-/* 幽灵底座：告诉玩家"这里能拖"（手指按下后隐藏，换成真摇杆） */
-.ghost { position: absolute; width: 104px; height: 104px; margin: -52px 0 0 -52px; border-radius: 50%;
-  border: 2px dashed rgba(127, 212, 255, .24); background: rgba(20, 28, 44, .14); pointer-events: none; display: none; }
-.ghost span { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); white-space: nowrap;
-  font-size: 10px; color: #dfe8f5; letter-spacing: 1px;
-  background: rgba(8, 11, 20, .68); border: 1px solid rgba(127, 212, 255, .25);
-  padding: 3px 8px; border-radius: 3px; }
-.ghost.notut span { display: none; }
-#ghost-l { left: calc(118px + var(--sal)); top: calc(100% - 108px - var(--sab)); }
-#ghost-r { left: max(calc(50% + 80px), calc(100% - 300px - var(--sar))); top: calc(100% - 112px - var(--sab)); }
-/* 窄竖屏（可点"仍然竖屏玩"进来的）：右下全是按键，瞄准幽灵圈上移到中部 */
-@media (max-width: 480px) { #ghost-r { top: 52%; } }
-body.touchmode.ingame .ghost { display: block; }
-body.touchmode.ingame .ghost.busy { display: none; }
+/* ---------- 触屏操作层（M6→M9）：固定双摇杆 + 右下弧形按键 + 右上地图/暂停 ----------
+   摇杆底座常驻（visibility 门控，隐藏时仍占布局——HUD 才量得到几何喂给 input）；
+   大小 --stick-scale / 透明度 --stick-alpha 由「操作布局」写在 #hud 上；自定义位置走内联 left/top */
+.stick { --stick-d: calc(104px * var(--stick-scale, 1) * var(--stick-k, 1)); --stick-hr: calc(var(--stick-d) / 2);
+  position: absolute; width: var(--stick-d); height: var(--stick-d); margin: calc(var(--stick-d) / -2) 0 0 calc(var(--stick-d) / -2);
+  border-radius: 50%; border: 2px solid rgba(127, 212, 255, .38); background: rgba(20, 28, 44, .3);
+  opacity: var(--stick-alpha, .8); pointer-events: none; visibility: hidden; }
+.stick .knob { position: absolute; inset: 0; margin: auto; width: 42%; height: 42%;
+  border-radius: 50%; background: rgba(127, 212, 255, .4); border: 2px solid rgba(127, 212, 255, .62); }
+.stick-atk { border-color: rgba(255, 160, 110, .42); }
+.stick-atk .knob { background: rgba(255, 160, 110, .38); border-color: rgba(255, 170, 120, .66); }
+.stick.active { opacity: max(var(--stick-alpha, .8), .75); background: rgba(20, 28, 44, .42); }
+.stick.active .knob { background: rgba(127, 212, 255, .62); }
+.stick-atk.active .knob { background: rgba(255, 160, 110, .6); }
+/* 摇杆下方的文字标签：新手引导期（.tut）与布局编辑时显示 */
+.stick-lbl { position: absolute; left: 50%; top: 100%; transform: translate(-50%, 6px); white-space: nowrap;
+  font-size: 10px; color: #dfe8f5; letter-spacing: 1px; background: rgba(8, 11, 20, .68);
+  border: 1px solid rgba(127, 212, 255, .25); padding: 2px 8px; border-radius: 3px; display: none; }
+.stick.tut .stick-lbl, body.layoutedit .stick-lbl { display: block; }
+#stick-l { left: calc(118px + var(--sal)); top: calc(100% - 108px - var(--sab)); }
+#stick-r { left: max(calc(50% + 80px), calc(100% - 300px - var(--sar))); top: calc(100% - 112px - var(--sab)); }
+/* 窄竖屏（可点"仍然竖屏玩"进来的）：右下全是按键，攻击摇杆默认位上移到中部 */
+@media (max-width: 480px) { #stick-r { top: 52%; } }
+body.touchmode.ingame .stick, body.touchmode.layoutedit .stick { visibility: visible; }
+/* 布局编辑（M9）：真摇杆可拖（压在编辑浮层之上），按键簇作半透明参照（不可点） */
+body.layoutedit .stick { pointer-events: auto; touch-action: none; cursor: grab; z-index: 13;
+  border-style: dashed; opacity: max(var(--stick-alpha, .8), .6); }
+body.touchmode.layoutedit #tpad { display: block; }
+body.layoutedit .tb { pointer-events: none; }
+#layout { position: absolute; inset: 0; z-index: 12; background: rgba(8, 10, 18, .42); pointer-events: auto; }
+.ly-box { position: absolute; left: 50%; top: calc(10px + var(--sat)); transform: translateX(-50%);
+  width: min(400px, 66vw); padding: 10px 16px 4px; text-align: center;
+  background: rgba(13, 17, 28, .94); border: 2px solid #3a4a6c; border-radius: 6px; box-shadow: 0 10px 40px rgba(0, 0, 0, .55); }
+.ly-title { font-size: 15px; color: #ffe9a0; letter-spacing: 3px; }
+.ly-help { font-size: 11px; color: #93a4c0; margin: 3px 0 2px; }
+.ly-box .mw-slider label { width: 52px; text-align: left; }
+.ly-box .st-btn { margin: 8px auto; }
 
 #tpad, #tbar { display: none; }
 body.touchmode.ingame #tpad, body.touchmode.ingame #tbar { display: block; }
@@ -409,7 +430,7 @@ body.touchmode #banner .b-title { font-size: 22px; letter-spacing: 3px; }
 /* 很矮的屏（小手机横屏带地址栏）：按键整体缩一档 */
 @media (max-height: 360px) {
   body.touchmode #tpad { transform: scale(.86); transform-origin: 100% 100%; }
-  .ghost { transform: scale(.86); }
+  body { --stick-k: .86; }
 }
 
 /* ---------- MOD 工房（M7） ---------- */

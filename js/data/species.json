@@ -66,7 +66,7 @@
       "luck": 0,
       "unlock": "no-hurt-floor",
       "role": "近战防反 · 地面",
-      "desc": "骨棒近身横扫，血厚手短；地震 Z 全屏清场。",
+      "desc": "骨棒近身扇形横扫，一挥打一片，血厚手短；地震 Z 全屏清场。",
       "startTMs": [
         "tm-firepunch",
         "tm-tri",
@@ -89,8 +89,8 @@
       "moveSpeed": 4.0,
       "luck": 0,
       "unlock": "camp-5",
-      "role": "近战脉冲 · 水",
-      "desc": "大泡沫慢而重；冲浪 Z 大范围压制。",
+      "role": "重泡压制 · 水",
+      "desc": "大泡沫慢而重，中距离压制；冲浪 Z 大范围清场。",
       "startTMs": [
         "tm-grass",
         "tm-water",

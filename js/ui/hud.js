@@ -1,4 +1,5 @@
 // HUD / 加载页 / debug 面板 / 战斗 UI（血量、PP、波次、伤害飘字、死亡页）
+import { moveTag } from '../sim/combat.js?v=m9';
 
 // 复制文本到剪贴板（挑战码等）：成功后按钮短暂变"已复制"
 function copyText(text, btn) {
@@ -115,10 +116,8 @@ export function createHud() {
     <div id="itemcard" class="hidden"></div>
     <div id="peek" class="hidden"></div>
     <div id="toasts"></div>
-    <div id="ghost-l" class="ghost"><span>拖动 · 移动</span></div>
-    <div id="ghost-r" class="ghost"><span>拖动 · 瞄准射击</span></div>
-    <div id="stick-l" class="stick"><div class="knob"></div></div>
-    <div id="stick-r" class="stick"><div class="knob"></div></div>
+    <div id="stick-l" class="stick"><div class="knob"></div><span class="stick-lbl">移动</span></div>
+    <div id="stick-r" class="stick stick-atk"><div class="knob"></div><span class="stick-lbl">攻击</span></div>
     <div id="tpad">
       <button id="tb-dash" class="tb tb-dash" aria-label="冲刺"><b>冲刺</b><i class="tb-pips"></i></button>
       <button id="tb-z" class="tb tb-z" aria-label="Z 招式"><b>Z</b></button>
@@ -159,6 +158,7 @@ export function createHud() {
     <div id="start" class="hidden ui-touch"></div>
     <div id="mods" class="hidden ui-touch"></div>
     <div id="pause" class="hidden ui-touch"></div>
+    <div id="layout" class="hidden ui-touch"></div>
     <div id="dex" class="hidden ui-touch"></div>
     <div id="achv" class="hidden ui-touch"></div>
     <div id="rotate" class="hidden ui-touch"></div>`);
@@ -177,8 +177,31 @@ export function createHud() {
   const pauseEl = $('pause'), rotateEl = $('rotate'), modsEl = $('mods');
   modsEl.addEventListener('click', (e) => { if (e.target === modsEl) modsEl.classList.add('hidden'); });
   const tb = { dash: $('tb-dash'), z: $('tb-z'), slot: $('tb-slot'), use: $('tb-use'), swap: $('tb-swap') };
-  const ghostL = $('ghost-l'), ghostR = $('ghost-r'), stickL = $('stick-l'), stickR = $('stick-r');
+  const stickL = $('stick-l'), stickR = $('stick-r'), layoutEl = $('layout');
   let itemcardTimer = null, bannerTimer = null, padKey = '', gameKey = '', slotsKey = '', sheetTapFn = null;
+  let moves = {}, stickTut = null;                 // moves：bindMoves 注入的招式表（名称/分类标签）
+  let lyDrag = null;                               // 布局编辑态的拖动回调（null=不在编辑态）
+  // 布局编辑：拖动真摇杆（监听器只挂一次，非编辑态直接放行）。保持按下点与圆心的偏移，摇杆不跳
+  for (const [el, side] of [[stickL, 'l'], [stickR, 'r']]) {
+    el.addEventListener('pointerdown', (ev) => {
+      if (!lyDrag) return;
+      ev.preventDefault();
+      const b = el.getBoundingClientRect();
+      const offX = ev.clientX - (b.left + b.width / 2), offY = ev.clientY - (b.top + b.height / 2);
+      try { el.setPointerCapture(ev.pointerId); } catch (e) { /* 合成事件无捕获 */ }
+      el.classList.add('active');
+      const move = (e2) => { if (lyDrag) lyDrag(side, e2.clientX - offX, e2.clientY - offY); };
+      const up = () => {
+        el.classList.remove('active');
+        el.removeEventListener('pointermove', move);
+        el.removeEventListener('pointerup', up);
+        el.removeEventListener('pointercancel', up);
+      };
+      el.addEventListener('pointermove', move);
+      el.addEventListener('pointerup', up);
+      el.addEventListener('pointercancel', up);
+    });
+  }
   const isTouch = () => document.body.classList.contains('touchmode');
   // 图鉴/成就：点浮层空白处关闭（手机上没有 B/J/Esc）
   for (const el of [dexEl, achvEl]) el.addEventListener('click', (e) => { if (e.target === el) el.classList.add('hidden'); });
@@ -290,26 +313,18 @@ export function createHud() {
       dashEl.innerHTML = '<span class="d-label">冲刺</span>' +
         Array.from({ length: dashMax }, (_, i) => `<span class="d-dot ${i < dashCharges ? 'on' : ''}"></span>`).join('');
     },
+    // 招式表注入（main 读完数据后调一次）：技能栏/面板的名称与「物·近」分类标签都从这里取
+    bindMoves(m) { moves = m || {}; slotsKey = ''; },
+    moveTag(id, full) { return moveTag(moves[id], full); },
     slots(slotA, slotB, active, lockB) {
       const key = [slotA, slotB, active, lockB].join('|');
       if (key === slotsKey) return;
       slotsKey = key;
-      const nm = {
-        'thunder-shock': '电击', 'water-gun': '水枪', 'fire-spin': '火焰漩涡', 'grass-knot': '打草结',
-        'swift': '高速星星', 'bone-club': '骨棒', 'bubble': '泡沫',
-        'tri-attack': '三重攻击', 'aerial-ace': '燕返', 'hyper-beam': '破坏光线', 'fire-punch': '火焰拳',
-        // 伙伴专属默认招式（enemies.json moveA）
-        'quick-attack': '电光一闪', 'string-shot': '吐丝', 'acid-spray': '溶解液', 'sonic-boom': '音爆',
-        'sludge': '污泥', 'mud-shot': '泥巴弹', 'zap-cannon': '电磁炮', 'bite': '咬住',
-        'confusion': '念力', 'lick': '舔舔', 'sand-tomb': '流沙', 'karate-chop': '空手劈',
-        'horn-attack': '角撞', 'feint-attack': '偷袭', 'fury-swipes': '乱抓', 'shadow-ball': '暗影球',
-        'moonblast': '月亮之力', 'pound': '拍击', 'rollout': '滚动', 'psybeam': '精神光线',
-        'egg-bomb': '蛋炸弹', 'fury-cutter': '连斩', 'splash': '溅跳', 'twister': '龙卷风',
-        'mirror-shot': '模仿', 'body-slam': '压扁', 'dragon-claw': '龙爪',
-      };
+      const nm = (id) => (moves[id] && moves[id].name) || id;
+      const tag = (id) => { const t = moveTag(moves[id]); return t ? `<i class="m-tag">${t}</i>` : ''; };
       slotsEl.innerHTML =
-        `<span class="slot ${active === 'A' ? 'on' : ''}">A·${nm[slotA] || slotA}</span>` +
-        (slotB ? `<span class="slot ${active === 'B' && !lockB ? 'on' : ''}${lockB ? ' lock' : ''}">B·${nm[slotB] || slotB}${lockB ? '🔒' : ''}</span>` : '');
+        `<span class="slot ${active === 'A' ? 'on' : ''}">A·${nm(slotA)}${tag(slotA)}</span>` +
+        (slotB ? `<span class="slot ${active === 'B' && !lockB ? 'on' : ''}${lockB ? ' lock' : ''}">B·${nm(slotB)}${tag(slotB)}${lockB ? '🔒' : ''}</span>` : '');
     },
     minimap(cells, cellKey, W) {
       minimapEl.innerHTML = mapSvg(cells, cellKey, { win: 5, size: 20, gap: 5 });
@@ -327,7 +342,7 @@ export function createHud() {
           : `<span class="pk-p free">${info.free ? '免费' : '踏上拾取'}</span>`;
       const k = KIND_TAG[info.kind] || null;
       peekEl.innerHTML = `<div class="pk">${info.icon ? `<img src="assets/items/${info.icon}.png">` : ''}` +
-        `<div><div class="pk-n">${info.name} ${pips}${k ? ` <i class="k-tag">${k.t}</i>` : ''}</div><div class="pk-d">${info.desc || ''}</div></div>${price}</div>`;
+        `<div><div class="pk-n">${info.name} ${pips}${k ? ` <i class="k-tag">${k.t}</i>` : ''}${info.mtag ? ` <i class="k-tag m-tag">${info.mtag}</i>` : ''}</div><div class="pk-d">${info.desc || ''}</div></div>${price}</div>`;
       peekEl.classList.remove('hidden');
     },
     hidePeek() { peekEl.classList.add('hidden'); },
@@ -362,7 +377,7 @@ export function createHud() {
           <div class="st-logo">宝可梦 · 晶穴深处</div>
           <div class="st-sub">Pokémon: Crystal Depths</div>
           <div class="st-cols"><div class="st-main">${btns}${fsBtn}${modBtn}${modChip}</div>${boardHtml ? `<div class="st-side">${boardHtml}</div>` : ''}</div>
-          <div class="st-hint"><span class="kb-only">WASD 移动 · 鼠标射击 · 空格冲刺 · Q 切招式 · 长按 Tab 面板 · Esc 暂停 · M 静音 · 手柄直插即用</span><span class="touch-only">左半屏拖动=移动 · 右半屏拖动=瞄准射击 · 右下角按钮：冲刺 / Z 招式 / 切招 / 道具 / 换队${iosTip ? '<br>iPhone：Safari「分享 → 添加到主屏幕」可全屏游玩' : ''}</span></div>
+          <div class="st-hint"><span class="kb-only">WASD 移动 · 鼠标射击 · 空格冲刺 · Q 切招式 · 长按 Tab 面板 · Esc 暂停 · M 静音 · 手柄直插即用</span><span class="touch-only">左摇杆移动 · 右摇杆瞄准攻击（按住=自动瞄准）· 右下角按钮：冲刺 / Z 招式 / 切招 / 道具 / 换队 · 暂停菜单可调摇杆布局${iosTip ? '<br>iPhone：Safari「分享 → 添加到主屏幕」可全屏游玩' : ''}</span></div>
           <input type="file" id="st-file" accept=".json,application/json" style="display:none">
         </div>`;
       startEl.classList.remove('hidden');
@@ -542,7 +557,8 @@ export function createHud() {
       if (m.superBonus) chips.push(['克制增伤+' + pct(m.superBonus), '#ffd24a']);
       const TN = { electric: '电', water: '水', fire: '火', grass: '草', ground: '地', rock: '岩', psychic: '超' };
       for (const [k, v] of Object.entries(m.typeMul)) if (v > 1) chips.push([(TN[k] || k) + '伤×' + v.toFixed(2), '#ff9a4a']);
-      const moveName = (id) => (data.moves[id] && data.moves[id].name) || id;
+      const moveName = (id) => ((data.moves[id] && data.moves[id].name) || id) +
+        (moveTag(data.moves[id], true) ? `<i class="m-tag">${moveTag(data.moves[id], true)}</i>` : '');
       const ids = [...p.inv.passives, ...(p.inv.trinket ? [p.inv.trinket] : []), ...p.inv.badges];
       const itemHtml = ids.length
         ? ids.map((id) => {
@@ -591,10 +607,11 @@ export function createHud() {
       el.style.top = sy + 'px';
     },
     clearPrices() { pricesEl.innerHTML = ''; },
-    itemCard(name, desc, quality, icon, kind) {
+    // mtag：技能机招式的完整分类（「物攻·近战」），其余道具不传
+    itemCard(name, desc, quality, icon, kind, mtag) {
       const q = ['', '白', '绿', '蓝', '紫', '红金'][quality + 1] || '';
       const k = KIND_TAG[kind] || '';
-      itemcardEl.innerHTML = `<div class="ic-q${quality}">${icon ? `<img src="assets/items/${icon}.png">` : ''}<div><b>${name}${k ? ` <i class="k-tag">${k.t}</i>` : ''}</b><span>${desc}${k ? `<br><em class="k-sub">${k.s}</em>` : ''}</span></div></div>`;
+      itemcardEl.innerHTML = `<div class="ic-q${quality}">${icon ? `<img src="assets/items/${icon}.png">` : ''}<div><b>${name}${k ? ` <i class="k-tag">${k.t}</i>` : ''}${mtag ? ` <i class="k-tag m-tag">${mtag}</i>` : ''}</b><span>${desc}${k ? `<br><em class="k-sub">${k.s}</em>` : ''}</span></div></div>`;
       itemcardEl.classList.remove('hidden');
       clearTimeout(itemcardTimer);
       itemcardTimer = setTimeout(() => itemcardEl.classList.add('hidden'), 1600);
@@ -776,18 +793,81 @@ export function createHud() {
       tb.swap.classList.toggle('hidden', !s.hasComp);
       tb.swap.classList.toggle('on', !!s.compActive);
     },
-    // 触屏摇杆渲染：活动摇杆跟手；空闲侧显示虚线"幽灵"底座（tutorial=附文字说明）
+    // 触屏摇杆渲染（M9 固定双摇杆）：底座常驻（CSS 定位），这里只推摇杆头 + 高亮按住侧；
+    // tutorial=true（新手引导）时摇杆下方附文字标签（stick-lbl 的显隐）
     sticks(stks, tutorial) {
-      for (const [el, ghost, o] of [[stickL, ghostL, stks.l], [stickR, ghostR, stks.r]]) {
+      for (const [el, o] of [[stickL, stks.l], [stickR, stks.r]]) {
         if (o) {
-          el.style.display = 'block';
-          el.style.left = o.ox + 'px';
-          el.style.top = o.oy + 'px';
-          el.firstElementChild.style.transform = `translate(${Math.round(o.kx * 34)}px, ${Math.round(o.ky * 34)}px)`;
-        } else if (el.style.display !== 'none') el.style.display = 'none';
-        ghost.classList.toggle('busy', !!o);
-        ghost.classList.toggle('notut', !tutorial);
+          if (!el.classList.contains('active')) el.classList.add('active');
+          // 位移按摇杆头自身尺寸的百分比（头=底座 42%，满推 78%≈底座直径 33%）：随布局大小缩放
+          el.firstElementChild.style.transform = `translate(${Math.round(o.kx * 78)}%, ${Math.round(o.ky * 78)}%)`;
+        } else if (el.classList.contains('active')) {
+          el.classList.remove('active');
+          el.firstElementChild.style.transform = '';
+        }
       }
+      if (stickTut !== !!tutorial) { stickTut = !!tutorial; stickL.classList.toggle('tut', stickTut); stickR.classList.toggle('tut', stickTut); }
+    },
+    // 量出两根摇杆的几何（圆心视口 px + 半径 px），main 拿去喂 input.setStickLayout；
+    // 摇杆隐藏（.hidden 上级容器）或量不到尺寸时返回 null——main 保持 dirty 下帧再量
+    stickGeom() {
+      const out = {};
+      for (const [el, side] of [[stickL, 'l'], [stickR, 'r']]) {
+        const r = el.getBoundingClientRect();
+        if (r.width < 4) return null;
+        out[side] = { x: r.left + r.width / 2, y: r.top + r.height / 2, r: r.width / 2 };
+      }
+      return out;
+    },
+    // 布局编辑器（M9）：直接拖真摇杆调位置（所见即所得）+ 大小/透明度滑杆。
+    // o = { size, alpha, onTune(key,v), onDrag(side,cx,cy), onDefault, onCancel, onSave }
+    layoutEditor(show, o = {}) {
+      if (!show) {
+        layoutEl.classList.add('hidden');
+        document.body.classList.remove('layoutedit');
+        for (const el of [stickL, stickR]) el.classList.remove('ui-touch');
+        lyDrag = null;
+        return;
+      }
+      document.body.classList.add('layoutedit');
+      // 编辑态摇杆挂 .ui-touch：input 层不把拖动当摇杆输入（不登记触点、不拦默认行为）
+      for (const el of [stickL, stickR]) el.classList.add('ui-touch');
+      lyDrag = o.onDrag || null;
+      layoutEl.innerHTML = `<div class="ly-box">
+        <div class="ly-title">操作布局</div>
+        <div class="ly-help">拖动两个摇杆到顺手的位置</div>
+        <div class="mw-slider"><label>大小</label>
+          <input type="range" id="ly-size" min="0.7" max="1.4" step="0.05" value="${o.size}">
+          <output id="ly-size-v">${Math.round(o.size * 100)}%</output></div>
+        <div class="mw-slider"><label>透明度</label>
+          <input type="range" id="ly-alpha" min="0.3" max="1" step="0.05" value="${o.alpha}">
+          <output id="ly-alpha-v">${Math.round(o.alpha * 100)}%</output></div>
+        <div class="st-row">
+          <button class="st-btn st-sub-btn" data-ly="default">恢复默认</button>
+          <button class="st-btn st-sub-btn" data-ly="cancel">取消</button>
+          <button class="st-btn st-sub-btn primary" data-ly="save">完成</button>
+        </div>
+      </div>`;
+      layoutEl.classList.remove('hidden');
+      for (const [key, unit] of [['size', 'ly-size'], ['alpha', 'ly-alpha']]) {
+        const inp = layoutEl.querySelector('#' + unit), out = layoutEl.querySelector('#' + unit + '-v');
+        inp.addEventListener('input', () => {
+          out.textContent = Math.round(inp.value * 100) + '%';
+          o.onTune && o.onTune(key, +inp.value);
+        });
+      }
+      const act = { default: o.onDefault, cancel: o.onCancel, save: o.onSave };
+      layoutEl.querySelectorAll('[data-ly]').forEach((b) => { b.onclick = () => act[b.dataset.ly] && act[b.dataset.ly](); });
+    },
+    get layoutOpen() { return !layoutEl.classList.contains('hidden'); },
+    // 应用布局：pos=[fx,fy]（视口比例，null=CSS 默认位）；size/alpha 写 #hud 上的 CSS 变量
+    applyLayout(cfg) {
+      for (const [el, pos] of [[stickL, cfg.l], [stickR, cfg.r]]) {
+        el.style.left = pos ? `clamp(var(--stick-hr), ${(pos[0] * 100).toFixed(2)}%, calc(100% - var(--stick-hr)))` : '';
+        el.style.top = pos ? `clamp(var(--stick-hr), ${(pos[1] * 100).toFixed(2)}%, calc(100% - var(--stick-hr)))` : '';
+      }
+      hud.style.setProperty('--stick-scale', String(cfg.size));
+      hud.style.setProperty('--stick-alpha', String(cfg.alpha));
     },
     // 暂停菜单（Esc / P / 触屏 ❚❚）：o.on(action) 收 resume/mute/dex/achv/fs/restart/title，o.onQuality(q)
     pauseMenu(show, o = {}) {
@@ -804,10 +884,11 @@ export function createHud() {
           ${o.fullscreen ? `<button class="st-btn st-sub-btn" data-a="fs">${o.fullscreenOn ? '退出全屏' : '全屏'}</button>` : ''}
         </div>
         <div class="st-row">${qBtns}</div>
+        ${isTouch() ? '<button class="st-btn" data-a="layout">操作布局（摇杆位置 / 大小 / 透明度）</button>' : ''}
         <button class="st-btn" data-a="restart">重新开始（本局作废）</button>
         <button class="st-btn" data-a="title">存档并回到标题</button>
         <div class="pz-help">${isTouch()
-          ? '左半屏拖动=移动 · 右半屏拖动=瞄准并射击<br>右下：冲刺 / Z 招式 / 切招 / 道具 / 换队 · 右上：地图 / 暂停'
+          ? '左摇杆=移动 · 右摇杆=瞄准并攻击（按住不拖=自动瞄最近的敌人）<br>右下：冲刺 / Z 招式 / 切招 / 道具 / 换队 · 右上：地图 / 暂停'
           : 'WASD 移动 · 鼠标瞄准射击 · 空格冲刺 · Q 切招 · E 道具 · F 换队 · R Z 招式<br>长按 Tab 地图 · B 图鉴 · J 成就 · M 静音 · Esc / P 暂停'}</div>
       </div>`;
       pauseEl.classList.remove('hidden');

@@ -60,6 +60,10 @@
   .move-opt input { display: none; }
   .move-opt .mn { flex: 1; }
   .move-opt .pw { color: #7d8aa5; font-size: 11px; }
+  /* 招式分类（M9）：近战暖色 / 远程冷色 */
+  .move-opt .mc { font-size: 10px; padding: 0 4px; border-radius: 3px; border: 1px solid; letter-spacing: 1px; }
+  .move-opt .mc-melee { color: #ffb48a; border-color: rgba(255, 160, 110, .5); }
+  .move-opt .mc-ranged { color: #9fd8ff; border-color: rgba(127, 212, 255, .45); }
   .btn {
     display: inline-block; background: #1b2440; color: #dfe6f2; border: 1px solid #2e3c60;
     padding: 4px 10px; border-radius: 4px; cursor: pointer; font: inherit; text-align: center;
@@ -153,6 +157,6 @@
 
 <div id="loading">装配靶场……</div>
 
-<script type="module" src="js/lab.js?v=m8"></script>
+<script type="module" src="js/lab.js?v=m9"></script>
 </body>
 </html>

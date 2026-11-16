@@ -1,9 +1,9 @@
 // 战斗与房间行为系统：玩家/弹体/敌人三族/波次/多房间楼层/拾取经济/台座。
 // 全部纯数据变换；事件写进 state.events 供表现层消费。
-import { computeHit } from './combat.js?v=m7b';
-import { fireInterval } from './combat.js?v=m7b';
-import { rollItem } from './items.js?v=m7b';
-import { spawnBoss, stepBoss } from './boss.js?v=m7b';
+import { computeHit } from './combat.js?v=m9';
+import { fireInterval } from './combat.js?v=m9';
+import { rollItem } from './items.js?v=m9';
+import { spawnBoss, stepBoss } from './boss.js?v=m9';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -469,34 +469,78 @@ export function stepPlayer(state, input, data) {
     const moveA_eff = side.moveA;
     const moveId = p.slot === 'B' && side.moveB && !p.mods.lockB ? side.moveB : moveA_eff;
     const mv = data.moves[moveId];
-    const aim = input.aim;
-    const m = p.mods;
-    // 以撒式弹型参数（per-move）：spread/arcDeg=扇形散射（三重攻击），pierce=自带贯通
-    // （破坏光线），intervalMul=攻速倍率（破坏光线 2.6 慢炮），sizeMul=弹径倍率
-    const spread = mv.spread || 1;
-    const arcRad = ((mv.arcDeg || 24) * Math.PI) / 180;
-    const baseA = Math.atan2(aim.y, aim.x);
-    const speed = mv.speed * m.shotSpeedMul + m.shotSpeedAdd;
     // 电气种子：清房奖励的连锁弹（发射时扣数）
     const chain = p.chainLeft > 0;
     if (chain) p.chainLeft -= 1;
-    for (let s = 0; s < spread; s++) {
-      const a = baseA + (spread > 1 ? (s / (spread - 1) - 0.5) * arcRad : 0);
-      state.projectiles.push({
-        owner: 'player', id: state.nextId++, moveId,
-        x: p.x, y: p.y, px: p.x, py: p.y,
-        vx: Math.cos(a) * speed,
-        vy: Math.sin(a) * speed,
-        life: (mv.range * m.rangeMul) / Math.max(speed, 0.1),
-        radius: mv.radius * m.sizeMul * (mv.sizeMul || 1),
-        pierceLeft: Math.max(mv.pierce || 0, m.pierce),
-        hitIds: [], chain: chain || undefined,
-      });
-    }
+    // 近战/远程按招式 reach 分派（M9）：melee=扇形瞬发横扫，ranged=弹道
+    state.stats.shots += mv.reach === 'melee'
+      ? meleeSwing(state, data, p, mv, moveId, input.aim, chain)
+      : fireProjectiles(state, p, mv, moveId, input.aim, chain);
     p.fireCd = p.stats.fireInterval * (mv.intervalMul || 1);
-    state.stats.shots += spread;
-    state.events.push({ t: 'shot', x: p.x, y: p.y, moveId });
   }
+}
+
+// 远程：发射弹体，返回发射数
+function fireProjectiles(state, p, mv, moveId, aim, chain) {
+  const m = p.mods;
+  // 以撒式弹型参数（per-move）：spread/arcDeg=扇形散射（三重攻击），pierce=自带贯通
+  // （破坏光线），intervalMul=攻速倍率（破坏光线 2.6 慢炮），sizeMul=弹径倍率
+  const spread = mv.spread || 1;
+  const arcRad = ((mv.arcDeg || 24) * Math.PI) / 180;
+  const baseA = Math.atan2(aim.y, aim.x);
+  const speed = mv.speed * m.shotSpeedMul + m.shotSpeedAdd;
+  for (let s = 0; s < spread; s++) {
+    const a = baseA + (spread > 1 ? (s / (spread - 1) - 0.5) * arcRad : 0);
+    state.projectiles.push({
+      owner: 'player', id: state.nextId++, moveId,
+      x: p.x, y: p.y, px: p.x, py: p.y,
+      vx: Math.cos(a) * speed,
+      vy: Math.sin(a) * speed,
+      life: (mv.range * m.rangeMul) / Math.max(speed, 0.1),
+      radius: mv.radius * m.sizeMul * (mv.sizeMul || 1),
+      pierceLeft: Math.max(mv.pierce || 0, m.pierce),
+      hitIds: [], chain: chain || undefined,
+    });
+  }
+  state.events.push({ t: 'shot', x: p.x, y: p.y, moveId });
+  return spread;
+}
+
+// 近战（GDD §5.1 扇形近战波 sweep）：以玩家为圆心、瞄准方向为中轴的扇形瞬发判定。
+// 扇内（含贴身重叠的）每只敌人各结算一次：给每个目标造一枚"伪弹体"走 applyHit，
+// 克制/STAB/属性道具/异常/节拍器/连锁/分裂/PP 全部原样联动；击退沿玩家→敌人径向。
+// 弹道类道具（贯通/追踪/弹射/弹速）对近战无效；弹径道具按一半效果放大扇形半径。返回 1（挥击数）
+const PLAYER_R = 0.45;
+function meleeSwing(state, data, p, mv, moveId, aim, chain) {
+  const m = p.mods;
+  const r = mv.sweepR * m.rangeMul * (1 + (m.sizeMul - 1) * 0.5);
+  const half = (mv.sweepDeg * Math.PI) / 360;
+  const a0 = Math.atan2(aim.y, aim.x);
+  const targets = [];
+  for (const e of state.enemies) {
+    if (e.state === 'spawning' || e.state === 'dead') continue;
+    const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
+    if (d > r + e.radius) continue;
+    if (d > PLAYER_R + e.radius) {                      // 贴身重叠的无视角度
+      let da = Math.abs(Math.atan2(dy, dx) - a0);
+      if (da > Math.PI) da = 2 * Math.PI - da;
+      if (da > half + Math.atan2(e.radius, d)) continue; // 体积容差：擦到扇边也算
+    }
+    targets.push(e);
+  }
+  const hitIds = targets.map((e) => e.id);               // 连锁闪电不回跳本次挥中的目标
+  const spd = mv.speed || 6;
+  for (const e of targets) {
+    if (e.state === 'dead') continue;                    // 前一目标的连锁可能已打死它
+    const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
+    const ux = d > 1e-3 ? dx / d : Math.cos(a0), uy = d > 1e-3 ? dy / d : Math.sin(a0);
+    applyHit(state, e, {
+      owner: 'player', moveId, x: e.x, y: e.y, vx: ux * spd, vy: uy * spd,
+      radius: mv.radius, hitIds, chain: chain || undefined,
+    }, data);
+  }
+  state.events.push({ t: 'swing', x: p.x, y: p.y, a: a0, arc: mv.sweepDeg, r, moveId, hits: targets.length });
+  return 1;
 }
 
 function tryRevealSecret(state, data) {
@@ -1583,4 +1627,4 @@ function takePedestal(state, data, d) {
 }
 
 // 规避循环 import：engine.recompute 通过事件总线由调用方重算——这里直接内联等价逻辑
-import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m7b';
+import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m9';

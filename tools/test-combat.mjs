@@ -11,12 +11,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const D = (f) => JSON.parse(readFileSync(join(ROOT, 'js/data', f), 'utf8'));
 
 const { damageStat, fireInterval, typeMultiplier, stabMultiplier, computeHit, enemyPanel } =
-  await import(join(ROOT, 'js/sim/combat.js?v=m7b'));
-const { createRun, stepRun, recompute, goNextFloor: goNextFloorRef } = await import(join(ROOT, 'js/sim/engine.js?v=m7b'));
-const _engine = await import(join(ROOT, 'js/sim/engine.js?v=m7b'));
-const { enterRoom, spawnWave } = await import(join(ROOT, 'js/sim/actors.js?v=m7b'));
-const _save = await import(join(ROOT, 'js/sim/save.js?v=m7b'));
-const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m7b'));
+  await import(join(ROOT, 'js/sim/combat.js?v=m9'));
+const { createRun, stepRun, recompute, goNextFloor: goNextFloorRef } = await import(join(ROOT, 'js/sim/engine.js?v=m9'));
+const _engine = await import(join(ROOT, 'js/sim/engine.js?v=m9'));
+const { enterRoom, spawnWave } = await import(join(ROOT, 'js/sim/actors.js?v=m9'));
+const _save = await import(join(ROOT, 'js/sim/save.js?v=m9'));
+const _dex = await import(join(ROOT, 'js/sim/dex.js?v=m9'));
 function combatNeighbor(run, d) {
   const cell = run.map.get(run.cellKey);
   for (const [dk] of Object.entries(cell.doors)) {
@@ -179,7 +179,7 @@ test('引擎：冲刺给无敌与位移', () => {
 
 
 // ---------- M4：多层塔 / Z 招式 / 进化 / 替补 ----------
-const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m7b'));
+const { goNextFloor } = await import(join(ROOT, 'js/sim/engine.js?v=m9'));
 
 function idleInput() {
   return { move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false, slotEdge: false, useEdge: false, zEdge: false, swapEdge: false };
@@ -466,7 +466,7 @@ test('图鉴：事件点亮（遭遇/击杀/馆主搭档/进化/结伴/别名）
 
 // ---------- M5 第二批：道具全量 / 黑市祭坛 / 徽章 / 异常状态 ----------
 
-const _items = await import(join(ROOT, 'js/sim/items.js?v=m7b'));
+const _items = await import(join(ROOT, 'js/sim/items.js?v=m9'));
 const items = data.items;
 
 test('道具全量：74 件（被动42+强化8+消耗11+纪念10+徽章3），图标齐全、池合法', () => {

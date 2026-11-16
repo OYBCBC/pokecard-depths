@@ -1,13 +1,15 @@
-// 输入层 M2→M6：键盘移动 + 鼠标瞄准/射击 + 冲刺 + 触屏虚拟双摇杆 + 手柄（标准映射）。
-// M6 触屏：开机识别触屏设备直接进触屏 UI（不必等第一下触摸）；摇杆浮动且跟手（拖出半径时底座跟随，
-// 反向不用回拉）；第二根手指落在已占用的半屏时自动接管空闲摇杆；外接键盘按游戏键回键鼠 UI。
+// 输入层 M2→M9：键盘移动 + 鼠标瞄准/射击 + 冲刺 + 触屏虚拟双摇杆 + 手柄（标准映射）。
+// M6 触屏：开机识别触屏设备直接进触屏 UI（不必等第一下触摸）；外接键盘按游戏键回键鼠 UI。
+// M9 固定双摇杆：移动/攻击两根摇杆底座位置固定（布局由 HUD 量出后 setStickLayout 注入，玩家可在
+// 暂停菜单「操作布局」里调）；按下点落在某根空闲摇杆 1.8R 内才接管它，离两根都远的触摸忽略。
 const GAME_KEYS = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
   'Space', 'Tab',
 ]);
 
-const STICK_R = 52;          // 虚拟摇杆半径（px）
+const STICK_R = 52;          // 摇杆半径兜底（px）：HUD 未量到布局时用
 const STICK_DEAD = 0.14;     // 死区
+const GRAB_K = 1.8;          // 接管半径 = 1.8R（指尖略偏出底座也算按到）
 // 这些元素上的触摸走默认行为（合成 click），不进摇杆；浮层容器统一挂 .ui-touch
 const UI_SEL = 'button, input, a, label, .ui-touch';
 
@@ -39,10 +41,11 @@ export function createInput(target = window) {
   const pressedOnce = new Set();
   const onFirstKey = [];
   const mouse = { x: 0.5, y: 0.5, down: false };   // NDC (-1..1)；down=左键
-  const touches = new Map();                        // touchId -> { side:'l'|'r', ox, oy, x, y }
+  const touches = new Map();                        // touchId -> { side:'l'|'r', x, y }
   const forcedTouch = urlFlag('touch');
   const modeFns = [];
   let touchMode = false;
+  let layout = null;                                // { l:{x,y,r}, r:{x,y,r} }（视口 px）
 
   function setTouchMode(on) {
     on = !!on;
@@ -84,9 +87,19 @@ export function createInput(target = window) {
   function mouseup(e) { if (e.button === 0) mouse.down = false; }
   function contextmenu(e) { e.preventDefault(); }
 
-  // ---- 触屏：左半屏=移动摇杆，右半屏=瞄准+射击摇杆（浮动：按下处即摇杆中心） ----
+  // ---- 触屏：固定双摇杆（l=移动，r=瞄准+射击；底座不动，向量=触点相对固定圆心） ----
+  // 布局未注入（靶场页/测试/HUD 还没量到）时按默认位置兜底：左下 / 右下偏中，与 css 默认同量级
+  function stickLayout() {
+    if (layout) return layout;
+    const W = window.innerWidth || 800, H = window.innerHeight || 400;
+    return {
+      l: { x: 118, y: H - 108, r: STICK_R },
+      r: { x: Math.max(W / 2 + 80, W - 300), y: H - 112, r: STICK_R },
+    };
+  }
   function stickVec(o) {
-    let dx = (o.x - o.ox) / STICK_R, dy = (o.y - o.oy) / STICK_R;
+    const s = stickLayout()[o.side];
+    let dx = (o.x - s.x) / s.r, dy = (o.y - s.y) / s.r;
     const l = Math.hypot(dx, dy);
     if (l > 1) { dx /= l; dy /= l; }
     return { x: dx, y: dy, l };
@@ -99,17 +112,26 @@ export function createInput(target = window) {
     for (const o of touches.values()) if (o.side === side) return true;
     return false;
   }
+  // 按下点 → 接管哪根摇杆：空闲且在 1.8R 内的最近者；都不满足返回 null（触摸忽略）
+  function pickStick(x, y) {
+    const L = stickLayout();
+    let best = null, bd = Infinity;
+    for (const side of ['l', 'r']) {
+      if (sideBusy(side)) continue;
+      const s = L[side];
+      const d = Math.hypot(x - s.x, y - s.y);
+      if (d <= s.r * GRAB_K && d < bd) { bd = d; best = side; }
+    }
+    return best;
+  }
   function touchstart(e) {
     setTouchMode(true);                              // 真触摸（含按钮上的）即切触屏 UI：开机检测失败也能秒纠正
     if (onUI(e)) return;                             // UI 元素走默认行为（合成 click），不进摇杆
     e.preventDefault();
     if (down.size === 0 && touches.size === 0) fireFirst();   // 在登记触点前判空
-    const W = window.innerWidth || 1;
     for (const t of e.changedTouches) {
-      let side = t.clientX < W / 2 ? 'l' : 'r';
-      const other = side === 'l' ? 'r' : 'l';
-      if (sideBusy(side) && !sideBusy(other)) side = other;   // 两指落同侧：后到的接管空闲摇杆
-      touches.set(t.identifier, { side, ox: t.clientX, oy: t.clientY, x: t.clientX, y: t.clientY });
+      const side = pickStick(t.clientX, t.clientY);
+      if (side) touches.set(t.identifier, { side, x: t.clientX, y: t.clientY });
     }
   }
   function touchmove(e) {
@@ -118,9 +140,7 @@ export function createInput(target = window) {
     for (const t of e.changedTouches) {
       const o = touches.get(t.identifier);
       if (!o) continue;
-      o.x = t.clientX; o.y = t.clientY;
-      const dx = o.x - o.ox, dy = o.y - o.oy, l = Math.hypot(dx, dy);
-      if (l > STICK_R) { o.ox = o.x - dx / l * STICK_R; o.oy = o.y - dy / l * STICK_R; }   // 底座跟手
+      o.x = t.clientX; o.y = t.clientY;              // 底座固定：只更新触点
     }
   }
   function touchend(e) {
@@ -199,16 +219,21 @@ export function createInput(target = window) {
       return { x, y };                              // 多源叠加（引擎会归一化）
     },
     touchAim() { return touchStick('r'); },        // 右摇杆推过死区 = 朝该方向射击
+    touchHeld(side) { return sideBusy(side); },     // 该摇杆有手指按着（含死区内：攻击摇杆按住不拖=自动瞄准）
     padAim() { pollPad(); return padAimV; },        // 手柄右摇杆：朝推动方向射击
     padFire() { pollPad(); return padFire; },       // RT 射击
+    // 摇杆头偏移（渲染用）：未按的一侧为 null；底座位置由 HUD 自己的布局决定
     sticks() {
       const out = { l: null, r: null };
       for (const o of touches.values()) {
         const v = stickVec(o);
-        out[o.side] = { ox: o.ox, oy: o.oy, kx: Math.max(-1, Math.min(1, v.x)), ky: Math.max(-1, Math.min(1, v.y)) };
+        out[o.side] = { kx: v.x, ky: v.y };
       }
       return out;
     },
+    // 注入固定摇杆布局（HUD 按 DOM 实测：圆心视口坐标 + 半径 px）；传 null 回到默认兜底
+    setStickLayout(L) { layout = L; },
+    get stickLayout() { return stickLayout(); },
     pressButton(code) { pressedOnce.add(code); },  // 触屏按钮 → 模拟按键边沿（冲刺/切招/道具/换队/Z）
     held(code) { return down.has(code); },
     mouse,

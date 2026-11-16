@@ -53,3 +53,14 @@ export function enemyPanel(base) {
   const touchDmg = (base.atk >= 100 || base.spa >= 100) ? 2 : 1;
   return { hp, speed, spdMod, touchDmg };
 }
+
+// 招式分类（M9，moves.json category/reach）：物攻/特攻/变化按正作，近战/远程按本作攻击形态
+// （melee=扇形横扫，ranged=弹道）。分类只做展示与判定分派——伤害仍走上面单一特攻公式（GDD §8.1）
+export const MOVE_CATEGORY = { physical: ['物', '物攻'], special: ['特', '特攻'], status: ['变', '变化'] };
+export const MOVE_REACH = { melee: ['近', '近战'], ranged: ['远', '远程'] };
+/** 分类标签：短写「物·近」，full=「物攻·近战」；Z 招式/缺字段返回 '' */
+export function moveTag(mv, full = false) {
+  if (!mv || !MOVE_CATEGORY[mv.category] || !MOVE_REACH[mv.reach]) return '';
+  const i = full ? 1 : 0;
+  return MOVE_CATEGORY[mv.category][i] + '·' + MOVE_REACH[mv.reach][i];
+}

@@ -60,6 +60,7 @@ export function createSfx({ ensureCtx } = {}) {
   // 音效配方（名称 → 合成序列）
   const RECIPES = {
     shot:     () => tone({ type: 'square', f0: 880, f1: 320, dur: 0.05, vol: 0.05 }),
+    swing:    () => { noise({ dur: 0.11, vol: 0.11, freq: 1300, q: 0.8 }); tone({ type: 'triangle', f0: 380, f1: 150, dur: 0.09, vol: 0.06 }); },   // 近战横扫（M9）：风切 + 低音
     hit:      () => { tone({ type: 'triangle', f0: 520, f1: 190, dur: 0.07, vol: 0.16 }); noise({ dur: 0.05, vol: 0.10, freq: 3200 }); },
     superhit: () => { tone({ type: 'sawtooth', f0: 720, f1: 240, dur: 0.12, vol: 0.2 }); tone({ type: 'square', f0: 1320, f1: 660, dur: 0.10, vol: 0.10, delay: 0.02 }); },
     hurt:     () => { tone({ type: 'sawtooth', f0: 300, f1: 90, dur: 0.22, vol: 0.26 }); noise({ dur: 0.16, vol: 0.16, freq: 700, type: 'lowpass' }); },
@@ -89,10 +90,10 @@ export function createSfx({ ensureCtx } = {}) {
     regen:    () => tone({ type: 'sine', f0: 520, f1: 700, dur: 0.10, vol: 0.09 }),
   };
   // 节流表（ms）：高频事件不逐发
-  const THROTTLE = { shot: 55, hit: 45, superhit: 60, coin: 40, kill: 60, chain: 90,
+  const THROTTLE = { shot: 55, swing: 70, hit: 45, superhit: 60, coin: 40, kill: 60, chain: 90,
                      burn: 350, selfdot: 400, slam: 150, windup: 120, regen: 450 };
   // 音高抖动（±比例）：受击类逐发变调，连打不单调；未列出的音效保持固定音高
-  const JITTER = { shot: 0.05, hit: 0.09, superhit: 0.06, weakhit: 0.10, hurt: 0.06, kill: 0.07,
+  const JITTER = { shot: 0.05, swing: 0.08, hit: 0.09, superhit: 0.06, weakhit: 0.10, hurt: 0.06, kill: 0.07,
                    block: 0.04, burn: 0.10, selfdot: 0.08, slam: 0.03, windup: 0.05, regen: 0.04,
                    coin: 0.03, dash: 0.06, chain: 0.06, freeze: 0.04, poison: 0.12 };
 

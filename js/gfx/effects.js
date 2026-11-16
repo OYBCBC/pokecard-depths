@@ -2,8 +2,8 @@
 //   弹体：按样式（属性默认 / 特型招式覆盖）换材质——专属像素贴图 + 自旋/脉动/抖动
 //   尾迹：弹体飞行沿途按属性撒粒子（火星/水滴/电火花/幽火……）
 //   命中：hitFx 按属性组合粒子组 + 电弧 + 地面冲击环 + 专属点光
-import { TRAILS, HIT_FX, TYPE_COLORS, styleOf, styleDef } from './vfxdefs.js?v=m8';
-import { makeProjTex } from './projtex.js?v=m8';
+import { TRAILS, HIT_FX, TYPE_COLORS, styleOf, styleDef } from './vfxdefs.js?v=m9';
+import { makeProjTex } from './projtex.js?v=m9';
 
 export function createEffects(THREE, scene, ringTex, opts = {}) {
   let clock = 0;
@@ -293,6 +293,66 @@ export function createEffects(THREE, scene, ringTex, opts = {}) {
     flashLight(pal[0], 60, x, z, 0.35);
   }
 
+  // ---- 近战横扫弧（M9 sweep）：月牙扇环面片（单位半径，按扇角缓存几何），池化 4 个 ----
+  // 顶点色做软边：内缘与两端压黑（加色混合下黑=透明），外缘最亮——读起来像一道挥击残影
+  const sweepGeos = new Map();
+  function sweepGeo(arcDeg) {
+    const k = Math.round(arcDeg);
+    let g = sweepGeos.get(k);
+    if (g) return g;
+    const th = (k * Math.PI) / 180, R0 = 0.5;
+    g = new THREE.RingGeometry(R0, 1, Math.max(8, Math.round(k / 5)), 2, -th / 2, th);
+    const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      const px = pos.getX(i), py = pos.getY(i);
+      const radial = Math.pow((Math.hypot(px, py) - R0) / (1 - R0), 1.6);
+      const ends = Math.min(1, (1 - Math.abs(Math.atan2(py, px)) / (th / 2)) * 3);
+      const v = radial * ends;
+      col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = v;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    sweepGeos.set(k, g);
+    return g;
+  }
+  const sweeps = [];
+  for (let i = 0; i < 4; i++) {
+    const m = new THREE.Mesh(sweepGeo(120), new THREE.MeshBasicMaterial({
+      color: 0xffffff, vertexColors: true, transparent: true, depthWrite: false,
+      side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    }));
+    m.visible = false;
+    scene.add(m);
+    sweeps.push({ mesh: m, t: 0, max: 1, r: 1 });
+  }
+  let sweepCur = 0;
+  /** 近战横扫：以 (x,z) 为圆心、angle 方向（世界 xz 平面弧度）、arcDeg 扇角、r 半径的挥击弧 + 沿弧碎屑 */
+  function sweepFx(x, z, angle, arcDeg, r, moveType, styleKey) {
+    const def = styleDef(styleKey, moveType);
+    const pal = TYPE_COLORS[moveType] || TYPE_COLORS.normal;
+    const s = sweeps[sweepCur];
+    sweepCur = (sweepCur + 1) % sweeps.length;
+    s.mesh.geometry = sweepGeo(arcDeg);
+    s.mesh.material.color.set(pal[0]);
+    s.mesh.position.set(x, 0.42, z);
+    s.mesh.rotation.set(-Math.PI / 2, 0, -angle);     // 与 bolt 同约定：局部 +X → 世界 angle 方向
+    s.mesh.scale.setScalar(r * 0.8);
+    s.mesh.material.opacity = 1;
+    s.mesh.visible = true;
+    s.t = 0; s.max = 0.2; s.r = r;
+    const th = (arcDeg * Math.PI) / 180;
+    const n = Math.max(6, Math.round(arcDeg / 12));
+    for (let i = 0; i < n; i++) {
+      const a = angle + (i / (n - 1) - 0.5) * th;
+      const rr = r * (0.75 + Math.random() * 0.25), sp = 1.8 + Math.random() * 2.4;
+      spawnParticle(x + Math.cos(a) * rr, 0.5, z + Math.sin(a) * rr, {
+        color: pal[(Math.random() * pal.length) | 0],
+        vx: Math.cos(a) * sp, vz: Math.sin(a) * sp, vy: 0.8 + Math.random(),
+        grav: 4, life: 0.22 + Math.random() * 0.12, scale: 0.6 + Math.random() * 0.6, shrink: true, flicker: def.glow,
+      });
+    }
+    if (def.glow) flashLight(pal[0], 8, x + Math.cos(angle) * r * 0.6, z + Math.sin(angle) * r * 0.6, 0.14);
+  }
+
   function update(dt) {
     clock += dt;
     for (const p of particles) {
@@ -322,6 +382,14 @@ export function createEffects(THREE, scene, ringTex, opts = {}) {
       r.mesh.scale.set(rad * 2, rad * 2, 1);
       r.mesh.material.opacity = (1 - k) * 0.85;
     }
+    for (const s of sweeps) {                          // 横扫弧：0.2s 内略外扩并淡出
+      if (s.t >= s.max) { if (s.mesh.visible) s.mesh.visible = false; continue; }
+      s.t += dt;
+      const k = Math.min(s.t / s.max, 1);
+      if (k >= 1) { s.mesh.visible = false; continue; }
+      s.mesh.scale.setScalar(s.r * (0.8 + 0.25 * Math.sqrt(k)));
+      s.mesh.material.opacity = 1 - k * k;
+    }
     for (const f of flashLights) {
       if (f.t <= 0) continue;
       f.t -= dt;
@@ -331,5 +399,5 @@ export function createEffects(THREE, scene, ringTex, opts = {}) {
     }
   }
 
-  return { syncProjectiles, burst, bolt, muzzle, hitFx, zmoveFx, update };
+  return { syncProjectiles, burst, bolt, muzzle, hitFx, zmoveFx, sweepFx, update };
 }
