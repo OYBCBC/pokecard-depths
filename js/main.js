@@ -256,17 +256,20 @@ async function boot() {
   const input = createInput();
   input.onFirstInteraction(() => { cries.ensureCtx(); if (!selfcheckOn) bgm.start(); });
   input.onPadConnect((id) => hud.toast('手柄已连接', (id || '').slice(0, 30)));
-  // ---- 操作布局（M9 固定双摇杆）：位置存视口比例（null=CSS 默认位，随安全区/屏幕自适应），
-  // 大小/透明度存倍率；读写同 depths-quality 范式（开机读、改了写、值校验兜底）----
+  // ---- 操作布局（M9 固定双摇杆 → M9.2 全控件）：位置存视口比例（null=CSS 默认位，随安全区/屏幕自适应），
+  // 大小/透明度存倍率；v2 把 7 个触屏按键并入扁平结构（v1 老档兼容：按键位全默认）；读写同 depths-quality 范式 ----
   const LAYOUT_KEY = 'depths-layout';
-  const LAYOUT_DEFAULT = { v: 1, l: null, r: null, size: 1, alpha: 0.8 };
+  const LY_BTNS = ['dash', 'z', 'slot', 'use', 'swap', 'map', 'pause'];
+  const LAYOUT_DEFAULT = { v: 2, l: null, r: null, size: 1, alpha: 0.8, ...Object.fromEntries(LY_BTNS.map((k) => [k, null])) };
   function loadLayout() {
     try {
       const o = JSON.parse(localStorage.getItem(LAYOUT_KEY) || 'null');
-      if (!o || o.v !== 1) return { ...LAYOUT_DEFAULT };
+      if (!o) return { ...LAYOUT_DEFAULT };
       const pos = (p) => (Array.isArray(p) && p.length === 2 && p.every((n) => Number.isFinite(n) && n >= 0 && n <= 1) ? [p[0], p[1]] : null);
       const num = (n, lo, hi, d) => (Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d);
-      return { v: 1, l: pos(o.l), r: pos(o.r), size: num(o.size, 0.7, 1.4, 1), alpha: num(o.alpha, 0.3, 1, 0.8) };
+      const out = { v: 2, l: pos(o.l), r: pos(o.r), size: num(o.size, 0.7, 1.4, 1), alpha: num(o.alpha, 0.3, 1, 0.8) };
+      for (const k of LY_BTNS) out[k] = pos(o[k]);          // v1 无这些键 → pos(undefined)=null（默认位）
+      return out;
     } catch (e) { return { ...LAYOUT_DEFAULT }; }
   }
   let layoutCfg = loadLayout();
@@ -687,9 +690,9 @@ async function boot() {
     const open = () => hud.layoutEditor(true, {
       size: cfg.size, alpha: cfg.alpha,
       onTune: (k, v) => { cfg = { ...cfg, [k]: v }; preview(); },
-      onDrag: (side, cx, cy) => {
+      onDrag: (key, cx, cy) => {                        // key：摇杆 l/r 或按键 dash/z/slot/use/swap/map/pause
         const W = window.innerWidth || 1, H = window.innerHeight || 1;
-        cfg = { ...cfg, [side]: [Math.min(1, Math.max(0, cx / W)), Math.min(1, Math.max(0, cy / H))] };
+        cfg = { ...cfg, [key]: [Math.min(1, Math.max(0, cx / W)), Math.min(1, Math.max(0, cy / H))] };
         preview();
       },
       onDefault: () => { cfg = { ...LAYOUT_DEFAULT }; preview(); open(); },
@@ -1504,11 +1507,15 @@ async function boot() {
       if (autoPause && canPause() && !paused) setPaused(true);
     } else cries.ensureCtx();
   });
-  // 触屏按键（M6）：pointerdown 即触发（不等 click 抬手），按住不连发；地图=开关、暂停=菜单
+  // 触屏按键（M6）：pointerdown 即触发（不等 click 抬手），按住不连发；地图=开关、暂停=菜单。
+  // 布局编辑态不触发动作（拖动监听已 stopImmediatePropagation，这里再兜一层）
   const padBtn = (id, fn) => {
     const el = document.getElementById(id);
     if (!el) return;
-    const on = (e) => { e.preventDefault(); e.stopPropagation(); fn(); };
+    const on = (e) => {
+      if (document.body.classList.contains('layoutedit')) return;
+      e.preventDefault(); e.stopPropagation(); fn();
+    };
     if (window.PointerEvent) el.addEventListener('pointerdown', on);
     else el.addEventListener('touchstart', on, { passive: false });   // 老安卓内核兜底
   };

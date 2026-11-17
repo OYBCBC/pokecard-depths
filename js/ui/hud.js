@@ -118,17 +118,13 @@ export function createHud() {
     <div id="toasts"></div>
     <div id="stick-l" class="stick"><div class="knob"></div><span class="stick-lbl">移动</span></div>
     <div id="stick-r" class="stick stick-atk"><div class="knob"></div><span class="stick-lbl">攻击</span></div>
-    <div id="tpad">
-      <button id="tb-dash" class="tb tb-dash" aria-label="冲刺"><b>冲刺</b><i class="tb-pips"></i></button>
-      <button id="tb-z" class="tb tb-z" aria-label="Z 招式"><b>Z</b></button>
-      <button id="tb-slot" class="tb tb-slot" aria-label="切换招式"><b>A</b><small>切招</small></button>
-      <button id="tb-use" class="tb tb-use" aria-label="使用道具"><img alt=""><small>道具</small></button>
-      <button id="tb-swap" class="tb tb-swap" aria-label="换队友"><b>⇄</b><small>换队</small></button>
-    </div>
-    <div id="tbar">
-      <button id="tb-map" class="tb-s" aria-label="地图与面板">地图</button>
-      <button id="tb-pause" class="tb-s" aria-label="暂停">❚❚</button>
-    </div>
+    <button id="tb-dash" class="tb tb-dash" aria-label="冲刺"><b>冲刺</b><i class="tb-pips"></i></button>
+    <button id="tb-z" class="tb tb-z" aria-label="Z 招式"><b>Z</b></button>
+    <button id="tb-slot" class="tb tb-slot" aria-label="切换招式"><b>A</b><small>切招</small></button>
+    <button id="tb-use" class="tb tb-use" aria-label="使用道具"><img alt=""><small>道具</small></button>
+    <button id="tb-swap" class="tb tb-swap" aria-label="换队友"><b>⇄</b><small>换队</small></button>
+    <button id="tb-map" class="tb-s" aria-label="地图与面板">地图</button>
+    <button id="tb-pause" class="tb-s" aria-label="暂停">❚❚</button>
     <div id="bossbar" class="hidden"><div id="boss-fill"></div><span id="boss-name"></span></div>
     <div id="banner" class="hidden"></div>
     <div id="sheet" class="hidden ui-touch"></div>
@@ -178,19 +174,27 @@ export function createHud() {
   modsEl.addEventListener('click', (e) => { if (e.target === modsEl) modsEl.classList.add('hidden'); });
   const tb = { dash: $('tb-dash'), z: $('tb-z'), slot: $('tb-slot'), use: $('tb-use'), swap: $('tb-swap') };
   const stickL = $('stick-l'), stickR = $('stick-r'), layoutEl = $('layout');
+  // 可编辑控件表（M9.2）：key → DOM。摇杆 + 全部触屏按键，applyLayout/拖动共用
+  const LY_ELS = {
+    l: stickL, r: stickR,
+    dash: tb.dash, z: tb.z, slot: tb.slot, use: tb.use, swap: tb.swap,
+    map: $('tb-map'), pause: $('tb-pause'),
+  };
   let itemcardTimer = null, bannerTimer = null, padKey = '', gameKey = '', slotsKey = '', sheetTapFn = null;
   let moves = {}, stickTut = null;                 // moves：bindMoves 注入的招式表（名称/分类标签）
   let lyDrag = null;                               // 布局编辑态的拖动回调（null=不在编辑态）
-  // 布局编辑：拖动真摇杆（监听器只挂一次，非编辑态直接放行）。保持按下点与圆心的偏移，摇杆不跳
-  for (const [el, side] of [[stickL, 'l'], [stickR, 'r']]) {
+  // 布局编辑：拖动真摇杆/真按键（监听器只挂一次，非编辑态直接放行）。保持按下点与中心的偏移，控件不跳；
+  // stopImmediatePropagation 拦住 padBtn 的 pointerdown（同元素后注册的监听），编辑态不触发冲刺/暂停等动作
+  for (const [key, el] of Object.entries(LY_ELS)) {
     el.addEventListener('pointerdown', (ev) => {
       if (!lyDrag) return;
       ev.preventDefault();
+      ev.stopImmediatePropagation();
       const b = el.getBoundingClientRect();
       const offX = ev.clientX - (b.left + b.width / 2), offY = ev.clientY - (b.top + b.height / 2);
       try { el.setPointerCapture(ev.pointerId); } catch (e) { /* 合成事件无捕获 */ }
       el.classList.add('active');
-      const move = (e2) => { if (lyDrag) lyDrag(side, e2.clientX - offX, e2.clientY - offY); };
+      const move = (e2) => { if (lyDrag) lyDrag(key, e2.clientX - offX, e2.clientY - offY); };
       const up = () => {
         el.classList.remove('active');
         el.removeEventListener('pointermove', move);
@@ -372,14 +376,14 @@ export function createHud() {
       // 短屏（手机横屏）时 .st-cols 变左右两栏：按钮 | 本机榜（CSS 媒体查询）
       const fsBtn = fullscreen ? '<button class="st-btn st-sub-btn" id="st-fs">全屏游玩（锁定横屏）</button>' : '';
       // 摇杆布局入口（M9.1）：触屏玩家在标题就能调，不必先进一局再暂停找
-      const lyBtn = isTouch() ? '<button class="st-btn st-sub-btn" id="st-layout">摇杆布局（位置 / 大小 / 透明度）</button>' : '';
+      const lyBtn = isTouch() ? '<button class="st-btn st-sub-btn" id="st-layout">操作布局（摇杆 / 按键位置 · 大小 / 透明度）</button>' : '';
       const modBtn = '<button class="st-btn st-sub-btn" id="st-mods">MOD 工房</button>';
       const modChip = modName ? `<div class="mod-chip">MOD 生效中：<b>${modName}</b>（本局数值已被修改）</div>` : '';
       startEl.innerHTML = `<div class="st-box">
           <div class="st-logo">宝可梦 · 晶穴深处</div>
           <div class="st-sub">Pokémon: Crystal Depths</div>
           <div class="st-cols"><div class="st-main">${btns}${fsBtn}${lyBtn}${modBtn}${modChip}</div>${boardHtml ? `<div class="st-side">${boardHtml}</div>` : ''}</div>
-          <div class="st-hint"><span class="kb-only">WASD 移动 · 鼠标射击 · 空格冲刺 · Q 切招式 · 长按 Tab 面板 · Esc 暂停 · M 静音 · 手柄直插即用</span><span class="touch-only">左摇杆移动 · 右摇杆瞄准攻击（按住=自动瞄准）· 右下角按钮：冲刺 / Z 招式 / 切招 / 道具 / 换队 · 暂停菜单可调摇杆布局${iosTip ? '<br>iPhone：Safari「分享 → 添加到主屏幕」可全屏游玩' : ''}</span></div>
+          <div class="st-hint"><span class="kb-only">WASD 移动 · 鼠标射击 · 空格冲刺 · Q 切招式 · 长按 Tab 面板 · Esc 暂停 · M 静音 · 手柄直插即用</span><span class="touch-only">左摇杆移动 · 右摇杆瞄准攻击（按住=自动瞄准）· 右下角按钮：冲刺 / Z 招式 / 切招 / 道具 / 换队 · 摇杆和按键位置可在「操作布局」里调${iosTip ? '<br>iPhone：Safari「分享 → 添加到主屏幕」可全屏游玩' : ''}</span></div>
           <input type="file" id="st-file" accept=".json,application/json" style="display:none">
         </div>`;
       startEl.classList.remove('hidden');
@@ -838,7 +842,7 @@ export function createHud() {
       lyDrag = o.onDrag || null;
       layoutEl.innerHTML = `<div class="ly-box">
         <div class="ly-title">操作布局</div>
-        <div class="ly-help">拖动两个摇杆到顺手的位置</div>
+        <div class="ly-help">拖动摇杆和按键到顺手的位置</div>
         <div class="mw-slider"><label>大小</label>
           <input type="range" id="ly-size" min="0.7" max="1.4" step="0.05" value="${o.size}">
           <output id="ly-size-v">${Math.round(o.size * 100)}%</output></div>
@@ -863,11 +867,17 @@ export function createHud() {
       layoutEl.querySelectorAll('[data-ly]').forEach((b) => { b.onclick = () => act[b.dataset.ly] && act[b.dataset.ly](); });
     },
     get layoutOpen() { return !layoutEl.classList.contains('hidden'); },
-    // 应用布局：pos=[fx,fy]（视口比例，null=CSS 默认位）；size/alpha 写 #hud 上的 CSS 变量
+    // 应用布局（M9.2 全控件）：key→[fx,fy]（视口比例，null=CSS 默认位）；
+    // 摇杆 clamp 半径 --stick-hr；按键 clamp 42px（最大按钮冲刺 74px 的半宽 37 出头，中心不出屏）
+    // 按键有自定义位时挂 .xy（left/top 定位 + 负半宽 translate），摇杆用 margin 负半宽无需类
     applyLayout(cfg) {
-      for (const [el, pos] of [[stickL, cfg.l], [stickR, cfg.r]]) {
-        el.style.left = pos ? `clamp(var(--stick-hr), ${(pos[0] * 100).toFixed(2)}%, calc(100% - var(--stick-hr)))` : '';
-        el.style.top = pos ? `clamp(var(--stick-hr), ${(pos[1] * 100).toFixed(2)}%, calc(100% - var(--stick-hr)))` : '';
+      for (const [key, el] of Object.entries(LY_ELS)) {
+        const pos = cfg[key] || null;
+        const isStick = key === 'l' || key === 'r';
+        const lim = isStick ? 'var(--stick-hr)' : '42px';
+        if (!isStick) el.classList.toggle('xy', !!pos);
+        el.style.left = pos ? `clamp(${lim}, ${(pos[0] * 100).toFixed(2)}%, calc(100% - ${lim}))` : '';
+        el.style.top = pos ? `clamp(${lim}, ${(pos[1] * 100).toFixed(2)}%, calc(100% - ${lim}))` : '';
       }
       hud.style.setProperty('--stick-scale', String(cfg.size));
       hud.style.setProperty('--stick-alpha', String(cfg.alpha));
@@ -887,7 +897,7 @@ export function createHud() {
           ${o.fullscreen ? `<button class="st-btn st-sub-btn" data-a="fs">${o.fullscreenOn ? '退出全屏' : '全屏'}</button>` : ''}
         </div>
         <div class="st-row">${qBtns}</div>
-        ${isTouch() ? '<button class="st-btn" data-a="layout">操作布局（摇杆位置 / 大小 / 透明度）</button>' : ''}
+        ${isTouch() ? '<button class="st-btn" data-a="layout">操作布局（摇杆 / 按键 · 位置 / 大小 / 透明度）</button>' : ''}
         <button class="st-btn" data-a="restart">重新开始（本局作废）</button>
         <button class="st-btn" data-a="title">存档并回到标题</button>
         <div class="pz-help">${isTouch()

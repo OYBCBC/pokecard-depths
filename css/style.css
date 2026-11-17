@@ -311,11 +311,11 @@ body.reversed::after { content: ''; position: fixed; inset: 0; pointer-events: n
 /* 窄竖屏（可点"仍然竖屏玩"进来的）：右下全是按键，攻击摇杆默认位上移到中部 */
 @media (max-width: 480px) { #stick-r { top: 52%; } }
 body.touchmode.ingame .stick, body.touchmode.layoutedit .stick { visibility: visible; }
-/* 布局编辑（M9）：真摇杆可拖（压在编辑浮层之上），按键簇作半透明参照（不可点） */
+/* 布局编辑（M9→M9.2）：摇杆和所有触屏按键都可拖（压在编辑浮层之上） */
 body.layoutedit .stick { pointer-events: auto; touch-action: none; cursor: grab; z-index: 13;
   border-style: dashed; opacity: max(var(--stick-alpha, .8), .6); }
-body.touchmode.layoutedit #tpad { display: block; }
-body.layoutedit .tb { pointer-events: none; }
+body.layoutedit .tb, body.layoutedit .tb-s { pointer-events: auto; touch-action: none; cursor: grab;
+  z-index: 13; border-style: dashed; }
 #layout { position: absolute; inset: 0; z-index: 12; background: rgba(8, 10, 18, .42); pointer-events: auto; }
 .ly-box { position: absolute; left: 50%; top: calc(10px + var(--sat)); transform: translateX(-50%);
   width: min(400px, 66vw); padding: 10px 16px 4px; text-align: center;
@@ -325,42 +325,50 @@ body.layoutedit .tb { pointer-events: none; }
 .ly-box .mw-slider label { width: 52px; text-align: left; }
 .ly-box .st-btn { margin: 8px auto; }
 
-#tpad, #tbar { display: none; }
-body.touchmode.ingame #tpad, body.touchmode.ingame #tbar { display: block; }
-/* 0×0 锚在右下角（安全区内）；按钮用 right/bottom 写"圆心到角"的距离，translate(50%,50%) 把圆心对上 */
-#tpad { position: absolute; right: var(--sar); bottom: var(--sab); width: 0; height: 0; }
-.tb { position: absolute; transform: translate(50%, 50%); width: 48px; height: 48px; padding: 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+/* 触屏按键（M9.2）：全部是 #hud 直接子元素、各自独立定位（布局编辑可单个拖动）；
+   默认位=right/bottom"圆心到视口角"距离（原 #tpad 0×0 锚的偏移已并入），translate(50%,50%) 把圆心对上；
+   .xy=玩家拖过的自定义位：left/top 视口百分比（inline），换 translate(-50%,-50%) 居中对位 */
+.tb, .tb-s { display: none; position: absolute; pointer-events: auto; }
+body.touchmode.ingame .tb, body.touchmode.ingame .tb-s,
+body.touchmode.layoutedit .tb, body.touchmode.layoutedit .tb-s { display: flex; }
+.tb { transform: translate(50%, 50%); width: 48px; height: 48px; padding: 0;
+  flex-direction: column; align-items: center; justify-content: center;
   border-radius: 50%; border: 2px solid rgba(127, 212, 255, .42); background: rgba(14, 20, 34, .78);
-  color: #dfe8f5; font-family: inherit; pointer-events: auto; }
+  color: #dfe8f5; font-family: inherit; }
 .tb b { font-size: 15px; font-weight: normal; line-height: 1; }
 .tb small { font-size: 9px; color: #93a4c0; margin-top: 3px; letter-spacing: 1px; }
 .tb:active, .tb.on { border-color: #ffd24a; background: rgba(44, 36, 12, .78); }
 .tb.off { opacity: .58; }                     /* 禁用也要看得见（38% 时暗到像没有这个键） */
 /* 右下按键簇：大冲刺贴角，Z/切招/道具成一列（中心间距 ≥62px，包围盒互不重叠——
    对角相切的圆按钮包围盒会交叠 6px，指尖容易按到旁边那个） */
-.tb-dash { right: 62px; bottom: 62px; width: 74px; height: 74px; }
+.tb-dash { right: calc(62px + var(--sar)); bottom: calc(62px + var(--sab)); width: 74px; height: 74px; }
 .tb-dash b { font-size: 14px; letter-spacing: 2px; }
 .tb-pips { display: flex; gap: 4px; margin-top: 6px; }
 .tb-pips u { width: 7px; height: 7px; border-radius: 50%; background: #1c2436; border: 1px solid #3a4a6c; }
 .tb-pips u.on { background: #7fd4ff; border-color: #7fd4ff; box-shadow: 0 0 6px rgba(127, 212, 255, .8); }
 /* Z：环形 PP 进度（--pp），满了金色脉动 */
-.tb-z { right: 168px; bottom: 62px; width: 58px; height: 58px; --pp: 0%; border-color: #574a20;
+.tb-z { right: calc(168px + var(--sar)); bottom: calc(62px + var(--sab)); width: 58px; height: 58px; --pp: 0%; border-color: #574a20;
   background: radial-gradient(circle closest-side, rgba(14, 20, 34, .86) 80%, transparent 82%),
     conic-gradient(#ffd24a var(--pp), rgba(58, 74, 108, .55) 0); }
 .tb-z b { font-size: 21px; color: #ffe9a0; }
 .tb-z.ready { border-color: #ffd24a; box-shadow: 0 0 16px rgba(255, 210, 74, .7); animation: zPulse 1s ease-in-out infinite; }
 @keyframes zPulse { 50% { box-shadow: 0 0 28px rgba(255, 210, 74, .95); } }
-.tb-slot { right: 168px; bottom: 124px; }
-.tb-use { right: 168px; bottom: 186px; }
+.tb-slot { right: calc(168px + var(--sar)); bottom: calc(124px + var(--sab)); }
+.tb-use { right: calc(168px + var(--sar)); bottom: calc(186px + var(--sab)); }
 .tb-use img { width: 26px; height: 26px; image-rendering: pixelated; display: none; }
 .tb-use.has img { display: block; }
 .tb-use.has small { display: none; }
-.tb-swap { right: 62px; bottom: 168px; }
-#tbar { position: absolute; top: calc(8px + var(--sat)); right: calc(116px + var(--sar)); white-space: nowrap; }
-.tb-s { width: 44px; height: 34px; margin-left: 6px; border-radius: 6px; border: 1px solid #3a4a6c;
-  background: rgba(14, 20, 34, .72); color: #dfe8f5; font-family: inherit; font-size: 11px; pointer-events: auto; }
+.tb-swap { right: calc(62px + var(--sar)); bottom: calc(168px + var(--sab)); }
+/* 地图/暂停（原 #tbar 行内流拆成独立定位：暂停贴行盒右缘，地图在其左 44+6px） */
+#tb-map { top: calc(8px + var(--sat)); right: calc(166px + var(--sar)); }
+#tb-pause { top: calc(8px + var(--sat)); right: calc(116px + var(--sar)); }
+.tb-s { width: 44px; height: 34px; border-radius: 6px; border: 1px solid #3a4a6c;
+  background: rgba(14, 20, 34, .72); color: #dfe8f5; font-family: inherit; font-size: 11px;
+  align-items: center; justify-content: center; }
 .tb-s:active { border-color: #7fd4ff; color: #7fd4ff; }
+/* 玩家自定义位（M9.2）：left/top 由 hud.applyLayout 写 inline 百分比，负半宽 translate 把圆心对位 */
+.tb.xy { transform: translate(-50%, -50%); right: auto; bottom: auto; }
+.tb-s.xy { transform: translate(-50%, -50%); right: auto; top: auto; }
 
 /* 触屏模式 HUD 重排：左上=亲密/PP/钱/招式/房间，右上=小地图+按钮，Boss 条上移（底部留给拇指）。
    重叠规避（实测 844×390 / 667×375 / 375×667）：wave 进左侧竖排（居中会在窄屏撞"地图/暂停"按钮）；
@@ -427,9 +435,10 @@ body.touchmode #banner .b-title { font-size: 22px; letter-spacing: 3px; }
   .pz-title { font-size: 20px !important; margin-bottom: 6px; }
   .pz-help { margin-top: 8px; }
 }
-/* 很矮的屏（小手机横屏带地址栏）：按键整体缩一档 */
+/* 很矮的屏（小手机横屏带地址栏）：按键整体缩一档（M9.2 按钮独立后逐个缩；.xy 变体防 translate 被覆盖） */
 @media (max-height: 360px) {
-  body.touchmode #tpad { transform: scale(.86); transform-origin: 100% 100%; }
+  body.touchmode .tb { transform: translate(50%, 50%) scale(.86); }
+  body.touchmode .tb.xy { transform: translate(-50%, -50%) scale(.86); }
   body { --stick-k: .86; }
 }
 
