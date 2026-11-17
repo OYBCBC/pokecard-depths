@@ -459,6 +459,11 @@ async function boot() {
     } catch (e) { /* ignore */ }
     try { navigator.serviceWorker.register('sw.js').catch((e) => console.info('[sw] 注册失败（不影响游戏）', e)); }
     catch (e) { /* ignore */ }
+    // 主动查更新（M9.1）：浏览器对 sw.js 的检查默认按天节流，手机 PWA 可能一直吃到旧缓存；
+    // 每次加载都手动 update()，发现新版→skipWaiting→controllerchange→上方 reload 兜底接管
+    try {
+      navigator.serviceWorker.ready.then((reg) => reg.update()).catch(() => {});
+    } catch (e) { /* ignore */ }
   }
 
   // ---- 成就 / 跨局 meta（M4）----
@@ -546,6 +551,7 @@ async function boot() {
       achvCount: `${achvSet.size}/${ACHVS.length}`,
       quality: tier,
       fullscreen: fsAvailable(), onFullscreen: () => { goFullscreen(); },
+      onLayout: () => openLayoutEditor(),                 // 标题也能调摇杆布局（M9.1）
       iosTip: isIPhone && !standalone,
       modName: modApplied ? modApplied.name : null,
       onRedraw: () => showStart(),

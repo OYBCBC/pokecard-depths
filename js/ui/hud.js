@@ -347,7 +347,7 @@ export function createHud() {
     },
     hidePeek() { peekEl.classList.add('hidden'); },
     // 开始界面：继续存档 / 新开 / 每日挑战 / 挑战码 / 图鉴 / 成就 / 画质 / 存档管理 + 本机榜
-    startScreen({ save, board, onContinue, onNew, onDaily, onChallenge, onDex, onAchv, onExport, onImport, achvCount, quality, onQuality, fullscreen, onFullscreen, iosTip, onMods, modName, onRedraw }) {
+    startScreen({ save, board, onContinue, onNew, onDaily, onChallenge, onDex, onAchv, onExport, onImport, achvCount, quality, onQuality, fullscreen, onFullscreen, iosTip, onMods, modName, onRedraw, onLayout }) {
       const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
       const qRow = quality ? '<div class="st-title">画质</div><div class="st-row">' +
         [['high', '高（景深）'], ['med', '中（推荐）'], ['low', '低（老设备）']].map(([id, label]) =>
@@ -371,12 +371,14 @@ export function createHud() {
         : '';
       // 短屏（手机横屏）时 .st-cols 变左右两栏：按钮 | 本机榜（CSS 媒体查询）
       const fsBtn = fullscreen ? '<button class="st-btn st-sub-btn" id="st-fs">全屏游玩（锁定横屏）</button>' : '';
+      // 摇杆布局入口（M9.1）：触屏玩家在标题就能调，不必先进一局再暂停找
+      const lyBtn = isTouch() ? '<button class="st-btn st-sub-btn" id="st-layout">摇杆布局（位置 / 大小 / 透明度）</button>' : '';
       const modBtn = '<button class="st-btn st-sub-btn" id="st-mods">MOD 工房</button>';
       const modChip = modName ? `<div class="mod-chip">MOD 生效中：<b>${modName}</b>（本局数值已被修改）</div>` : '';
       startEl.innerHTML = `<div class="st-box">
           <div class="st-logo">宝可梦 · 晶穴深处</div>
           <div class="st-sub">Pokémon: Crystal Depths</div>
-          <div class="st-cols"><div class="st-main">${btns}${fsBtn}${modBtn}${modChip}</div>${boardHtml ? `<div class="st-side">${boardHtml}</div>` : ''}</div>
+          <div class="st-cols"><div class="st-main">${btns}${fsBtn}${lyBtn}${modBtn}${modChip}</div>${boardHtml ? `<div class="st-side">${boardHtml}</div>` : ''}</div>
           <div class="st-hint"><span class="kb-only">WASD 移动 · 鼠标射击 · 空格冲刺 · Q 切招式 · 长按 Tab 面板 · Esc 暂停 · M 静音 · 手柄直插即用</span><span class="touch-only">左摇杆移动 · 右摇杆瞄准攻击（按住=自动瞄准）· 右下角按钮：冲刺 / Z 招式 / 切招 / 道具 / 换队 · 暂停菜单可调摇杆布局${iosTip ? '<br>iPhone：Safari「分享 → 添加到主屏幕」可全屏游玩' : ''}</span></div>
           <input type="file" id="st-file" accept=".json,application/json" style="display:none">
         </div>`;
@@ -385,6 +387,7 @@ export function createHud() {
       const q = (id) => startEl.querySelector('#' + id);
       const primary = (save && q('st-continue')) || q('st-new');
       if (q('st-fs')) q('st-fs').onclick = () => { onFullscreen && onFullscreen(); };
+      if (q('st-layout')) q('st-layout').onclick = () => { onLayout && onLayout(); };
       if (q('st-mods')) q('st-mods').onclick = () => { onMods && onMods(); };
       if (save && q('st-continue')) q('st-continue').onclick = () => { hide(); onContinue(); };
       q('st-new').onclick = () => { hide(); onNew(); };
