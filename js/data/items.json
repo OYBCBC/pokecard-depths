@@ -556,7 +556,7 @@
     "lucario",
     "rayquaza"
    ],
-   "desc": "装填 B 槽：贯穿一切的巨型光炮（攻速 ×2.6 慢）· 按 Q 切换 A/B",
+   "desc": "装填 B 槽：蓄力后放出贯穿直线的毁灭射线，用后硬直长 · 按 Q 切换 A/B",
    "effect": {
     "tm": "hyper-beam"
    }

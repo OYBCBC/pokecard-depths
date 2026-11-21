@@ -11,7 +11,7 @@
 // 全部数值在 balance.json 的 obstacles 块（热更不动代码）。
 // 循环导入说明：actors.js ↔ 本模块（engine↔actors 已有先例）——只在调用期引用，模块初始化不触碰。
 
-import { killEnemy } from './actors.js?v=m9d';
+import { killEnemy } from './actors.js?v=m12a';
 
 const DEFAULTS = {
   rooms: ['combat', 'challenge'],
@@ -187,6 +187,36 @@ export function meleeBlockedBy(state, x, y, r, data) {
     damageObstacle(state, o, 1, data, { byPlayer: true });
     state.events.push({ t: 'obst-hit', id: o.id, kind: o.kind, x: o.x, y: o.y });
   }
+}
+
+/** 蓄力射线（破坏光线）的障碍结算：返回射线实际可用长度。
+ *  rock/ore 高障碍挡线（不伤，与挡弹同口径——射线截断在其面前）；菌泥被碾碎（毁灭光，
+ *  3 血一击粉碎）、喷火口重创（2/4）；蛛网/尖刺/裂隙低障碍穿过（与普通弹同待遇）。
+ *  两段处理：先定岩石截断点，再碾截断点之前的软障碍（岩石背后的菌泥不受影响）。 */
+export function rayObstacles(state, x, y, ux, uy, len, data) {
+  const obs = state.obstacles;
+  if (!obs || !obs.length) return len;
+  let end = len;
+  let blocker = null;
+  for (const o of obs) {
+    if (o.dead || (o.kind !== 'rock' && o.kind !== 'ore')) continue;   // 只有高障碍挡线
+    const dx = o.x - x, dy = o.y - y;
+    const along = dx * ux + dy * uy;
+    if (along < 0 || along > end) continue;
+    if (Math.abs(dx * uy - dy * ux) > o.r * 0.9 + 0.5) continue;       // 擦边不挡
+    if (along < end) { end = Math.max(0.5, along - o.r * 0.6); blocker = o; }
+  }
+  for (const o of obs) {
+    if (o.dead || (o.kind !== 'muck' && o.kind !== 'vent')) continue;
+    const dx = o.x - x, dy = o.y - y;
+    const along = dx * ux + dy * uy;
+    if (along > -o.r && along < end + o.r && Math.abs(dx * uy - dy * ux) < o.r * 0.9 + 0.45) {
+      damageObstacle(state, o, o.kind === 'muck' ? 3 : 2, data, { byPlayer: true });
+      state.events.push({ t: 'obst-hit', id: o.id, kind: o.kind, x: o.x, y: o.y });
+    }
+  }
+  if (blocker) state.events.push({ t: 'obst-hit', id: blocker.id, kind: blocker.kind, x: blocker.x, y: blocker.y });
+  return end;
 }
 
 /** Z 招式（AoE）：范围内 rock/ore/muck/web/vent 全部破坏——Z 就是本作的炸弹。 */

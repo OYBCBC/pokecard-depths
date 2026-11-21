@@ -367,16 +367,22 @@ test('弹型技能机：三重攻击一次 3 发扇形', () => {
   assert.ok(Math.abs(angs[1]) < 0.05, '中间弹朝瞄准方向');
 });
 
-test('弹型技能机：破坏光线自带贯通 + 攻速 ×2.6', () => {
+test('弹型技能机：破坏光线=蓄力射线（M12.1 官方描述转译）——蓄满自动发射 + 长硬直 ×2.6', () => {
   const run = createRun(data, 221, 'pikachu');
   run.player.inv.passives.push('tm-hyper');
   recompute(run, data);
   run.player.slot = 'B';
   const fi = run.player.stats.fireInterval;
   stepRun(run, { ...idle, fire: true, aim: { x: 0, y: -1 } }, data);
-  assert.equal(run.player.fireCd, fi * 2.6, 1e-9, '攻速倍率');
-  assert.equal(run.projectiles[0].pierceLeft, 99, '贯通');
-  assert.ok(run.projectiles[0].radius > 0.3, '大弹径');
+  assert.ok(run.player.rayCh, '按下先进蓄力（不再瞬发弹体）');
+  assert.equal(run.player.rayCh.moveId, 'hyper-beam');
+  assert.equal(run.projectiles.length, 0, '射线不生成弹体');
+  let guard = 0;
+  while (run.player.rayCh && guard++ < 90) stepRun(run, { ...idle, fire: true, aim: { x: 0, y: -1 } }, data);
+  const fire = run.events.find((ev) => ev.t === 'ray-fire');
+  assert.ok(fire, '蓄满自动发射');
+  assert.ok(Math.abs(fire.len - 9.5) < 1e-6, '射线长度=range');
+  assert.ok(Math.abs(run.player.fireCd - fi * 2.6) < 1e-9, '发射后落 intervalMul ×2.6 长硬直');
 });
 
 test('弹型技能机：燕返强追踪（homing 0.22）', () => {

@@ -2,8 +2,8 @@
 //   弹体：按样式（属性默认 / 特型招式覆盖）换材质——专属像素贴图 + 自旋/脉动/抖动
 //   尾迹：弹体飞行沿途按属性撒粒子（火星/水滴/电火花/幽火……）
 //   命中：hitFx 按属性组合粒子组 + 电弧 + 地面冲击环 + 专属点光
-import { TRAILS, HIT_FX, TYPE_COLORS, styleOf, styleDef } from './vfxdefs.js?v=m9d';
-import { makeProjTex } from './projtex.js?v=m9d';
+import { TRAILS, HIT_FX, TYPE_COLORS, styleOf, styleDef } from './vfxdefs.js?v=m12a';
+import { makeProjTex } from './projtex.js?v=m12a';
 
 export function createEffects(THREE, scene, ringTex, opts = {}) {
   let clock = 0;
@@ -391,6 +391,17 @@ export function createEffects(THREE, scene, ringTex, opts = {}) {
     }
   }
 
+  // ---- 蓄力射线发射闪（破坏光线 M12.1）：光带全亮一帧后走 beamSet 淡出 + 沿线碎屑 + 端点闪光 ----
+  function rayFlash(x, z, angle, len, width, color) {
+    const halfDeg = Math.atan2(Math.max(0.1, (width || 1.1) / 2), Math.max(len, 0.1)) * 180 / Math.PI;
+    beamSet(true, x, z, angle, len, halfDeg, color);
+    for (let i = 1; i <= 4; i++) {
+      const d = (i / 4) * len;
+      burst(x + Math.cos(angle) * d, z + Math.sin(angle) * d, 4, color, { spd: 1.6, up: 1.2, life: 0.28, y: 0.5 });
+    }
+    flashLight(color, 14, x + Math.cos(angle) * len * 0.85, z + Math.sin(angle) * len * 0.85, 0.22);
+  }
+
   function update(dt) {
     clock += dt;
     if (beamGroup.visible) {
@@ -446,5 +457,5 @@ export function createEffects(THREE, scene, ringTex, opts = {}) {
     }
   }
 
-  return { syncProjectiles, burst, bolt, muzzle, hitFx, zmoveFx, sweepFx, beamSet, update };
+  return { syncProjectiles, burst, bolt, muzzle, hitFx, zmoveFx, sweepFx, beamSet, rayFlash, update };
 }

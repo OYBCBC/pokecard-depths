@@ -1,25 +1,25 @@
 // 启动入口 M3：楼层/多房间/道具/Boss 全链路。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m9d';
-import { createLights } from './gfx/lights.js?v=m9d';
-import { createCamera } from './gfx/camera.js?v=m9d';
-import { buildRoom, createProps, createTelegraphFx, createObstacleViews } from './gfx/scene.js?v=m9d';
-import { makeGlowTex, makeWebTex } from './gfx/droptex.js?v=m9d';
-import { createBillboard } from './gfx/sprites.js?v=m9d';
-import { createEffects } from './gfx/effects.js?v=m9d';
-import { styleOf, TYPE_COLORS } from './gfx/vfxdefs.js?v=m9d';
-import { createPostfx } from './gfx/postfx.js?v=m9d';
-import { createHud } from './ui/hud.js?v=m9d';
-import { createCries } from './audio/cries.js?v=m9d';
-import { createBgm } from './audio/bgm.js?v=m9d';
-import { createSfx } from './audio/sfx.js?v=m9d';
-import { createInput } from './core/input.js?v=m9d';
-import { createRun, stepRun, recompute, goNextFloor, STEP } from './sim/engine.js?v=m9d';
-import { enterRoom } from './sim/actors.js?v=m9d';
-import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m9d';
-import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m9d';
-import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m9d';
-import { createDebugConsole } from './debug/console.js?v=m9d';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m12a';
+import { createLights } from './gfx/lights.js?v=m12a';
+import { createCamera } from './gfx/camera.js?v=m12a';
+import { buildRoom, createProps, createTelegraphFx, createObstacleViews } from './gfx/scene.js?v=m12a';
+import { makeGlowTex, makeWebTex } from './gfx/droptex.js?v=m12a';
+import { createBillboard } from './gfx/sprites.js?v=m12a';
+import { createEffects } from './gfx/effects.js?v=m12a';
+import { styleOf, TYPE_COLORS } from './gfx/vfxdefs.js?v=m12a';
+import { createPostfx } from './gfx/postfx.js?v=m12a';
+import { createHud } from './ui/hud.js?v=m12a';
+import { createCries } from './audio/cries.js?v=m12a';
+import { createBgm } from './audio/bgm.js?v=m12a';
+import { createSfx } from './audio/sfx.js?v=m12a';
+import { createInput } from './core/input.js?v=m12a';
+import { createRun, stepRun, recompute, goNextFloor, STEP } from './sim/engine.js?v=m12a';
+import { enterRoom } from './sim/actors.js?v=m12a';
+import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m12a';
+import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m12a';
+import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m12a';
+import { createDebugConsole } from './debug/console.js?v=m12a';
 
 const hud = createHud();
 const tier = detectTier();
@@ -967,6 +967,16 @@ async function boot() {
           fx.sweepFx(ev.x, ev.y, ev.a, ev.arc, ev.r, mt, styleOf(ev.moveId, mt));
           break;
         }
+        case 'ray-charge':                                    // 蓄力起手（破坏光线 M12.1）：充能嗡鸣
+          splay('beam');
+          break;
+        case 'ray-fire': {                                    // 破坏光线发射：全长光束一闪 + 沿线碎屑 + 震屏
+          splay('zmove');
+          camCtl.shake(0.5, 0.3);
+          const rmt = mvType(ev.moveId);
+          fx.rayFlash(ev.x, ev.y, ev.a, ev.len, ev.w, (TYPE_COLORS[rmt] || TYPE_COLORS.normal)[0]);
+          break;
+        }
         case 'spawn': {
           const spec = data.enemies[ev.eid];
           const anim = (spec && spec.anim) || ev.eid;
@@ -1573,9 +1583,12 @@ async function boot() {
     zoneFxEnemy.sync(run.zones ? run.zones.filter((z) => z.owner === 'enemy') : []);
     obstView.sync(run.obstacles || [], clock.t);   // 障碍物视图同步（M12）
     // 喷息光束（M9.2）：跟随玩家插值位置与瞄准角；属性色 + 呼吸低鸣（sfx 150ms 节流连发）
+    // 蓄力射线（破坏光线 M12.1）：蓄力期间同一光带当瞄准引导线（细线随蓄力渐长），
+    // 发射瞬间由 ray-fire 事件切全亮宽光束，随后 rayCh 清空走 beamSet(false) 快速淡出。
     {
       const pb = run.player;
       const bmv = pb.beamOn && data.moves[pb.beamId];
+      const rch = !pb.beamOn && pb.rayCh && data.moves[pb.rayCh.moveId];
       const bx = (pb.px ?? pb.x) + (pb.x - (pb.px ?? pb.x)) * alpha;
       const bz = (pb.py ?? pb.y) + (pb.y - (pb.py ?? pb.y)) * alpha;
       if (bmv) {
@@ -1583,6 +1596,11 @@ async function boot() {
         const pal = TYPE_COLORS[bmv.type] || TYPE_COLORS.normal;
         fx.beamSet(true, bx, bz, a, bmv.range * ((pb.mods && pb.mods.rangeMul) || 1), bmv.halfDeg, pal[0]);
         splay('beam');
+      } else if (rch) {
+        const a = Math.atan2(pb.rayCh.aim.y, pb.rayCh.aim.x);
+        const pal = TYPE_COLORS[rch.type] || TYPE_COLORS.normal;
+        const k = 1 - Math.max(0, pb.rayCh.t) / (rch.charge || 0.55);
+        fx.beamSet(true, bx, bz, a, Math.max(0.6, rch.range * k), 1.6, pal[0]);
       } else fx.beamSet(false, bx, bz, 0, 3, 11, '#ffffff');
     }
     fx.update(dt);

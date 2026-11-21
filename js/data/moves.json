@@ -247,16 +247,16 @@
    "name": "破坏光线",
    "type": "normal",
    "power": 110,
-   "kind": "projectile",
+   "kind": "ray",
    "category": "special",
    "reach": "ranged",
-   "speed": 15,
-   "range": 8.0,
+   "charge": 0.55,
+   "range": 9.5,
+   "width": 1.1,
    "radius": 0.34,
-   "sprite": "orb-bolt",
-   "tint": "#ff9a4a",
-   "pierce": 99,
-   "intervalMul": 2.6
+   "knock": 3,
+   "intervalMul": 2.6,
+   "desc": "官方描述转译（旧译破坏死光）：蓄力后向对手发射强大的光束——直线贯穿全部命中；用后必须休息（长硬直）"
   },
   "fire-punch": {
    "name": "火焰拳",

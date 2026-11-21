@@ -1,11 +1,11 @@
 // 模拟层引擎：多层塔状态机。纯数据变换，无 DOM/three（node 可无头跑）。
 // 坐标：模拟层 (x, y) 平面，y+ = 南；渲染层映射为 (x, 0, y)。
-import { makeRng, rngNext } from './rng.js?v=m9d';
-import { genMap } from './genmap.js?v=m9d';
-import { applyItems, playerStats } from './items.js?v=m9d';
-import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom, stepZones } from './actors.js?v=m9d';
-import { stepObstacles } from './obstacles.js?v=m9d';
-import { stepTelegraphs } from './boss.js?v=m9d';
+import { makeRng, rngNext } from './rng.js?v=m12a';
+import { genMap } from './genmap.js?v=m12a';
+import { applyItems, playerStats } from './items.js?v=m12a';
+import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom, stepZones } from './actors.js?v=m12a';
+import { stepObstacles } from './obstacles.js?v=m12a';
+import { stepTelegraphs } from './boss.js?v=m12a';
 
 export const STEP = 1 / 60;
 export const ROOM_W = 17;

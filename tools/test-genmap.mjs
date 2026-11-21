@@ -271,3 +271,48 @@ test('M10 Boss 门：boss 房邻接边两侧标记 boss；其余边不标 boss�
     }
   }
 });
+
+// ---------- 跨尺寸房进门对齐（M12.1 修「地图与实际显示对不上」） ----------
+// 门永远在墙中线且房间居中于格子 → 两房门洞世界坐标天然对齐；但旧版把玩家旧房的局部
+// 坐标原样带进新房，跨尺寸房（大房/密室/Boss 房）会落进无门的墙段=穿墙进房。
+const { createRun, stepRun, goNextFloor: goFloor } = await import('../js/sim/engine.js?v=m12');
+const { readFileSync } = await import('node:fs');
+const ROOT2 = dirname(fileURLToPath(import.meta.url)) + '/..';
+const D2 = (f) => JSON.parse(readFileSync(join(ROOT2, 'js/data', f), 'utf8'));
+const dataFull = {
+  typechart: D2('typechart.json').chart, enemies: D2('enemies.json').enemies, moves: D2('moves.json').moves,
+  balance: D2('balance.json'),
+  items: D2('items.json').items, itemPools: D2('items.json').poolConfig,
+  waves: D2('floors.json').floors['1'].waves, floors: D2('floors.json').floors,
+  species: D2('species.json').species,
+};
+
+test('进门对齐：标准房→北邻宽房，进门 x 落在宽房门洞内（种子 2812649118 F3）', async () => {
+  const run = createRun(dataFull, 2812649118, 'lucario', 'normal');
+  goFloor(run, dataFull); goFloor(run, dataFull);            // → F3
+  assert.equal(run.floorNo, 3);
+  const north = run.map.get('6,5');
+  assert.equal(north && north.big, 'wide', '出生房北邻是宽型大房');
+  run.player.x = run.roomW / 2; run.player.y = 0.7;          // 站上北门
+  run.player.px = run.player.x; run.player.py = run.player.y;
+  stepRun(run, { move: { x: 0, y: -1 }, aim: { x: 1, y: 0 }, fire: false }, dataFull);
+  assert.equal(run.cellKey, '6,5', '应传进宽房');
+  assert.equal(run.roomW, 23, '宽房内部宽 23');
+  assert.ok(Math.abs(run.player.x - run.roomW / 2) <= 0.9 + 1e-6 && run.player.x > 9.5,
+    `进门 x=${run.player.x.toFixed(2)} 应在宽房门洞（11.5±0.9）内——修前=8.5 落在无门墙段`);
+  assert.ok(Math.abs(run.player.y - (run.roomH - 1.4)) < 1e-6, '贴南墙缘进房');
+});
+
+test('进门对齐：标准房→西邻高房，进门 y 落在高房门洞内（同种子 F3）', async () => {
+  const run = createRun(dataFull, 2812649118, 'lucario', 'normal');
+  goFloor(run, dataFull); goFloor(run, dataFull);
+  const west = run.map.get('5,6');
+  assert.equal(west && west.big, 'tall', '出生房西邻是高型大房');
+  run.player.x = 0.7; run.player.y = run.roomH / 2;          // 站上西门
+  run.player.px = run.player.x; run.player.py = run.player.y;
+  stepRun(run, { move: { x: -1, y: 0 }, aim: { x: 1, y: 0 }, fire: false }, dataFull);
+  assert.equal(run.cellKey, '5,6', '应传进高房');
+  assert.equal(run.roomH, 15, '高房内部深 15');
+  assert.ok(Math.abs(run.player.y - run.roomH / 2) <= 0.9 + 1e-6 && run.player.y > 6.5,
+    `进门 y=${run.player.y.toFixed(2)} 应在高房门洞（7.5±0.9）内——修前=5.5 落在无门墙段`);
+});

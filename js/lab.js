@@ -2,18 +2,18 @@
 // 结构：左面板（DOM）选攻击方/招式/靶子 → createRun 的沙盒局（出生房清空，塞一只可控 dummy）
 // → stepRun 驱动真实战斗路径 → consumeEvents 出特效/伤害数字/记录。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize } from './gfx/renderer.js?v=m9d';
-import { createLights } from './gfx/lights.js?v=m9d';
-import { createCamera } from './gfx/camera.js?v=m9d';
-import { buildRoom } from './gfx/scene.js?v=m9d';
-import { createBillboard } from './gfx/sprites.js?v=m9d';
-import { createEffects } from './gfx/effects.js?v=m9d';
-import { createPostfx } from './gfx/postfx.js?v=m9d';
-import { createInput } from './core/input.js?v=m9d';
-import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m9d';
-import { computeHit, moveTag } from './sim/combat.js?v=m9d';
-import { styleOf, styleDef, TYPE_COLORS } from './gfx/vfxdefs.js?v=m9d';
-import { makeProjTex } from './gfx/projtex.js?v=m9d';
+import { detectTier, createRenderer, resize, viewportSize } from './gfx/renderer.js?v=m12a';
+import { createLights } from './gfx/lights.js?v=m12a';
+import { createCamera } from './gfx/camera.js?v=m12a';
+import { buildRoom } from './gfx/scene.js?v=m12a';
+import { createBillboard } from './gfx/sprites.js?v=m12a';
+import { createEffects } from './gfx/effects.js?v=m12a';
+import { createPostfx } from './gfx/postfx.js?v=m12a';
+import { createInput } from './core/input.js?v=m12a';
+import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m12a';
+import { computeHit, moveTag } from './sim/combat.js?v=m12a';
+import { styleOf, styleDef, TYPE_COLORS } from './gfx/vfxdefs.js?v=m12a';
+import { makeProjTex } from './gfx/projtex.js?v=m12a';
 
 const TYPE_ZH = {
   normal: '一般', fire: '火', water: '水', grass: '草', electric: '电', ice: '冰',

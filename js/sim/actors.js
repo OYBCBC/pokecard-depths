@@ -1,10 +1,10 @@
 // 战斗与房间行为系统：玩家/弹体/敌人三族/波次/多房间楼层/拾取经济/台座。
 // 全部纯数据变换；事件写进 state.events 供表现层消费。
-import { computeHit } from './combat.js?v=m9d';
-import { fireInterval } from './combat.js?v=m9d';
-import { rollItem } from './items.js?v=m9d';
-import { spawnBoss, stepBoss } from './boss.js?v=m9d';
-import { genObstacles, resolveObstacles, webSlowAt, shotBlockedBy, meleeBlockedBy, smashObstaclesAt, stashObstacles } from './obstacles.js?v=m9d';
+import { computeHit } from './combat.js?v=m12a';
+import { fireInterval } from './combat.js?v=m12a';
+import { rollItem } from './items.js?v=m12a';
+import { spawnBoss, stepBoss } from './boss.js?v=m12a';
+import { genObstacles, resolveObstacles, webSlowAt, shotBlockedBy, meleeBlockedBy, smashObstaclesAt, stashObstacles, rayObstacles } from './obstacles.js?v=m12a';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -52,6 +52,7 @@ export function enterRoom(state, data, cellKey) {
   state.obstacles = obStash ? obStash.map((o) => ({ ...o, tickCd: 0 })) : genObstacles(state, data, cell);
   cell.visited = true;
   const p = state.player;
+  p.rayCh = null;                       // 换房取消蓄力射线（新房间新瞄准，不留旧硬直状态）
 
   if (cell.type === 'start') {
     p.x = w / 2; p.y = h / 2 + 1.5;
@@ -455,7 +456,8 @@ export function stepPlayer(state, input, data) {
     const l = Math.hypot(mv.x, mv.y);
     if (l > EPS) {
       const k = l > 1 ? 1 / l : 1;
-      const spd = p.stats.moveSpeed * (p.buffs && p.buffs.speed > 0 ? 1.3 : 1) * webSlowAt(state, p.x, p.y, 0.45);   // 沙鳞果；蛛网黏滞（M12）
+      const spd = p.stats.moveSpeed * (p.buffs && p.buffs.speed > 0 ? 1.3 : 1) * webSlowAt(state, p.x, p.y, 0.45)
+        * (p.rayCh ? 0.35 : 1);   // 沙鳞果；蛛网黏滞（M12）；蓄力射线期间大幅减速（硬直代价，M12.1）
       vx = mv.x * k * spd;
       vy = mv.y * k * spd;
       p.lastDir = { x: mv.x * k, y: mv.y * k };
@@ -523,15 +525,33 @@ export function stepPlayer(state, input, data) {
     } else p.beamT = 0;
   } else {
     p.beamOn = false;
-    if (input.fire && p.fireCd <= 0) {
-      // 电气种子：清房奖励的连锁弹（发射时扣数）
-      const chain = p.chainLeft > 0;
-      if (chain) p.chainLeft -= 1;
-      // 近战/远程按招式 reach 分派（M9）：melee=扇形瞬发横扫，ranged=弹道
-      state.stats.shots += mv.reach === 'melee'
-        ? meleeSwing(state, data, p, mv, moveId, input.aim, chain)
-        : fireProjectiles(state, p, mv, moveId, input.aim, chain);
-      p.fireCd = p.stats.fireInterval * (mv.intervalMul || 1);
+    if (mv.kind === 'ray') {
+      // 蓄力射线（破坏光线·官方描述实时转译）：按下→蓄力（大幅减速、瞄准引导线渐长）→
+      // 蓄满自动放出贯穿直线的毁灭射线 → intervalMul 长硬直（官方「用后休息一回合」）。
+      if (p.rayCh) {
+        p.rayCh.t -= state.dt;
+        if (input.aim.x || input.aim.y) p.rayCh.aim = { x: input.aim.x, y: input.aim.y };
+        if (!p.alive || state.over) p.rayCh = null;
+        else if (p.rayCh.t <= 0) {
+          state.stats.shots += rayFire(state, data, p, data.moves[p.rayCh.moveId] || mv, p.rayCh.moveId, p.rayCh.aim);
+          p.rayCh = null;
+        }
+      } else if (input.fire && p.fireCd <= 0 && p.alive && !state.over) {
+        p.rayCh = { moveId, t: mv.charge || 0.55, aim: { x: input.aim.x || 1, y: input.aim.y || 0 } };
+        state.events.push({ t: 'ray-charge', x: p.x, y: p.y, moveId });
+      }
+    } else {
+      if (p.rayCh) p.rayCh = null;               // 切走招式：取消蓄力
+      if (input.fire && p.fireCd <= 0) {
+        // 电气种子：清房奖励的连锁弹（发射时扣数）
+        const chain = p.chainLeft > 0;
+        if (chain) p.chainLeft -= 1;
+        // 近战/远程按招式 reach 分派（M9）：melee=扇形瞬发横扫，ranged=弹道
+        state.stats.shots += mv.reach === 'melee'
+          ? meleeSwing(state, data, p, mv, moveId, input.aim, chain)
+          : fireProjectiles(state, p, mv, moveId, input.aim, chain);
+        p.fireCd = p.stats.fireInterval * (mv.intervalMul || 1);
+      }
     }
   }
 }
@@ -563,6 +583,41 @@ function fireProjectiles(state, p, mv, moveId, aim, chain) {
   }
   state.events.push({ t: 'shot', x: p.x, y: p.y, moveId });
   return spread;
+}
+
+// 蓄力射线（破坏光线）：以玩家为端点、沿瞄准方向的直线瞬发贯穿判定（官方描述「向对手发射
+// 强大的光束，之后必须休息一回合」的实时转译：蓄力 → 全长射线 → 长硬直）。
+// 线上每个敌人各结算一次伪弹体走 applyHit（克制/STAB/异常/节拍器/连锁/PP 全联动）；
+// 岩/矿石挡线不伤（与挡弹同口径，M12）；击退沿射线方向、力度大（毁灭光推人）。
+function rayFire(state, data, p, mv, moveId, aim) {
+  const m = p.mods;
+  const len0 = mv.range * m.rangeMul * (1 + (m.sizeMul - 1) * 0.5);
+  const half = (mv.width || 1.0) / 2;
+  const a0 = Math.atan2(aim.y, aim.x);
+  const ux = Math.cos(a0), uy = Math.sin(a0);
+  const len = rayObstacles(state, p.x, p.y, ux, uy, len0, data);   // 岩/矿石截断射线
+  const targets = [];
+  for (const e of state.enemies) {
+    if (e.state === 'spawning' || e.state === 'dead') continue;
+    const dx = e.x - p.x, dy = e.y - p.y;
+    const along = dx * ux + dy * uy;
+    if (along < -e.radius || along > len + e.radius) continue;     // 端点贴身也命中
+    if (Math.abs(dx * uy - dy * ux) > half + e.radius) continue;   // 线外不伤
+    targets.push(e);
+  }
+  const hitIds = targets.map((e) => e.id);
+  for (const e of targets) {
+    if (e.state === 'dead') continue;
+    const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
+    const ndx = d > 1e-3 ? dx / d : ux, ndy = d > 1e-3 ? dy / d : uy;
+    applyHit(state, e, {
+      owner: 'player', moveId, x: e.x, y: e.y, vx: ndx * 9, vy: ndy * 9,
+      radius: mv.radius || 0.34, hitIds,
+    }, data);
+  }
+  p.fireCd = p.stats.fireInterval * (mv.intervalMul || 1);   // 「休息一回合」→ 长硬直
+  state.events.push({ t: 'ray-fire', x: p.x, y: p.y, a: a0, len, w: half * 2, moveId, hits: targets.length });
+  return 1;
 }
 
 // 近战（GDD §5.1 扇形近战波 sweep）：以玩家为圆心、瞄准方向为中轴的扇形瞬发判定。
@@ -1657,13 +1712,19 @@ export function stepRoom(state, input, data) {
     if (dx === 1) hit = p.x >= r.w - 0.78 && Math.abs(p.y - r.h / 2) < GAP;
     if (!hit) continue;
     const nk = (cell.x + dx) + ',' + (cell.y + dy);
-    const prevH = r.h, prevW = r.w;
     enterRoom(state, data, nk);
-    // 从对侧门进入
-    p.x = clamp(p.x, 1.5, state.roomW - 1.5);
-    p.y = clamp(p.y, 1.5, state.roomH - 1.5);
-    if (dy !== 0) p.y = dy === -1 ? state.roomH - 1.4 : 1.4;
-    if (dx !== 0) p.x = dx === -1 ? state.roomW - 1.4 : 1.4;
+    // 从对侧门进入。门永远在墙中线，两房门洞在世界坐标天然对齐（房间都居中于格子）——
+    // 但旧版把玩家旧房的局部坐标原样带进新房：跨尺寸房（大房 23×13/13×15、密室 13×11、Boss 房
+    // 24×16 与标准房 17×11 相连）会落进无门的墙段，表现=穿墙进房、回头找不到刚走过的门，
+    // 与小地图的门连接对不上（大房多的 F3/F4 最明显）。修法：进门横向对齐到新房门洞内（±0.9），
+    // 纵向贴对侧墙缘；同尺寸房原偏移 ≤1.3 基本不变，观感连续。
+    if (dy !== 0) {
+      p.y = dy === -1 ? state.roomH - 1.4 : 1.4;
+      p.x = clamp(p.x, state.roomW / 2 - 0.9, state.roomW / 2 + 0.9);
+    } else if (dx !== 0) {
+      p.x = dx === -1 ? state.roomW - 1.4 : 1.4;
+      p.y = clamp(p.y, state.roomH / 2 - 0.9, state.roomH / 2 + 0.9);
+    }
     p.px = p.x; p.py = p.y;
     state.events.push({ t: 'room-transition', from: cell.x + ',' + cell.y, to: nk, dir: dkey });
     return;
@@ -1938,4 +1999,4 @@ function takePedestal(state, data, d) {
 }
 
 // 规避循环 import：engine.recompute 通过事件总线由调用方重算——这里直接内联等价逻辑
-import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m9d';
+import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m12a';
