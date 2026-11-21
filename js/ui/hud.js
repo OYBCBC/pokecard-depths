@@ -1,5 +1,5 @@
 // HUD / 加载页 / debug 面板 / 战斗 UI（血量、PP、波次、伤害飘字、死亡页）
-import { moveTag } from '../sim/combat.js?v=m9c';
+import { moveTag } from '../sim/combat.js?v=m9d';
 
 // 复制文本到剪贴板（挑战码等）：成功后按钮短暂变"已复制"
 function copyText(text, btn) {
@@ -270,15 +270,18 @@ export function createHud() {
         out += `<line class="mmline" x1="${px(c.x) + size / 2}" y1="${py(c.y) + size / 2}" x2="${px(n.x) + size / 2}" y2="${py(n.y) + size / 2}"/>`;
       }
     }
-    // 房块（大房型画大一号：网格 1 格，内部放大——Boss 房同模式）
+    // 房块（大房型画大一号：网格 1 格，内部放大——Boss 房同模式）。
+    // 放大封顶到步距(size+gap)并居中：旧版 ×1.55 从原点直接拉宽，rect 越过步距边界
+    // 压到邻房 6px（宽型横向/高型纵向，大房多的深层最明显），房块粘成一坨。
     for (const c of shown) {
       if (!inWin(c)) continue;
       const cls = ['mmr', 't-' + c.type, c.visited ? (c.cleared ? 'cleared' : 'seen') : 'fog',
         c.x === cur.x && c.y === cur.y ? 'cur' : ''].filter(Boolean).join(' ');
       const icon = c.visited ? (MM_ICON[c.type] || '') : '';
-      const bw = c.big === 'wide' ? size * 1.55 : size, bh = c.big === 'tall' ? size * 1.55 : size;
-      out += `<g class="${cls}"><rect class="body" x="${px(c.x)}" y="${py(c.y)}" width="${bw}" height="${bh}" rx="${size * 0.16}"/>` +
-        (icon ? `<text x="${px(c.x) + bw / 2}" y="${py(c.y) + bh / 2}">${icon}</text>` : '') + '</g>';
+      const bw = c.big === 'wide' ? size + gap : size, bh = c.big === 'tall' ? size + gap : size;
+      const bx = px(c.x) - (bw - size) / 2, by = py(c.y) - (bh - size) / 2;
+      out += `<g class="${cls}"><rect class="body" x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="${size * 0.16}"/>` +
+        (icon ? `<text x="${bx + bw / 2}" y="${by + bh / 2}">${icon}</text>` : '') + '</g>';
     }
     const w = (x1 - x0 + 1) * pitch - gap, h = (y1 - y0 + 1) * pitch - gap;
     return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${out}</svg>`;

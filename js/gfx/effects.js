@@ -2,8 +2,8 @@
 //   弹体：按样式（属性默认 / 特型招式覆盖）换材质——专属像素贴图 + 自旋/脉动/抖动
 //   尾迹：弹体飞行沿途按属性撒粒子（火星/水滴/电火花/幽火……）
 //   命中：hitFx 按属性组合粒子组 + 电弧 + 地面冲击环 + 专属点光
-import { TRAILS, HIT_FX, TYPE_COLORS, styleOf, styleDef } from './vfxdefs.js?v=m9c';
-import { makeProjTex } from './projtex.js?v=m9c';
+import { TRAILS, HIT_FX, TYPE_COLORS, styleOf, styleDef } from './vfxdefs.js?v=m9d';
+import { makeProjTex } from './projtex.js?v=m9d';
 
 export function createEffects(THREE, scene, ringTex, opts = {}) {
   let clock = 0;

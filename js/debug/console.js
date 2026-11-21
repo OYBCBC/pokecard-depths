@@ -2,10 +2,10 @@
 // 命令总线统一走 exec(str)——main.js 挂 __depths.debug 后，debug.html 经 ?auto=cmd|cmd 深链复用。
 // 命令只改 sim 状态（纯数据层），执行后由 main.js pump 少量帧刷新事件/视图。
 
-import { recompute, goNextFloor, MAX_FLOOR } from '../sim/engine.js?v=m9c';
-import { achvStore, ACHVS } from '../sim/achv.js?v=m9c';
-import { dexStore, dexSpecies } from '../sim/dex.js?v=m9c';
-import { encodeChallenge } from '../sim/save.js?v=m9c';
+import { recompute, goNextFloor, MAX_FLOOR } from '../sim/engine.js?v=m9d';
+import { achvStore, ACHVS } from '../sim/achv.js?v=m9d';
+import { dexStore, dexSpecies } from '../sim/dex.js?v=m9d';
+import { encodeChallenge } from '../sim/save.js?v=m9d';
 
 const HELP = [
   ['help [命令]', '命令列表 / 单条详细说明'],

@@ -1,6 +1,6 @@
 // 场景装配：按房间配置搭建立体盒（《03》§6）。每进一房重建（dispose 旧组）。
 // cfg = { type, w, h, doors: { '0,-1': 'normal'|'secret'|'revealed'|'locked'|'boss' } }
-import { makeDropTex, FRAMES } from './droptex.js?v=m9c';
+import { makeDropTex, FRAMES } from './droptex.js?v=m9d';
 
 const SIDE_N = [0, -1], SIDE_S = [0, 1], SIDE_W = [-1, 0], SIDE_E = [1, 0];
 
