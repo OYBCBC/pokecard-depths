@@ -1072,6 +1072,93 @@
       "effect": {
         "slowOnHit": 1.0
       }
+    },
+    "tm-shadow": {
+      "name": "技能机·暗影球",
+      "icon": "tm-shadow",
+      "kind": "passive",
+      "quality": 2,
+      "pools": [
+        "S",
+        "T",
+        "O"
+      ],
+      "learn": [
+        "pikachu",
+        "eevee",
+        "cubone",
+        "poliwhirl",
+        "charizard",
+        "scizor",
+        "lucario",
+        "rayquaza"
+      ],
+      "desc": "装填 B 槽：贯穿影弹，消散处留影火残响（踏中持续掉血）· 按 Q 切换 A/B",
+      "effect": {
+        "tm": "shadow-ball"
+      }
+    },
+    "tm-boomer": {
+      "name": "技能机·龙之波动",
+      "icon": "tm-boomer",
+      "kind": "passive",
+      "quality": 2,
+      "pools": [
+        "S",
+        "T"
+      ],
+      "learn": [
+        "pikachu",
+        "charizard",
+        "lucario",
+        "rayquaza"
+      ],
+      "desc": "装填 B 槽：回旋龙波，飞到尽头折返接回手上（去/回各结算一次）· 按 Q 切换 A/B",
+      "effect": {
+        "tm": "dragon-wave"
+      }
+    },
+    "tm-ice": {
+      "name": "技能机·冰冻光束",
+      "icon": "tm-ice",
+      "kind": "passive",
+      "quality": 1,
+      "pools": [
+        "S",
+        "O"
+      ],
+      "learn": [
+        "pikachu",
+        "eevee",
+        "poliwhirl",
+        "charizard",
+        "lucario",
+        "rayquaza"
+      ],
+      "desc": "装填 B 槽：命中减速 1.2s、10% 冰冻 · 按 Q 切换 A/B",
+      "effect": {
+        "tm": "ice-beam"
+      }
+    },
+    "tm-dark": {
+      "name": "技能机·恶之波动",
+      "icon": "tm-dark",
+      "kind": "passive",
+      "quality": 2,
+      "pools": [
+        "S",
+        "T"
+      ],
+      "learn": [
+        "cubone",
+        "charizard",
+        "lucario",
+        "rayquaza"
+      ],
+      "desc": "装填 B 槽：恶之重炮（慢速高威力+重击退）· 按 Q 切换 A/B",
+      "effect": {
+        "tm": "dark-pulse"
+      }
     }
   },
   "_pools": "T 宝箱房 / S 商店 / O 普通房掉落 / C 挑战奖励 / X 隐藏房 / D 黑市 / A 祭坛。抽池规则见 items.js。",

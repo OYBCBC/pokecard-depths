@@ -231,6 +231,9 @@ async function boot() {
   Object.defineProperty(tex, 'wallTop', { get: () => themeTex[curTheme()].wallTop });
   const fx = createEffects(THREE, scene, ringTex, { flashLights: tier !== 'low' });
   const teleFx = createTelegraphFx(THREE, scene, ringTex);
+  // 遗毒区渲染（M11）：玩家影火残响=紫 / 敌方暗影毒雾=暗紫
+  const zoneFxPlayer = createTelegraphFx(THREE, scene, ringTex, 0xa08fd0, 0.5);
+  const zoneFxEnemy = createTelegraphFx(THREE, scene, ringTex, 0x6a58a8, 0.55);
 
   hud.progress(0.65, '后处理链…');
   let postfx = await createPostfx(THREE, renderer, scene, camCtl.camera, tier);
@@ -1496,6 +1499,8 @@ async function boot() {
 
     fx.syncProjectiles(run.projectiles, alpha, dt, data);
     teleFx.sync(run.telegraphs);
+    zoneFxPlayer.sync(run.zones ? run.zones.filter((z) => z.owner === 'player') : []);
+    zoneFxEnemy.sync(run.zones ? run.zones.filter((z) => z.owner === 'enemy') : []);
     // 喷息光束（M9.2）：跟随玩家插值位置与瞄准角；属性色 + 呼吸低鸣（sfx 150ms 节流连发）
     {
       const pb = run.player;

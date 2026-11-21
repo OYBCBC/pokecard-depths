@@ -504,7 +504,60 @@
    "radius": 0.24,
    "sprite": "orb-acid",
    "tint": "#a08fd0",
-   "pierce": 1
+   "pierce": 1,
+   "poolOnExpire": {
+    "dps": 2.5,
+    "r": 1.0,
+    "dur": 2.0,
+    "_comment": "消散处留 2s 影火残响（M11 遗毒区）"
+   }
+  },
+  "dragon-wave": {
+   "name": "龙之波动",
+   "type": "dragon",
+   "power": 44,
+   "kind": "projectile",
+   "category": "special",
+   "reach": "ranged",
+   "speed": 8,
+   "range": 7.0,
+   "radius": 0.24,
+   "sprite": "orb-bolt",
+   "tint": "#a8d0f0",
+   "boomerang": true,
+   "desc": "回旋弹（M11 新弹道）：飞到射程尽头折返接回手上，去/回各结算一次"
+  },
+  "ice-beam": {
+   "name": "冰冻光束",
+   "type": "ice",
+   "power": 42,
+   "kind": "projectile",
+   "category": "special",
+   "reach": "ranged",
+   "speed": 10,
+   "range": 7.5,
+   "radius": 0.2,
+   "sprite": "orb-bolt",
+   "tint": "#b8f0ff",
+   "slowOnHit": 1.2,
+   "freezeChance": 0.1,
+   "desc": "命中减速 1.2s + 10% 冰冻（move 级异常，M11 起 move 可自带）"
+  },
+  "dark-pulse": {
+   "name": "恶之波动",
+   "type": "dark",
+   "power": 52,
+   "kind": "projectile",
+   "category": "special",
+   "reach": "ranged",
+   "speed": 7.5,
+   "range": 6.5,
+   "radius": 0.3,
+   "sprite": "orb-acid",
+   "tint": "#8a7aa8",
+   "intervalMul": 1.7,
+   "knock": 1.6,
+   "desc": "重击弹：大弹体高威力慢炮，击退加成"
   },
   "moonblast": {
    "name": "月亮之力",
@@ -947,6 +1000,41 @@
    "power": 240,
    "kind": "zmove",
    "radius": 4.5
+  },
+  "wisp-bolt": {
+   "name": "鬼火",
+   "type": "ghost",
+   "power": 0,
+   "kind": "projectile",
+   "category": "special",
+   "reach": "ranged",
+   "speed": 4.5,
+   "range": 6.5,
+   "radius": 0.22,
+   "sprite": "orb-acid",
+   "tint": "#c0a8e8",
+   "enemyShot": true,
+   "boomerang": true,
+   "desc": "回旋鬼火（M11 梦妖）：飞到射程尽头折返，去/回各可命中一次"
+  },
+  "dusk-bolt": {
+   "name": "夜影弹",
+   "type": "ghost",
+   "power": 0,
+   "kind": "projectile",
+   "category": "special",
+   "reach": "ranged",
+   "speed": 4.2,
+   "range": 6.0,
+   "radius": 0.2,
+   "sprite": "orb-acid",
+   "tint": "#6a58a8",
+   "enemyShot": true,
+   "poolOnExpire": {
+    "r": 1.0,
+    "dur": 2.4
+   },
+   "desc": "夜影弹（M11 夜巡灵）：消散处留 2.4s 暗影毒雾"
   }
  }
 }

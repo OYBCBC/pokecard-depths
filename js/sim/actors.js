@@ -40,6 +40,7 @@ export function enterRoom(state, data, cellKey) {
   state.pickups.length = 0;
   state.pedestals.length = 0;
   state.telegraphs.length = 0;
+  if (state.zones) state.zones.length = 0;   // 遗毒区房间绑定（M11）
   state.room = {
     type: cell.type, w, h, cleared: !!cell.cleared, waveIdx: 0,
     firstEntry: !cell.visited, doorOpen: !!cell.cleared,
@@ -538,12 +539,15 @@ function fireProjectiles(state, p, mv, moveId, aim, chain) {
   const speed = mv.speed * m.shotSpeedMul + m.shotSpeedAdd;
   for (let s = 0; s < spread; s++) {
     const a = baseA + (spread > 1 ? (s / (spread - 1) - 0.5) * arcRad : 0);
+    const life = (mv.range * m.rangeMul) / Math.max(speed, 0.1);
     state.projectiles.push({
       owner: 'player', id: state.nextId++, moveId,
       x: p.x, y: p.y, px: p.x, py: p.y,
       vx: Math.cos(a) * speed,
       vy: Math.sin(a) * speed,
-      life: (mv.range * m.rangeMul) / Math.max(speed, 0.1),
+      life,
+      life0: mv.boomerang ? life : undefined,
+      boomerang: mv.boomerang || undefined,
       radius: mv.radius * m.sizeMul * (mv.sizeMul || 1),
       pierceLeft: Math.max(mv.pierce || 0, m.pierce),
       hitIds: [], chain: chain || undefined,
@@ -740,6 +744,24 @@ export function stepProjectiles(state, data) {
     b.x += b.vx * state.dt;
     b.y += b.vy * state.dt;
     b.life -= state.dt;
+    // 回旋弹（M11）：半程折返——玩家弹每帧重新指向主人接回手上，敌弹原速反向。
+    // 折返时清空 hitIds：去/回各结算一次。
+    if (b.boomerang && b.life0 && !b.ret && b.life <= b.life0 * 0.5) {
+      b.ret = true;
+      b.hitIds = [];
+      if (b.owner !== 'player') { b.vx = -b.vx; b.vy = -b.vy; }
+      state.events.push({ t: 'shot-turn', x: b.x, y: b.y });
+    }
+    if (b.ret && b.owner === 'player') {
+      const sp = Math.hypot(b.vx, b.vy) || 1;
+      const dx = state.player.x - b.x, dy = state.player.y - b.y;
+      const l = Math.hypot(dx, dy) || 1;
+      b.vx += (dx / l * sp - b.vx) * 0.18;
+      b.vy += (dy / l * sp - b.vy) * 0.18;
+      const ns = Math.hypot(b.vx, b.vy) || 1;
+      b.vx = b.vx / ns * sp; b.vy = b.vy / ns * sp;
+      if (l < 0.55) { b.life = 0; b.caught = true; }   // 接住：不触发遗毒
+    }
     let dead = b.life <= 0;
     if (b.x < 0.55 || b.x > state.roomW - 0.55 || b.y < 0.55 || b.y > state.roomH - 0.55) {
       // 弹力球：反弹
@@ -756,7 +778,11 @@ export function stepProjectiles(state, data) {
         state.events.push({ t: 'shot-die', x: b.x, y: b.y, wall: true });
       }
     }
-    if (dead) { state.projectiles.splice(i, 1); continue; }
+    if (dead) {
+      spawnPool(state, b, data);   // 遗毒弹（M11）：消散处留影火/毒雾区
+      state.projectiles.splice(i, 1);
+      continue;
+    }
 
     if (b.owner === 'player') {
       for (const e of state.enemies) {
@@ -780,6 +806,51 @@ export function stepProjectiles(state, data) {
         const rr = b.radius + 0.45;
         if (dist2(b.x, b.y, p.x, p.y) < rr * rr) {
           if (state.hurtPlayer(1)) { state.projectiles.splice(i, 1); continue; }
+        }
+      }
+    }
+  }
+}
+
+// ---------- 遗毒区（M11）：弹体消散处留下的持续伤害地面 ----------
+// 玩家弹=影火残响（tick 掉敌血，走清尸扫描结算）；敌弹=暗影毒雾（接触扣玩家 1 格）。
+export function spawnPool(state, b, data) {
+  if (b.caught || b.splitChild) return;
+  const mv = data.moves[b.moveId];
+  if (!mv || !mv.poolOnExpire) return;
+  const spec = mv.poolOnExpire;
+  state.zones.push({
+    x: b.x, y: b.y, r: spec.r, t: spec.dur, dur: spec.dur,
+    dps: spec.dps, owner: b.owner, tickCd: 0,
+  });
+  state.events.push({ t: 'zone-spawn', x: b.x, y: b.y, r: spec.r, owner: b.owner });
+}
+
+export function stepZones(state, data) {
+  for (let i = state.zones.length - 1; i >= 0; i--) {
+    const z = state.zones[i];
+    z.t -= state.dt;
+    z.tickCd = (z.tickCd || 0) - state.dt;
+    if (z.t <= 0) { state.zones.splice(i, 1); continue; }
+    if (z.owner === 'player') {
+      if (z.tickCd > 0) continue;
+      z.tickCd = 0.4;
+      for (const e of state.enemies) {
+        if (e.state === 'spawning' || e.state === 'dead') continue;
+        const rr = z.r + e.radius * 0.6;
+        if (dist2(z.x, z.y, e.x, e.y) < rr * rr) {
+          e.hp -= z.dps * 0.4;
+          e.flash = 0.08;
+          state.events.push({ t: 'enemy-poison', id: e.id, x: e.x, y: e.y });
+        }
+      }
+    } else {
+      const p = state.player;
+      if (p.alive && z.tickCd <= 0) {
+        const rr = z.r + 0.45;
+        if (dist2(z.x, z.y, p.x, p.y) < rr * rr) {
+          z.tickCd = 0.8;
+          state.hurtPlayer(1);
         }
       }
     }
@@ -820,7 +891,7 @@ function applyHit(state, e, b, data) {
 
   e.hp -= dmg;
   e.flash = 0.12;
-  // 异常状态上挂（Boss 抗性减半时长）
+  // 异常状态上挂（Boss 抗性减半时长）；M11 起 move 也可自带 freezeChance/slowOnHit（冰冻光束）
   const bossK = e.family === 'boss' ? 0.5 : 1;
   if (m.burnChance > 0 && state.rand() < m.burnChance) {
     e.burnT = Math.max(e.burnT || 0, 2 * bossK); e.burnDps = 2;
@@ -828,11 +899,13 @@ function applyHit(state, e, b, data) {
   if (m.poisonChance > 0 && state.rand() < m.poisonChance) {
     e.poisonT = Math.max(e.poisonT || 0, 3 * bossK); e.poisonDps = 1.5;
   }
-  if (m.freezeChance > 0 && state.rand() < m.freezeChance && e.family !== 'boss') {
+  const freezeCh = m.freezeChance + (mv.freezeChance || 0);
+  if (freezeCh > 0 && state.rand() < freezeCh && e.family !== 'boss') {
     e.frozenT = 0.8;
     state.events.push({ t: 'enemy-freeze', id: e.id, x: e.x, y: e.y });
   }
-  if (m.slowOnHit > 0 && e.family !== 'boss') e.slowT = m.slowOnHit;
+  const slowVal = Math.max(m.slowOnHit, mv.slowOnHit || 0);
+  if (slowVal > 0 && e.family !== 'boss') e.slowT = slowVal;
   const kl = Math.hypot(b.vx, b.vy) || 1;
   const knock = data.balance.enemy.knockback * m.knockMul * (mv.knock || 1) * (1 - (e.kbRes || 0));   // 骨棒重击退；卡比兽击退抗性
   e.kx = (b.vx / kl) * knock;
@@ -1112,11 +1185,15 @@ export function stepEnemies(state, input, data) {
           const base = Math.atan2(p.y - e.y, p.x - e.x);
           const mv = data.moves[e.shoot.move];
           const spd = mv.speed * (state.player.mods ? state.player.mods.enemyShotMul : 1);   // 金色徽章
+          const life = mv.range / spd;
           state.projectiles.push({
             owner: 'enemy', id: state.nextId++, moveId: e.shoot.move,
             x: e.x, y: e.y, px: e.x, py: e.y,
             vx: Math.cos(base) * spd, vy: Math.sin(base) * spd,
-            life: mv.range / spd, radius: mv.radius,
+            life,
+            life0: mv.boomerang ? life : undefined,
+            boomerang: mv.boomerang || undefined,
+            radius: mv.radius,
           });
           e.shootCd = e.shoot.cooldown * (0.85 + state.rand() * 0.3);
         }
@@ -1150,13 +1227,17 @@ export function stepEnemies(state, input, data) {
         const arc = (e.shoot.spread > 1 ? e.shoot.arcDeg * Math.PI / 180 : 0);
         const mv = data.moves[e.shoot.move];
         const spd = mv.speed * (state.player.mods ? state.player.mods.enemyShotMul : 1);   // 金色徽章
+        const life = mv.range / spd;
         for (let s = 0; s < e.shoot.spread; s++) {
           const a = base + (e.shoot.spread > 1 ? (s / (e.shoot.spread - 1) - 0.5) * arc : 0);
           state.projectiles.push({
             owner: 'enemy', id: state.nextId++, moveId: e.shoot.move,
             x: e.x, y: e.y, px: e.x, py: e.y,
             vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
-            life: mv.range / spd, radius: mv.radius,
+            life,
+            life0: mv.boomerang ? life : undefined,
+            boomerang: mv.boomerang || undefined,
+            radius: mv.radius,
           });
         }
         e.shootCd = e.shoot.cooldown * (0.85 + state.rand() * 0.3);

@@ -243,8 +243,12 @@
     ],
     [
      {
+      "id": "haunter",
+      "n": 1
+     },
+     {
       "id": "abra",
-      "n": 2
+      "n": 1
      },
      {
       "id": "koffing",
@@ -257,18 +261,22 @@
       "n": 1
      },
      {
+      "id": "misdreavus",
+      "n": 1
+     },
+     {
       "id": "gastly",
-      "n": 2
+      "n": 1
      }
     ],
     [
      {
-      "id": "drowzee",
-      "n": 2
+      "id": "duskull",
+      "n": 1
      },
      {
-      "id": "abra",
-      "n": 1
+      "id": "drowzee",
+      "n": 2
      },
      {
       "id": "grimer",
@@ -295,11 +303,11 @@
       "n": 1
      },
      {
-      "id": "drowzee",
-      "n": 2
+      "id": "haunter",
+      "n": 1
      },
      {
-      "id": "machop",
+      "id": "misdreavus",
       "n": 1
      }
     ]

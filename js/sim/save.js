@@ -21,6 +21,7 @@ export function serializeRun(state) {
       ? { ...e, b: { ...e.b, cfg: undefined } } : e),
     projectiles: state.projectiles,
     pickups: state.pickups, pedestals: state.pedestals, telegraphs: state.telegraphs,
+    zones: state.zones || [],                             // 遗毒区（M11）
     player: state.player, stats: state.stats, isDaily: !!state.isDaily,
     bm: state.bm || undefined,                           // 黑市/祭坛路线与计量（M5）
     flags: state.flags || undefined,                     // 超梦击破等局内旗标（M7）
@@ -60,6 +61,7 @@ export function deserializeRun(data, saved) {  if (!saved || !saved.player || !s
       room: saved.room, roomW: saved.roomW, roomH: saved.roomH,
       enemies: saved.enemies || [], projectiles: saved.projectiles || [],
       pickups: saved.pickups || [], pedestals: saved.pedestals || [], telegraphs: saved.telegraphs || [],
+      zones: saved.zones || [],                            // 遗毒区（M11）
       hpMul: saved.hpMul, waves: data.floors[saved.floorNo].waves,
       difficulty: saved.difficulty || 'normal',
       warnMul: (data.balance.difficulty && data.balance.difficulty[saved.difficulty || 'normal'] || {}).warnMul || 1,

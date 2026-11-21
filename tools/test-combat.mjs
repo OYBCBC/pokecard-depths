@@ -490,12 +490,12 @@ test('图鉴：事件点亮（遭遇/击杀/馆主搭档/进化/结伴/别名）
 const _items = await import(join(ROOT, 'js/sim/items.js?v=m9'));
 const items = data.items;
 
-test('道具全量：75 件（被动42+强化8+消耗11+纪念10+徽章4，M11 幽冥徽章），图标齐全、池合法', () => {
+test('道具全量：79 件（被动46+强化8+消耗11+纪念10+徽章4，M11 新 TM4 件），图标齐全、池合法', () => {
   const ids = Object.keys(items);
-  assert.equal(ids.length, 75, '总数 75，实际 ' + ids.length);
+  assert.equal(ids.length, 79, '总数 79，实际 ' + ids.length);
   const byKind = {};
   for (const id of ids) byKind[items[id].kind] = (byKind[items[id].kind] || 0) + 1;
-  assert.equal(byKind.passive, 42);
+  assert.equal(byKind.passive, 46);
   assert.equal(byKind.stat, 8);
   assert.equal(byKind.consumable, 11);
   assert.equal(byKind.trinket, 10);
@@ -1432,4 +1432,120 @@ test('M10 纪念品交换：台座旧件回座；地上纪念品满槽触碰即�
   // 保护期过后仍站在上面：再触碰即换回
   for (let i = 0; i < 60; i++) stepRun(run, IDLE, d);
   assert.equal(run.player.inv.trinket, 'lucky-egg', '保护期后触碰换回');
+});
+
+// ==================== M11-B：回旋弹 / 遗毒区 / move 级异常 ====================
+
+test('M11 回旋弹：半程折返 + 去/回各结算一次 + 接回手上不遗毒', () => {
+  const { run, d } = freshRoom(1);
+  const e = run.enemies[0] || null;
+  if (!e) return;   // 房里没怪就跳过（freshRoom 已清场）——自己放一只
+  const spec = d.enemies.rattata;
+  run.enemies.push({
+    id: run.nextId++, eid: 'rattata', name: spec.name, types: spec.types, family: spec.family,
+    radius: spec.radius, score: spec.score, hp: 999, maxHp: 999, touchDmg: 0,
+    speed: 0, spdMod: 1, x: run.player.x + 3, y: run.player.y, px: run.player.x + 3, py: run.player.y,
+    kx: 0, ky: 0, state: 'active', spawnT: 0, flash: 0, touchCd: 0, stun: 0,
+    anim: 'Idle', dir: 0, moving: false, wanderT: 0, wx: 0, wy: 0, shoot: null, shootCd: 0,
+  });
+  const target = run.enemies[run.enemies.length - 1];
+  const hp0 = target.hp;
+  // 直发一枚 dragon-wave（回旋弹）：life0=0.5（半程 0.25 时折返）
+  run.projectiles.push({
+    owner: 'player', id: run.nextId++, moveId: 'dragon-wave',
+    x: run.player.x + 0.6, y: run.player.y, px: run.player.x, py: run.player.y,
+    vx: 8, vy: 0, life: 0.5, life0: 0.5, boomerang: true,
+    radius: 0.24, pierceLeft: 0, hitIds: [],
+  });
+  let hits = 0, turns = 0, caught = false;
+  for (let i = 0; i < 120 && !caught; i++) {
+    const n0 = run.projectiles.length;
+    stepRun(run, IDLE, d);
+    turns += run.events.filter((ev) => ev.t === 'shot-turn').length;
+    // 每次 enemy-hurt 计一次（dragon-wave 无 burn/poison 等混淆事件）
+    hits += run.events.filter((ev) => ev.t === 'enemy-hurt').length;
+    if (run.projectiles.length < n0 || run.projectiles.every((b) => b.caught)) caught = true;
+  }
+  assert.ok(turns >= 1, '应有折返事件 shot-turn');
+  assert.ok(hits >= 2, `去/回应各结算一次（实际命中事件 ${hits}）`);
+  assert.ok(target.hp < hp0 - 1, '目标确实掉了血');
+});
+
+test('M11 遗毒区：影火残响 tick 掉敌血 / 敌方毒雾扣玩家', () => {
+  const { run, d } = freshRoom(1);
+  // 玩家弹消散 → 留 zone → tick 掉血
+  run.enemies.push({
+    id: run.nextId++, eid: 'rattata', name: '小拉达', types: ['normal'], family: 'wanderer',
+    radius: 0.42, score: 3, hp: 50, maxHp: 50, touchDmg: 0,
+    speed: 0, spdMod: 1, x: run.roomW / 2 + 1, y: run.roomH / 2, px: 0, py: 0,
+    kx: 0, ky: 0, state: 'active', spawnT: 0, flash: 0, touchCd: 0, stun: 0,
+    anim: 'Idle', dir: 0, moving: false, wanderT: 0, wx: 0, wy: 0, shoot: null, shootCd: 0,
+  });
+  const target = run.enemies[run.enemies.length - 1];
+  const hp0 = target.hp;
+  run.projectiles.push({
+    owner: 'player', id: run.nextId++, moveId: 'shadow-ball',
+    x: target.x, y: target.y, px: target.x, py: target.y,
+    vx: 1, vy: 0, life: 0.016, radius: 0.24, pierceLeft: 0, hitIds: [],
+  });
+  stepRun(run, IDLE, d);
+  assert.equal(run.zones.length, 1, '消散处应留 1 个影火残响');
+  const zT = run.zones[0].t;
+  stepRun(run, IDLE, d);
+  assert.ok(run.zones.length === 1 && run.zones[0].t < zT, 'zone 倒计时在走');
+  const before = target.hp;
+  for (let i = 0; i < 40; i++) stepRun(run, IDLE, d);   // ~0.66s：至少 1 个 0.4s tick
+  assert.ok(target.hp < before, '影火残响 tick 掉血');
+  assert.ok(target.hp >= before - 2.5 * 0.4 * 3, 'tick 伤害量级合理');
+  // 敌方毒雾：dusk-bolt 消散 → 玩家踏中扣血
+  run.projectiles.push({
+    owner: 'enemy', id: run.nextId++, moveId: 'dusk-bolt',
+    x: run.player.x, y: run.player.y + 2, px: 0, py: 0,
+    vx: 0, vy: 4.2, life: 0.016, radius: 0.2,
+  });
+  const pHp = run.player.hp;
+  run.player.iframes = 0;
+  stepRun(run, IDLE, d);
+  assert.equal(run.zones.filter((z) => z.owner === 'enemy').length, 1, '敌方毒雾生成');
+  run.player.x = run.zones.find((z) => z.owner === 'enemy').x;
+  run.player.y = run.zones.find((z) => z.owner === 'enemy').y;
+  for (let i = 0; i < 30; i++) stepRun(run, IDLE, d);
+  assert.ok(run.player.hp < pHp || !run.player.alive, '踏中敌方毒雾应扣血');
+});
+
+test('M11 move 级异常：冰冻光束自带减速/冰冻（无需道具）', () => {
+  const { run, d } = freshRoom(1);
+  run.enemies.push({
+    id: run.nextId++, eid: 'rattata', name: '小拉达', types: ['normal'], family: 'wanderer',
+    radius: 0.42, score: 3, hp: 50, maxHp: 50, touchDmg: 0,
+    speed: 0, spdMod: 1, x: run.player.x + 2, y: run.player.y, px: 0, py: 0,
+    kx: 0, ky: 0, state: 'active', spawnT: 0, flash: 0, touchCd: 0, stun: 0,
+    anim: 'Idle', dir: 0, moving: false, wanderT: 0, wx: 0, wy: 0, shoot: null, shootCd: 0,
+  });
+  const target = run.enemies[run.enemies.length - 1];
+  run.projectiles.push({
+    owner: 'player', id: run.nextId++, moveId: 'ice-beam',
+    x: target.x - 0.5, y: target.y, px: 0, py: 0,
+    vx: 10, vy: 0, life: 1, radius: 0.2, pierceLeft: 0, hitIds: [],
+  });
+  for (let i = 0; i < 30; i++) stepRun(run, IDLE, d);
+  assert.ok(target.slowT > 0, '冰冻光束应挂减速（move 级 slowOnHit）');
+});
+
+test('M11 F4 新敌：鬼斯通/梦妖/夜巡灵配置齐全（弹幕/图鉴号/图集）', () => {
+  for (const [eid, mv, family] of [['haunter', 'shadow-bolt', 'wanderer'], ['misdreavus', 'wisp-bolt', 'shooter'], ['duskull', 'dusk-bolt', 'shooter']]) {
+    const spec = data.enemies[eid];
+    assert.ok(spec, `新敌 ${eid} 存在`);
+    assert.equal(spec.family, family, `${eid} AI 族`);
+    assert.equal(spec.shoot.move, mv, `${eid} 弹幕招式`);
+    assert.ok(spec.dex > 0, `${eid} 图鉴号`);
+    assert.ok(existsSync(join(ROOT, 'assets/atlas', spec.anim + '.json')), `${eid} 图集存在`);
+  }
+  assert.equal(data.moves['wisp-bolt'].boomerang, true, '梦妖鬼火是回旋弹');
+  assert.ok(data.moves['dusk-bolt'].poolOnExpire, '夜巡灵影弹带遗毒');
+  // F4 波次表确实用上了 3 只新敌
+  const waveIds = new Set(data.floors['4'].waves.flat().map((w) => w.id));
+  for (const eid of ['haunter', 'misdreavus', 'duskull']) {
+    assert.ok(waveIds.has(eid), `F4 波次表应含 ${eid}`);
+  }
 });

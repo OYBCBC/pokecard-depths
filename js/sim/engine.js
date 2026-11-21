@@ -3,7 +3,7 @@
 import { makeRng, rngNext } from './rng.js?v=m9b';
 import { genMap } from './genmap.js?v=m9b';
 import { applyItems, playerStats } from './items.js?v=m9b';
-import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom } from './actors.js?v=m9b';
+import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom, stepZones } from './actors.js?v=m9b';
 import { stepTelegraphs } from './boss.js?v=m9b';
 
 export const STEP = 1 / 60;
@@ -54,7 +54,7 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
     rand, dirOf, events: [], nextId: 1,
     map: cells, cellKey: map.start.x + ',' + map.start.y,
     room: null, roomW: ROOM_W, roomH: ROOM_H,
-    enemies: [], projectiles: [], pickups: [], pedestals: [], telegraphs: [],
+    enemies: [], projectiles: [], pickups: [], pedestals: [], telegraphs: [], zones: [],
     hpMul: floorCfg.hpMul * diff.hpMul, waves: floorCfg.waves,
     floorClearDrops: 0,                        // M10：本层清房奖励已掉次数（掉落概率衰减计数，新层重置）
     difficulty, warnMul: diff.warnMul, bossMul: diff.bossMul,   // 难度三档（《01》§11）
@@ -176,6 +176,7 @@ export function goNextFloor(state, data) {
   state.projectiles.length = 0;
   state.pickups.length = 0;
   state.telegraphs.length = 0;
+  if (state.zones) state.zones.length = 0;
   state.reverseT = 0;
   state.player.lethalGuardUsed = false;                  // 气势披带每层一次
   const heal = 2;
@@ -221,6 +222,7 @@ export function stepRun(state, input, data) {
   stepPlayer(state, { ...input, move, aim }, data);
   stepEnemies(state, input, data);
   stepProjectiles(state, data);
+  stepZones(state, data);
   stepTelegraphs(state, data);
   stepRoom(state, input, data);
   return state;

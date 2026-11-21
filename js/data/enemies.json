@@ -450,6 +450,103 @@
    "moveA": "lick",
    "zmove": "night-shade-z"
   },
+  "haunter": {
+   "dex": 93,
+   "name": "鬼斯通",
+   "types": [
+    "ghost",
+    "poison"
+   ],
+   "anim": "haunter",
+   "hp": 8.5,
+   "touchDmg": 2,
+   "speed": 1.5,
+   "spdMod": 1.35,
+   "family": "wanderer",
+   "score": 3,
+   "radius": 0.45,
+   "shoot": {
+    "move": "shadow-bolt",
+    "cooldown": 2.2,
+    "spread": 1,
+    "firstDelay": 1.0
+   },
+   "moveA": "shadow-ball",
+   "zmove": "night-shade-z",
+   "cry": 93,
+   "base": {
+    "hp": 52,
+    "atk": 70,
+    "def": 45,
+    "spa": 115,
+    "spd": 38,
+    "spe": 100
+   }
+  },
+  "misdreavus": {
+   "dex": 200,
+   "name": "梦妖",
+   "types": [
+    "ghost"
+   ],
+   "anim": "misdreavus",
+   "hp": 9.0,
+   "touchDmg": 2,
+   "speed": 1.1,
+   "spdMod": 1.2,
+   "family": "shooter",
+   "score": 4,
+   "radius": 0.45,
+   "shoot": {
+    "move": "wisp-bolt",
+    "cooldown": 3.0,
+    "spread": 1,
+    "firstDelay": 1.4
+   },
+   "moveA": "shadow-ball",
+   "zmove": "night-shade-z",
+   "cry": 200,
+   "base": {
+    "hp": 56,
+    "atk": 60,
+    "def": 60,
+    "spa": 105,
+    "spd": 49,
+    "spe": 60
+   }
+  },
+  "duskull": {
+   "dex": 355,
+   "name": "夜巡灵",
+   "types": [
+    "ghost"
+   ],
+   "anim": "duskull",
+   "hp": 10.0,
+   "touchDmg": 1,
+   "speed": 0.8,
+   "spdMod": 1.0,
+   "family": "shooter",
+   "score": 4,
+   "radius": 0.45,
+   "shoot": {
+    "move": "dusk-bolt",
+    "cooldown": 2.6,
+    "spread": 1,
+    "firstDelay": 1.2
+   },
+   "moveA": "shadow-ball",
+   "zmove": "night-shade-z",
+   "cry": 355,
+   "base": {
+    "hp": 64,
+    "atk": 40,
+    "def": 90,
+    "spa": 80,
+    "spd": 70,
+    "spe": 30
+   }
+  },
   "sandshrew": {
    "dex": 27,
    "name": "穿山鼠",

@@ -456,12 +456,12 @@ export function createProps(THREE, scene, tex) {
 }
 
 // ---- 预警圈渲染 ----
-export function createTelegraphFx(THREE, scene, ringTex) {
+export function createTelegraphFx(THREE, scene, ringTex, tint = 0xffffff, baseOpacity = 0.85) {
   const POOL = 24;
   const pool = [];
   for (let i = 0; i < POOL; i++) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1),
-      new THREE.MeshBasicMaterial({ map: ringTex, transparent: true, depthWrite: false, opacity: 0.85 }));
+      new THREE.MeshBasicMaterial({ map: ringTex, transparent: true, depthWrite: false, opacity: baseOpacity, color: tint }));
     m.rotation.x = -Math.PI / 2;
     m.visible = false;
     m.position.y = 0.05;
@@ -476,7 +476,7 @@ export function createTelegraphFx(THREE, scene, ringTex) {
       m.position.x = t.x; m.position.z = t.y;
       const k = 1 + Math.max(0, t.t) * 0.4;      // 越接近爆点越收紧
       m.scale.set(t.r * 2 * k, t.r * 2 * k, 1);
-      m.material.opacity = t.kind === 'charge-line' ? 0.35 : 0.85;
+      m.material.opacity = t.kind === 'charge-line' ? 0.35 : baseOpacity;
     }
   }
   return { sync };

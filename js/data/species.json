@@ -180,7 +180,8 @@
       "desc": "波导弹自带强追踪（以撒式自瞄），火力稍逊换指哪打哪。",
       "startTMs": [
         "tm-tri",
-        "tm-aerial"
+        "tm-aerial",
+        "tm-ice"
       ]
     },
     "rayquaza": {
