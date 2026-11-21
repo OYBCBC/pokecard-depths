@@ -1,5 +1,5 @@
 // HUD / 加载页 / debug 面板 / 战斗 UI（血量、PP、波次、伤害飘字、死亡页）
-import { moveTag } from '../sim/combat.js?v=m9b';
+import { moveTag } from '../sim/combat.js?v=m9c';
 
 // 复制文本到剪贴板（挑战码等）：成功后按钮短暂变"已复制"
 function copyText(text, btn) {

@@ -1,6 +1,6 @@
 // 场景装配：按房间配置搭建立体盒（《03》§6）。每进一房重建（dispose 旧组）。
 // cfg = { type, w, h, doors: { '0,-1': 'normal'|'secret'|'revealed'|'locked'|'boss' } }
-import { makeDropTex, FRAMES } from './droptex.js?v=m9b';
+import { makeDropTex, FRAMES } from './droptex.js?v=m9c';
 
 const SIDE_N = [0, -1], SIDE_S = [0, 1], SIDE_W = [-1, 0], SIDE_E = [1, 0];
 
@@ -56,14 +56,18 @@ export function buildRoom(THREE, scene, tex, lights, tier, cfg) {
     // side: [dx,dy]；mainAxis='x' 北南墙（沿 x），'z' 东西墙（沿 z）
     const gapC = mainAxis === 'x' ? [cx, side[1] < 0 ? -T / 2 : H + T / 2] : [side[0] < 0 ? -T / 2 : W + T / 2, cz];
     if (hasDoor(side)) {
-      const len = (mainAxis === 'x' ? W : H) + T * 2 - GAP;
-      const seg = len / 2 + T;
+      // 门洞两侧墙段：从含墙厚的房角一直铺到门洞边缘。
+      // （修 M0 起的公式错误：旧式把 seg=len/2+T 当半长放进段心偏移，段心外移 seg/2——
+      //   门洞两侧各豁 2.5~4 格大洞、墙段探出房角 3~5 格，房间视觉围不住，敌人/玩家
+      //   站在洞边像"在房间外面"。正确几何：段长=房角到门洞边，段心=门洞中线±(GAP/2+段长/2)）
+      const seg = (mainAxis === 'x' ? W : H) / 2 + T - GAP / 2;
+      const off = GAP / 2 + seg / 2;
       if (mainAxis === 'x') {
-        wall(gapC[0] - (GAP / 2 + seg - T / 2), gapC[1], seg, T, HGT);
-        wall(gapC[0] + (GAP / 2 + seg - T / 2), gapC[1], seg, T, HGT);
+        wall(gapC[0] - off, gapC[1], seg, T, HGT);
+        wall(gapC[0] + off, gapC[1], seg, T, HGT);
       } else {
-        wall(gapC[0], gapC[1] - (GAP / 2 + seg - T / 2), T, seg, HGT);
-        wall(gapC[0], gapC[1] + (GAP / 2 + seg - T / 2), T, seg, HGT);
+        wall(gapC[0], gapC[1] - off, T, seg, HGT);
+        wall(gapC[0], gapC[1] + off, T, seg, HGT);
       }
     } else {
       if (mainAxis === 'x') wall(cx, gapC[1], W + T * 2, T, HGT);
