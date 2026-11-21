@@ -4,6 +4,7 @@ import { makeRng, rngNext } from './rng.js?v=m9d';
 import { genMap } from './genmap.js?v=m9d';
 import { applyItems, playerStats } from './items.js?v=m9d';
 import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom, stepZones } from './actors.js?v=m9d';
+import { stepObstacles } from './obstacles.js?v=m9d';
 import { stepTelegraphs } from './boss.js?v=m9d';
 
 export const STEP = 1 / 60;
@@ -55,6 +56,7 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
     map: cells, cellKey: map.start.x + ',' + map.start.y,
     room: null, roomW: ROOM_W, roomH: ROOM_H,
     enemies: [], projectiles: [], pickups: [], pedestals: [], telegraphs: [], zones: [],
+    obstacles: [],                              // M12 障碍场（enterRoom 按房生成/恢复）
     hpMul: floorCfg.hpMul * diff.hpMul, waves: floorCfg.waves,
     floorClearDrops: 0,                        // M10：本层清房奖励已掉次数（掉落概率衰减计数，新层重置）
     difficulty, warnMul: diff.warnMul, bossMul: diff.bossMul,   // 难度三档（《01》§11）
@@ -222,6 +224,7 @@ export function stepRun(state, input, data) {
   stepPlayer(state, { ...input, move, aim }, data);
   stepEnemies(state, input, data);
   stepProjectiles(state, data);
+  stepObstacles(state, data);                 // 障碍行为（M12）：喷火节律/尖刺与火焰接触伤害
   stepZones(state, data);
   stepTelegraphs(state, data);
   stepRoom(state, input, data);

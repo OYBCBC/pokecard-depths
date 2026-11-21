@@ -3,8 +3,8 @@ import * as THREE from 'three';
 import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m9d';
 import { createLights } from './gfx/lights.js?v=m9d';
 import { createCamera } from './gfx/camera.js?v=m9d';
-import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m9d';
-import { makeGlowTex } from './gfx/droptex.js?v=m9d';
+import { buildRoom, createProps, createTelegraphFx, createObstacleViews } from './gfx/scene.js?v=m9d';
+import { makeGlowTex, makeWebTex } from './gfx/droptex.js?v=m9d';
 import { createBillboard } from './gfx/sprites.js?v=m9d';
 import { createEffects } from './gfx/effects.js?v=m9d';
 import { styleOf, TYPE_COLORS } from './gfx/vfxdefs.js?v=m9d';
@@ -234,6 +234,12 @@ async function boot() {
   // 遗毒区渲染（M11）：玩家影火残响=紫 / 敌方暗影毒雾=暗紫
   const zoneFxPlayer = createTelegraphFx(THREE, scene, ringTex, 0xa08fd0, 0.5);
   const zoneFxEnemy = createTelegraphFx(THREE, scene, ringTex, 0x6a58a8, 0.55);
+  // 障碍物视图（M12）：共享几何/材质低模组，按 run.obstacles 增量同步（跨房间单实例）
+  const webTex = new THREE.CanvasTexture(makeWebTex());
+  webTex.colorSpace = THREE.SRGBColorSpace;
+  const obstGlowTex = new THREE.CanvasTexture(makeGlowTex());
+  obstGlowTex.colorSpace = THREE.SRGBColorSpace;
+  const obstView = createObstacleViews(THREE, scene, { glow: obstGlowTex, web: webTex });
 
   hud.progress(0.65, '后处理链…');
   let postfx = await createPostfx(THREE, renderer, scene, camCtl.camera, tier);
@@ -1107,6 +1113,20 @@ async function boot() {
             '在本层某处的死路尽头');
           break;
         case 'telegraph-hit': splay('slam'); fx.burst(ev.x, ev.y, 10, 0xc88a70); break;
+        case 'obst-hit':            // 障碍受击（M12）：碎屑小爆
+          fx.burst(ev.x, ev.y, 3, 0x9fb8d8, { spd: 1.8, life: 0.28, y: 0.45 });
+          break;
+        case 'obst-break': {        // 障碍破坏（M12）：属性色碎裂爆 + 沉闷/灼烧声
+          const COL = { rock: 0x9fb8d8, ore: 0x4fc3ff, muck: 0x9ec24a, vent: 0xff9a4a, web: 0xcfd8e8 };
+          fx.burst(ev.x, ev.y, 14, ev.kind === 'muck' && ev.variant === 'gold' ? 0xffd75e : (COL[ev.kind] || 0x9fb8d8),
+            { spd: 2.8, up: 2.8, grav: 6, life: 0.55 });
+          if (ev.kind === 'vent') fx.burst(ev.x, ev.y, 10, 0xffb36b, { spd: 2.0, up: 3.2, life: 0.4 });
+          splay(ev.kind === 'web' ? 'burn' : 'slam');
+          break;
+        }
+        case 'spike-hit':           // 尖刺刺中（M12）：hurtPlayer 已出受击演出，这里补红色刺光
+          fx.burst(ev.x, ev.y, 4, 0xd85a7a, { spd: 2, life: 0.3, y: 0.5 });
+          break;
         case 'player-hurt':
           splay('hurt');
           buzz(35);
@@ -1551,6 +1571,7 @@ async function boot() {
     teleFx.sync(run.telegraphs);
     zoneFxPlayer.sync(run.zones ? run.zones.filter((z) => z.owner === 'player') : []);
     zoneFxEnemy.sync(run.zones ? run.zones.filter((z) => z.owner === 'enemy') : []);
+    obstView.sync(run.obstacles || [], clock.t);   // 障碍物视图同步（M12）
     // 喷息光束（M9.2）：跟随玩家插值位置与瞄准角；属性色 + 呼吸低鸣（sfx 150ms 节流连发）
     {
       const pb = run.player;

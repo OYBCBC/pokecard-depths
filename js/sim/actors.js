@@ -4,6 +4,7 @@ import { computeHit } from './combat.js?v=m9d';
 import { fireInterval } from './combat.js?v=m9d';
 import { rollItem } from './items.js?v=m9d';
 import { spawnBoss, stepBoss } from './boss.js?v=m9d';
+import { genObstacles, resolveObstacles, webSlowAt, shotBlockedBy, meleeBlockedBy, smashObstaclesAt, stashObstacles } from './obstacles.js?v=m9d';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -29,6 +30,7 @@ export function enterRoom(state, data, cellKey) {
     if (oldCell) oldCell.stash = {
       pickups: state.pickups.map((k) => ({ ...k })),
       pedestals: state.pedestals.filter((d) => !d.taken).map((d) => ({ ...d })),
+      obstacles: stashObstacles(state),          // M12：障碍场持久化（拆了就没了，活着的原样保留）
     };
   }
   const cell = state.map.get(cellKey);
@@ -45,6 +47,9 @@ export function enterRoom(state, data, cellKey) {
     type: cell.type, w, h, cleared: !!cell.cleared, waveIdx: 0,
     firstEntry: !cell.visited, doorOpen: !!cell.cleared,
   };
+  // 障碍场（M12）：重进走 stash 恢复（拆了就没了），首进按层/房种生成（仅战斗房/挑战房）
+  const obStash = cell.stash && cell.stash.obstacles;
+  state.obstacles = obStash ? obStash.map((o) => ({ ...o, tickCd: 0 })) : genObstacles(state, data, cell);
   cell.visited = true;
   const p = state.player;
 
@@ -387,6 +392,8 @@ export function stepPlayer(state, input, data) {
       side.pp = 0;
       // 全场/近场 AoE：以玩家为圆心，走属性克制（免疫地板 ×0.75——大招不被抗性废掉，普弹仍 0.5）
       let hits = 0;
+      // Z 招式=本作的炸弹（M12）：范围内岩石/矿石/菌泥/蛛网/喷火口全部粉碎
+      const smashed = smashObstaclesAt(state, p.x, p.y, zm.radius, data);
       for (const e of state.enemies) {
         if (e.state === 'spawning' || e.state === 'dead') continue;
         const d = Math.hypot(e.x - p.x, e.y - p.y);
@@ -408,7 +415,7 @@ export function stepPlayer(state, input, data) {
           hits++;
         }
       }
-      state.events.push({ t: 'zmove', id: zid, name: zm.name, x: p.x, y: p.y, radius: zm.radius, hits });
+      state.events.push({ t: 'zmove', id: zid, name: zm.name, x: p.x, y: p.y, radius: zm.radius, hits, smashed });
     }
   }
 
@@ -448,7 +455,7 @@ export function stepPlayer(state, input, data) {
     const l = Math.hypot(mv.x, mv.y);
     if (l > EPS) {
       const k = l > 1 ? 1 / l : 1;
-      const spd = p.stats.moveSpeed * (p.buffs && p.buffs.speed > 0 ? 1.3 : 1);   // 沙鳞果
+      const spd = p.stats.moveSpeed * (p.buffs && p.buffs.speed > 0 ? 1.3 : 1) * webSlowAt(state, p.x, p.y, 0.45);   // 沙鳞果；蛛网黏滞（M12）
       vx = mv.x * k * spd;
       vy = mv.y * k * spd;
       p.lastDir = { x: mv.x * k, y: mv.y * k };
@@ -456,6 +463,7 @@ export function stepPlayer(state, input, data) {
   }
   p.x = clamp(p.x + vx * state.dt, 0.75, state.roomW - 0.75);
   p.y = clamp(p.y + vy * state.dt, 0.75, state.roomH - 0.75);
+  resolveObstacles(state, p, 0.45);              // 障碍推挤（M12）：圆解算沿法线滑出，冲刺/走位同样受限
   p.moving = Math.hypot(vx, vy) > EPS;
   p.anim = p.moving || p.dashActive ? 'Walk' : 'Idle';
   if (p.moving) p.dir = state.dirOf(vx, vy);
@@ -580,6 +588,7 @@ function meleeSwing(state, data, p, mv, moveId, aim, chain) {
     targets.push(e);
   }
   const hitIds = targets.map((e) => e.id);               // 连锁闪电不回跳本次挥中的目标
+  meleeBlockedBy(state, p.x, p.y, r, data);              // 近战同样敲得动菌泥/喷火口（M12；岩石头太硬）
   const spd = mv.speed || 6;
   for (const e of targets) {
     if (e.state === 'dead') continue;                    // 前一目标的连锁可能已打死它
@@ -616,6 +625,7 @@ function beamTick(state, data, p, mv, moveId) {
     targets.push(e);
   }
   const hitIds = targets.map((e) => e.id);
+  meleeBlockedBy(state, p.x, p.y, r, data);              // 喷息 tick 同近战口径（M12）
   const spd = 1.2;                                      // 弱击退
   for (const e of targets) {
     if (e.state === 'dead') continue;
@@ -778,6 +788,8 @@ export function stepProjectiles(state, data) {
         state.events.push({ t: 'shot-die', x: b.x, y: b.y, wall: true });
       }
     }
+    // 障碍命中（M12）：rock/ore 纯挡，muck/vent 扣血，火系弹顺带烧蛛网；裂隙/尖刺不挡弹
+    if (!dead && shotBlockedBy(state, b, data)) dead = true;
     if (dead) {
       spawnPool(state, b, data);   // 遗毒弹（M11）：消散处留影火/毒雾区
       state.projectiles.splice(i, 1);
@@ -1427,12 +1439,13 @@ export function stepEnemies(state, input, data) {
     // 束缚带减速
     if (e.slowT > 0) { vx *= 0.5; vy *= 0.5; }
     if (e.passWalls) {
-      // 鬼斯穿墙：超界从另一侧回卷
+      // 鬼斯穿墙：超界从另一侧回卷（穿墙体同样无视障碍）
       e.x = ((e.x + vx * state.dt) % state.roomW + state.roomW) % state.roomW;
       e.y = ((e.y + vy * state.dt) % state.roomH + state.roomH) % state.roomH;
     } else {
       e.x = clamp(e.x + vx * state.dt, 0.7, state.roomW - 0.7);
       e.y = clamp(e.y + vy * state.dt, 0.7, state.roomH - 0.7);
+      resolveObstacles(state, e, e.radius, { flying: !!(e.types && e.types.includes('flying')) });   // 地面敌受障碍阻挡；飞行系越裂隙（M12）
     }
     e.moving = Math.hypot(vx, vy) > EPS;
     e.anim = e.moving ? 'Walk' : 'Idle';
@@ -1480,6 +1493,11 @@ export function stepEnemies(state, input, data) {
       }
     }
   }
+  // 分离推挤可能把敌人推进障碍：统一兜底解算一遍（M12）
+  for (const e of state.enemies) {
+    if (e.state !== 'active' || e.family === 'boss' || e.passWalls) continue;
+    resolveObstacles(state, e, e.radius, { flying: !!(e.types && e.types.includes('flying')) });
+  }
 }
 
 // ---------- 波次 / 房间 / 传送 / 拾取 / 台座 ----------
@@ -1509,7 +1527,9 @@ export function spawnWave(state, data) {
         x = 1.5 + state.rand() * (state.roomW - 3);
         y = 1.5 + state.rand() * (state.roomH - 3);
         ok = dist2(x, y, state.player.x, state.player.y) > 3.2 * 3.2
-          && state.enemies.every((e) => dist2(x, y, e.x, e.y) > 1.4 * 1.4);
+          && state.enemies.every((e) => dist2(x, y, e.x, e.y) > 1.4 * 1.4)
+          && (!state.obstacles || state.obstacles.every((o) => o.dead || o.kind === 'web'
+            || dist2(x, y, o.x, o.y) > (o.r + 0.9) * (o.r + 0.9)));   // 不刷进障碍里（M12）
       }
       state.enemies.push({
         id: state.nextId++, eid: id, name: spec.name, types: spec.types,

@@ -459,6 +459,207 @@ export function createProps(THREE, scene, tex) {
     get pedestalCount() { return pedestalViews.size; } };
 }
 
+// ---- 障碍物视图（M12）：七种以撒式障碍的低模表现 ----
+// 共享几何/材质（跨视图复用，移除视图不 dispose 共享资源）；按 id 增量同步，vent/ore 每帧微动画。
+// tex = { glow, web }（CanvasTexture）
+export function createObstacleViews(THREE, scene, tex) {
+  const group = new THREE.Group();
+  scene.add(group);
+  const views = new Map();          // id -> { g, kind, anim... }
+
+  // ---- 共享材质 ----
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x6f788c, roughness: 0.94, flatShading: true });
+  const rockMat2 = new THREE.MeshStandardMaterial({ color: 0x5c6478, roughness: 0.95, flatShading: true });
+  const oreMat = new THREE.MeshStandardMaterial({ color: 0x4e5a76, emissive: 0x1a4a5e, emissiveIntensity: 0.5, roughness: 0.85, flatShading: true });
+  const crystalMat = new THREE.MeshStandardMaterial({ color: 0x9fdcff, emissive: 0x4fc3ff, emissiveIntensity: 1.7, roughness: 0.25 });
+  const muckMat = new THREE.MeshStandardMaterial({ color: 0x6d7a3c, roughness: 1.0 });
+  const muckMatD = new THREE.MeshStandardMaterial({ color: 0x51602a, roughness: 1.0 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xd8a83a, emissive: 0x8a6a10, emissiveIntensity: 0.5, roughness: 0.6 });
+  const spikeMat = new THREE.MeshStandardMaterial({ color: 0x9aa4b8, roughness: 0.5, metalness: 0.35, flatShading: true });
+  const spikeBaseMat = new THREE.MeshStandardMaterial({ color: 0x2c3242, roughness: 1.0 });
+  const ventMat = new THREE.MeshStandardMaterial({ color: 0x4c5468, roughness: 0.95, flatShading: true });
+  const ventMouthMat = new THREE.MeshStandardMaterial({ color: 0x1a1f2c, roughness: 1.0 });
+  const flameMat = new THREE.MeshStandardMaterial({ color: 0xff8a3a, emissive: 0xff6a1e, emissiveIntensity: 2.2, roughness: 0.4, transparent: true, opacity: 0.92 });
+  const emberMat = new THREE.MeshStandardMaterial({ color: 0xff9a4a, emissive: 0xff5a1e, emissiveIntensity: 0.7, roughness: 0.6 });
+  const pitMat = new THREE.MeshBasicMaterial({ color: 0x05070d });
+  const pitRimMat = new THREE.MeshStandardMaterial({ color: 0x2c3446, roughness: 1.0 });
+  const webMat = new THREE.MeshBasicMaterial({ map: tex.web, transparent: true, depthWrite: false, opacity: 0.8, side: THREE.DoubleSide });
+  // 光晕材质每实例独立（透明度逐实例呼吸动画；移除时按 selfDispose 释放）
+  const mkGlowMat = (color) => new THREE.MeshBasicMaterial({
+    map: tex.glow, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color, opacity: 0.5,
+  });
+
+  // ---- 共享几何 ----
+  const rockGeo = new THREE.IcosahedronGeometry(0.52, 0);
+  const rockGeoS = new THREE.IcosahedronGeometry(0.3, 0);
+  const shardGeo = new THREE.ConeGeometry(0.13, 0.52, 5);
+  const muckGeo = new THREE.SphereGeometry(0.5, 9, 6);
+  const bumpGeo = new THREE.SphereGeometry(0.16, 6, 5);
+  const spikeGeo = new THREE.ConeGeometry(0.1, 0.36, 6);
+  const spikeBaseGeo = new THREE.CylinderGeometry(0.6, 0.66, 0.07, 10);
+  const ventBodyGeo = new THREE.CylinderGeometry(0.5, 0.58, 0.24, 9);
+  const ventMouthGeo = new THREE.CylinderGeometry(0.34, 0.38, 0.1, 9);
+  const flameGeo = new THREE.ConeGeometry(0.26, 0.85, 7);
+  const emberGeo = new THREE.SphereGeometry(0.1, 6, 5);
+  const glowGeo = new THREE.PlaneGeometry(1, 1);
+  const webGeo = new THREE.PlaneGeometry(1.5, 1.5);
+  const pitGeo = new THREE.CircleGeometry(0.56, 18);
+  const pitRimGeo = new THREE.RingGeometry(0.5, 0.72, 18);
+
+  const flat = (m) => { m.rotation.x = -Math.PI / 2; return m; };
+
+  function build(o) {
+    const g = new THREE.Group();
+    const seed = (o.id * 2654435761) >>> 0;
+    const rnd = (k) => ((seed >> (k * 3)) % 1000) / 1000;   // 免依赖：按 id 派生伪随机
+    const anim = {};
+    if (o.kind === 'rock' || o.kind === 'ore') {
+      const body = new THREE.Mesh(rockGeo, o.kind === 'ore' ? oreMat : (rnd(1) > 0.5 ? rockMat : rockMat2));
+      body.position.y = 0.3;
+      body.rotation.set(rnd(2) * 0.5 - 0.25, rnd(3) * Math.PI * 2, rnd(4) * 0.4 - 0.2);
+      body.castShadow = body.receiveShadow = true;
+      g.add(body);
+      const side = new THREE.Mesh(rockGeoS, rockMat2);
+      side.position.set(0.32 - rnd(5) * 0.5, 0.14, 0.26 - rnd(6) * 0.4);
+      side.rotation.y = rnd(7) * Math.PI * 2;
+      side.castShadow = true;
+      g.add(side);
+      if (o.kind === 'ore') {
+        anim.shards = [];
+        for (let i = 0; i < 4; i++) {
+          const sh = new THREE.Mesh(shardGeo, crystalMat);
+          const a = (i / 4) * Math.PI * 2 + rnd(8) * 1.6;
+          sh.position.set(Math.cos(a) * 0.2, 0.52, Math.sin(a) * 0.2);   // 从岩石顶部伸出
+          sh.rotation.z = (i % 2 ? 1 : -1) * 0.38;
+          sh.rotation.x = Math.sin(a) * 0.3;
+          sh.castShadow = true;
+          g.add(sh);
+          anim.shards.push(sh);
+        }
+        anim.glow = flat(new THREE.Mesh(glowGeo, mkGlowMat(0x4fc3ff)));
+        anim.glow.position.y = 0.06;
+        anim.glow.scale.setScalar(2.4);
+        anim.glow.userData.selfDispose = true;
+        g.add(anim.glow);
+      }
+    } else if (o.kind === 'muck') {
+      const mat = o.variant === 'gold' ? goldMat : (rnd(1) > 0.5 ? muckMat : muckMatD);
+      const body = new THREE.Mesh(muckGeo, mat);
+      body.scale.set(1, 0.52, 1);
+      body.position.y = 0.24;
+      body.castShadow = body.receiveShadow = true;
+      g.add(body);
+      for (const [bx, bz, bs] of [[0.26, 0.1, 1], [-0.2, -0.16, 0.7]]) {
+        const bump = new THREE.Mesh(bumpGeo, mat);
+        bump.scale.setScalar(bs);
+        bump.position.set(bx, 0.3, bz);
+        g.add(bump);
+      }
+      if (o.variant === 'gold') {
+        anim.glow = flat(new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({
+          map: tex.glow, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xffd75e, opacity: 0.4,
+        })));
+        anim.glow.position.y = 0.05;
+        anim.glow.scale.setScalar(1.4);
+        g.add(anim.glow);
+        anim.glow.userData.selfDispose = true;
+      }
+    } else if (o.kind === 'spikes') {
+      const base = new THREE.Mesh(spikeBaseGeo, spikeBaseMat);
+      base.position.y = 0.04;
+      base.receiveShadow = true;
+      g.add(base);
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 + rnd(2) * 1.2;
+        const rr = i === 0 ? 0.02 : 0.34;
+        const sp = new THREE.Mesh(spikeGeo, spikeMat);
+        sp.position.set(Math.cos(a) * rr, 0.22, Math.sin(a) * rr);
+        sp.rotation.z = Math.cos(a) * 0.16;
+        sp.rotation.x = -Math.sin(a) * 0.16;
+        sp.castShadow = true;
+        g.add(sp);
+      }
+    } else if (o.kind === 'vent') {
+      const body = new THREE.Mesh(ventBodyGeo, ventMat);
+      body.position.y = 0.12;
+      body.castShadow = body.receiveShadow = true;
+      g.add(body);
+      const mouth = new THREE.Mesh(ventMouthGeo, ventMouthMat);
+      mouth.position.y = 0.25;
+      g.add(mouth);
+      anim.flame = new THREE.Mesh(flameGeo, flameMat);
+      anim.flame.position.y = 0.55;
+      anim.flame.scale.set(0.7, 0.12, 0.7);              // 未喷发=气孔里的小火苗
+      g.add(anim.flame);
+      const ember = new THREE.Mesh(emberGeo, emberMat);
+      ember.position.y = 0.3;
+      g.add(ember);
+      anim.glow = flat(new THREE.Mesh(glowGeo, mkGlowMat(0xff7a2e)));
+      anim.glow.position.y = 0.08;
+      anim.glow.scale.setScalar(2.4);
+      anim.glow.userData.selfDispose = true;
+      g.add(anim.glow);
+    } else if (o.kind === 'web') {
+      const web = flat(new THREE.Mesh(webGeo, webMat));
+      web.position.y = 0.045;
+      web.rotation.z = rnd(2) * Math.PI * 2;
+      g.add(web);
+    } else if (o.kind === 'pit') {
+      const hole = flat(new THREE.Mesh(pitGeo, pitMat));
+      hole.position.y = 0.028;
+      g.add(hole);
+      const rim = flat(new THREE.Mesh(pitRimGeo, pitRimMat));
+      rim.position.y = 0.031;
+      rim.receiveShadow = true;
+      g.add(rim);
+    }
+    g.position.set(o.x, 0, o.y);
+    group.add(g);
+    return { g, kind: o.kind, anim, ph: rnd(9) * 6.28 };
+  }
+
+  function sync(obstacles, t) {
+    const live = new Set(obstacles.map((o) => o.id));
+    for (const [id, v] of views) {
+      if (!live.has(id)) {
+        group.remove(v.g);
+        v.g.traverse((m) => { if (m.userData && m.userData.selfDispose && m.material) m.material.dispose(); });
+        views.delete(id);
+      }
+    }
+    for (const o of obstacles) {
+      let v = views.get(o.id);
+      if (!v) { v = build(o); views.set(o.id, v); }
+      v.g.position.set(o.x, 0, o.y);
+      if (v.kind === 'vent') {
+        // 喷发：火舌抖动拉高 + 地面橙光晕起；间歇：气孔火苗小颤
+        const flick = 0.86 + 0.14 * Math.sin(t * 26 + v.ph);
+        if (o.erupt) {
+          v.anim.flame.scale.set(0.85 * flick, 1.0 * flick, 0.85 * flick);
+          v.anim.glow.material.opacity = 0.5 + 0.16 * Math.sin(t * 21 + v.ph);
+        } else {
+          v.anim.flame.scale.set(0.45, 0.1 + 0.025 * Math.sin(t * 9 + v.ph), 0.45);
+          v.anim.glow.material.opacity = 0.1;
+        }
+      } else if (v.kind === 'ore' && v.anim.glow) {
+        v.anim.glow.material.opacity = 0.42 + 0.16 * Math.sin(t * 2.6 + v.ph);
+        const k = 0.9 + 0.1 * Math.sin(t * 3.4 + v.ph);
+        v.anim.glow.scale.setScalar(1.9 * k);
+        if (v.anim.shards) v.anim.shards.forEach((sh, i) => { sh.rotation.y = t * 1.2 + i * 2.1; });
+      } else if (v.kind === 'muck' && v.anim.glow) {
+        v.anim.glow.material.opacity = 0.3 + 0.12 * Math.sin(t * 2.2 + v.ph);
+      }
+    }
+  }
+
+  function dispose() {
+    group.traverse((m) => { if (m.userData && m.userData.selfDispose && m.material) m.material.dispose(); });
+    scene.remove(group);
+    views.clear();
+  }
+  return { sync, dispose };
+}
+
 // ---- 预警圈渲染 ----
 export function createTelegraphFx(THREE, scene, ringTex, tint = 0xffffff, baseOpacity = 0.85) {
   const POOL = 24;

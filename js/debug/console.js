@@ -6,6 +6,7 @@ import { recompute, goNextFloor, MAX_FLOOR } from '../sim/engine.js?v=m9d';
 import { achvStore, ACHVS } from '../sim/achv.js?v=m9d';
 import { dexStore, dexSpecies } from '../sim/dex.js?v=m9d';
 import { encodeChallenge } from '../sim/save.js?v=m9d';
+import { genObstacles, mkObstacle } from '../sim/obstacles.js?v=m9d';
 
 const HELP = [
   ['help [命令]', '命令列表 / 单条详细说明'],
@@ -15,6 +16,7 @@ const HELP = [
   ['boss <eid>', '直开 Boss 战：进 boss/裂缝房并 spawn 指定 Boss（如 brock/mew/mewtwo/agatha/darkrai）'],
   ['fissure', '本层强制生成裂缝房（邻出生房）并传送过去'],
   ['spawn <eid> [n]', '在玩家周围刷 n 只敌（默认 1，可用金冠名如 rattata）'],
+  ['obst [kind]', '障碍场（M12）：无参=当前战斗房重新生成；带 kind=玩家周围摆 2 个指定障碍（rock/ore/muck/spikes/vent/web/pit）'],
   ['give <itemId>', '道具直接入包（TM/徽章/纪念品/消耗品按 kind 落位）'],
   ['take <itemId>', '移除一件已持有道具'],
   ['killall', '全场敌人 HP 清零（走正常死亡结算，含 Boss 奖励/结局判定）'],
@@ -215,6 +217,31 @@ export function createDebugConsole(deps) {
         state.events.push({ t: 'spawn', id: state.enemies[state.enemies.length - 1].id, eid, x, y });
       }
       ok('spawn ' + eid + ' ×' + n);
+    },
+
+    obst(arg) {
+      const state = deps.getRun();
+      const KINDS = ['rock', 'ore', 'muck', 'spikes', 'vent', 'web', 'pit'];
+      if (!arg) {
+        // 无参：当前战斗房重新生成障碍场（清掉旧的，重掷一次）
+        const cell = state.map.get(state.cellKey);
+        if (!cell || !['combat', 'challenge'].includes(cell.type)) {
+          return err('当前不是战斗房/挑战房（先 goto combat）；特殊房不生成障碍');
+        }
+        state.obstacles = genObstacles(state, data, cell);
+        state.pickups.length = 0;                        // 上一轮砸出来的掉落一起清，避免视觉干扰
+        return ok('障碍场重生成：' + state.obstacles.length + ' 个');
+      }
+      if (!KINDS.includes(arg)) return err('未知障碍 kind：' + arg + '（' + KINDS.join('/') + '）');
+      const p = state.player;
+      const w = state.roomW, h = state.roomH;
+      for (let i = 0; i < 2; i++) {
+        const a = (i === 0 ? 0.6 : -0.6);
+        const x = Math.max(1.2, Math.min(w - 1.2, p.x + Math.cos(a) * 2.4));
+        const y = Math.max(1.2, Math.min(h - 1.2, p.y + Math.sin(a) * 2.4));
+        state.obstacles.push(mkObstacle(state, arg, x, y, null, data));
+      }
+      ok('obst ' + arg + ' ×2 @ 玩家两侧');
     },
 
     give(arg) {

@@ -225,6 +225,43 @@ function blobCv(c0, c1) {
   return cv;
 }
 
+// 蛛网（M12 障碍）：8 根辐条 + 两圈下垂弧线的半透明细网——线描画法（细线比逐像素更像丝）。
+export function makeWebTex() {
+  const N = 48;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = N;
+  const ctx = cv.getContext('2d');
+  const C = 24, SPOKES = 8;
+  ctx.strokeStyle = 'rgba(214,224,244,0.85)';
+  ctx.lineWidth = 1.1;
+  // 辐条
+  for (let i = 0; i < SPOKES; i++) {
+    const a = (i / SPOKES) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(C, C);
+    ctx.lineTo(C + Math.cos(a) * 23, C + Math.sin(a) * 23);
+    ctx.stroke();
+  }
+  // 环线：相邻辐条间的下垂弧（二次曲线， sag 随半径增大）
+  for (let ring = 1; ring <= 3; ring++) {
+    const r = 6 + ring * 6;
+    ctx.beginPath();
+    for (let i = 0; i <= SPOKES; i++) {
+      const a = (i / SPOKES) * Math.PI * 2 - Math.PI / 2;
+      const px = C + Math.cos(a) * r, py = C + Math.sin(a) * r;
+      if (i === 0) { ctx.moveTo(px, py); continue; }
+      const am = a - Math.PI / SPOKES;
+      const mid = r - 1.6 - ring * 0.4;                       // 向心下垂
+      ctx.quadraticCurveTo(C + Math.cos(am) * mid, C + Math.sin(am) * mid, px, py);
+    }
+    ctx.stroke();
+  }
+  // 几粒"缠住的碎屑"（可读性：一眼看出是网不是装饰圈）
+  ctx.fillStyle = 'rgba(230,238,252,0.9)';
+  for (const [x, y] of [[24, 18], [30, 28], [17, 27], [27, 15]]) ctx.fillRect(x, y, 1.4, 1.4);
+  return cv;
+}
+
 // 白色径向光斑（掉落物光斑 / 精英常驻光环共用）；独立导出，调用方自行包 CanvasTexture
 export function makeGlowTex() {
   return blobCv('rgba(255,255,255,0.85)', 'rgba(255,255,255,0)');

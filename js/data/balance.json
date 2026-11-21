@@ -147,12 +147,39 @@
  },
  "eventRoomChance": 0.55,
  "combatRoom": {
-  "_comment": "M10 普通房以撒化：两波概率按层取（索引=层号-1，超长钳尾）；大房型 wide/tall 固定两波",
-  "twoWaveChance": [
-   0.15,
-   0.25,
-   0.3,
-   0.4
-  ]
+   "_comment": "M10 普通房以撒化：两波概率按层取（索引=层号-1，超长钳尾）；大房型 wide/tall 固定两波",
+   "twoWaveChance": [
+    0.15,
+    0.25,
+    0.3,
+    0.4
+   ]
+  },
+  "obstacles": {
+   "_comment": "M12 以撒式房间障碍：仅战斗房/挑战房生成；格点布点(spacing)+门口与出生点净空(keepClear)；rock/ore 挡移动挡弹只有 Z 能碎(ore 必掉)；muck 弹/近战可碎概率掉(gold 必掉2币)；spikes 接触扣1；vent 周期喷火敌我都烧(水系一击熄灭)；web 玩家减速火系烧除；pit 挡地面不挡弹(飞行敌可越)；minFloor 按层解锁；离房 stash 持久化(拆了就没了)",
+   "rooms": ["combat", "challenge"],
+   "baseChance": 0.75,
+   "countBase": 3,
+   "countVar": 3,
+   "countPerFloor": 0.5,
+   "spacing": 2.1,
+   "keepClear": 2.6,
+   "table": [
+    ["rock", 56],
+    ["ore", 6],
+    ["muck", 16],
+    ["spikes", 8],
+    ["vent", 6],
+    ["web", 6],
+    ["pit", 8]
+   ],
+   "minFloor": { "spikes": 2, "vent": 2, "web": 3, "pit": 3 },
+   "rock": { "r": 0.55 },
+   "ore": { "r": 0.55 },
+   "muck": { "r": 0.5, "hp": 3, "goldChance": 0.18, "dropChance": 0.4 },
+   "spikes": { "r": 0.62, "dmg": 1 },
+   "vent": { "r": 0.5, "hp": 4, "idle": 1.7, "erupt": 0.9, "enemyDmg": 2, "enemyTick": 0.6 },
+   "web": { "r": 0.7, "slow": 0.45 },
+   "pit": { "r": 0.55 }
+  }
  }
-}
