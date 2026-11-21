@@ -111,6 +111,51 @@ function chestCv() {
   return cv;
 }
 
+// 梦之宝箱（M11-C 终焉宝箱）：紫晶木箱 + 梦色包角 + 中央羽毛纹锁扣——以撒式"主动开箱才结算"
+function finalChestCv() {
+  const { cv, ctx } = mk();
+  const WOOD = '#6a58a8', WOOD_L = '#8a78c8', WOOD_D = '#463878', EDGE = '#1e1636',
+        BAND = '#c0a8ff', BAND_D = '#7a62b8';
+  for (let y = 3; y <= 13; y++) for (let x = 1; x <= 14; x++) {
+    let c;
+    if (y === 3 || y === 13 || x === 1 || x === 14) c = EDGE;
+    else if (y === 4) c = WOOD_L;
+    else if (y === 7 || y === 8) c = WOOD_D;
+    else if (y === 12) c = WOOD_D;
+    else c = (x === 5 || x === 10) ? WOOD_D : WOOD;
+    ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1);
+  }
+  for (const bx of [2, 12]) {
+    for (let y = 3; y <= 13; y++) {
+      ctx.fillStyle = y === 3 || y === 13 ? EDGE : BAND; ctx.fillRect(bx, y, 1, 1);
+      ctx.fillStyle = y === 3 || y === 13 ? EDGE : BAND_D; ctx.fillRect(bx + 1, y, 1, 1);
+    }
+  }
+  ctx.fillStyle = BAND_D; ctx.fillRect(6, 6, 3, 3);
+  ctx.fillStyle = BAND; ctx.fillRect(6, 6, 3, 1);
+  ctx.fillStyle = EDGE; ctx.fillRect(7, 7, 1, 2);
+  ctx.fillStyle = '#f0e8ff'; ctx.fillRect(7, 10, 1, 1);   // 星辉微光
+  return cv;
+}
+
+// 离开的洞口（M11-C 结局①）：上行梯口——石框 + 三级上行台阶 + 暖金光斑
+function stairsLeaveCv() {
+  const W = 24, H = 30;
+  const { cv, ctx } = mk(W, H);
+  const EDGE = '#1c1206', RIM = '#50402a', STEP = '#7c6a48', STEP_L = '#9c8a62',
+        LIGHT = '#ffd88a', LIGHT_D = '#c89850';
+  ctx.fillStyle = EDGE; ctx.fillRect(2, 2, W - 4, H - 4);
+  ctx.fillStyle = RIM; ctx.fillRect(3, 3, W - 6, H - 6);
+  for (let i = 0; i < 3; i++) {                          // 上行台阶（自下而上收窄）
+    const w = 14 - i * 4;
+    ctx.fillStyle = i % 2 ? STEP : STEP_L;
+    ctx.fillRect(Math.round((W - w) / 2), 22 - i * 7, w, 6);
+  }
+  ctx.fillStyle = LIGHT; ctx.fillRect(9, 8, 6, 5);       // 顶部暖金光
+  ctx.fillStyle = LIGHT_D; ctx.fillRect(9, 13, 6, 2);
+  return cv;
+}
+
 // 兜底"包裹箱"（M10）：道具图标缺失时替代压扁金币帧——牛皮纸包裹 + 问号
 function itemBoxCv() {
   const { cv, ctx } = mk();
@@ -200,6 +245,7 @@ export function makeDropTex() {
     coin: coin.cv, coin2: coin2.cv,
     heart: heartCv(), key: keyCv(),
     chest: chestCv(), itemBox: itemBoxCv(),
+    'final-chest': finalChestCv(), 'stairs-leave': stairsLeaveCv(),
     stairs: stairsCv(),
     shadow: blobCv('rgba(0,0,0,0.5)', 'rgba(0,0,0,0)'),
     glow: makeGlowTex(),

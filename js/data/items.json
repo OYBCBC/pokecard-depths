@@ -1,1201 +1,1218 @@
 {
-  "v": 1,
-  "_comment": "M3 道具 33 件（被动 20 + 强化 8 + 消耗品 2 + 纪念品 3）。品质 0-4；池 T=宝箱 S=商店 O=普通掉落 C=挑战奖励 X=隐藏房。effect 由 items.js 解释为 mods。",
-  "items": {
-    "tm-water": {
-      "name": "技能机·水枪",
-      "icon": "tm-water",
-      "kind": "passive",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "装填 B 槽：水枪（弹速快射程长）· 按 Q 切换 A/B",
-      "effect": {
-        "tm": "water-gun"
-      },
-      "learn": [
-        "eevee",
-        "poliwhirl"
-      ]
-    },
-    "tm-fire": {
-      "name": "技能机·火焰漩涡",
-      "icon": "tm-fire",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "T",
-        "S"
-      ],
-      "desc": "装填 B 槽：火焰弹（15% 灼烧）· 按 Q 切换 A/B",
-      "effect": {
-        "tm": "fire-spin",
-        "typeMul": {
-          "fire": 1.1
-        },
-        "burnChance": 0.15
-      },
-      "learn": [
-        "eevee"
-      ]
-    },
-    "tm-grass": {
-      "name": "技能机·打草结",
-      "icon": "tm-grass",
-      "kind": "passive",
-      "quality": 1,
-      "pools": [
-        "O"
-      ],
-      "desc": "装填 B 槽：打草结（对重型敌 ×2）· 按 Q 切换 A/B",
-      "effect": {
-        "tm": "grass-knot"
-      },
-      "learn": [
-        "pikachu",
-        "poliwhirl"
-      ]
-    },
-    "charcoal": {
-      "name": "木炭",
-      "icon": "charcoal",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "T"
-      ],
-      "desc": "火招式伤害 +20%",
-      "effect": {
-        "typeMul": {
-          "fire": 1.2
-        }
-      }
-    },
-    "magnet-item": {
-      "name": "磁铁",
-      "icon": "magnet",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "T"
-      ],
-      "desc": "电招式伤害 +20%，免疫麻痹",
-      "effect": {
-        "typeMul": {
-          "electric": 1.2
-        }
-      }
-    },
-    "mystic-water": {
-      "name": "神秘水滴",
-      "icon": "mystic-water",
-      "kind": "passive",
-      "quality": 1,
-      "pools": [
-        "O"
-      ],
-      "desc": "水招式伤害 +20%",
-      "effect": {
-        "typeMul": {
-          "water": 1.2
-        }
-      }
-    },
-    "choice-specs": {
-      "name": "讲究眼镜",
-      "icon": "choice-specs",
-      "kind": "passive",
-      "quality": 3,
-      "pools": [
-        "T",
-        "S"
-      ],
-      "desc": "特攻 ×1.5，锁定 A 槽",
-      "effect": {
-        "dmgMul": 1.5,
-        "lockB": true
-      }
-    },
-    "choice-scarf": {
-      "name": "讲究围巾",
-      "icon": "choice-scarf",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "S"
-      ],
-      "desc": "移速 +0.3，特攻 -10%",
-      "effect": {
-        "speedAdd": 0.3,
-        "dmgMul": 0.9
-      }
-    },
-    "wide-lens": {
-      "name": "广角镜",
-      "icon": "wide-lens",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "T"
-      ],
-      "desc": "弹体变大，更易命中",
-      "effect": {
-        "sizeMul": 1.25
-      }
-    },
-    "scope-lens": {
-      "name": "焦点镜",
-      "icon": "scope-lens",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "S"
-      ],
-      "desc": "暴击率 +10%（×1.5 伤害）",
-      "effect": {
-        "crit": 0.1
-      }
-    },
-    "expert-belt": {
-      "name": "达人带",
-      "icon": "expert-belt",
-      "kind": "passive",
-      "quality": 3,
-      "pools": [
-        "T"
-      ],
-      "desc": "克制命中再 +25%",
-      "effect": {
-        "superBonus": 0.25
-      }
-    },
-    "big-root": {
-      "name": "大根茎",
-      "icon": "big-root",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "T"
-      ],
-      "desc": "击杀时 20% 回半格",
-      "effect": {
-        "killHeal": 0.2
-      }
-    },
-    "light-ball": {
-      "name": "电气球",
-      "icon": "light-ball",
-      "kind": "passive",
-      "quality": 3,
-      "pools": [
-        "T"
-      ],
-      "desc": "皮卡丘专属：特攻 ×2（进化后失效）",
-      "effect": {
-        "speciesDmgMul": {
-          "species": "pikachu",
-          "mul": 2
-        }
-      }
-    },
-    "kings-rock": {
-      "name": "王者之证",
-      "icon": "kings-rock",
-      "kind": "passive",
-      "quality": 3,
-      "pools": [
-        "T"
-      ],
-      "desc": "命中 12% 使敌畏缩 0.6s",
-      "effect": {
-        "flinch": 0.12
-      }
-    },
-    "quick-claw": {
-      "name": "先制之爪",
-      "icon": "quick-claw",
-      "kind": "passive",
-      "quality": 1,
-      "pools": [
-        "O"
-      ],
-      "desc": "出招速度 +0.5",
-      "effect": {
-        "tears": 0.5
-      }
-    },
-    "hard-stone": {
-      "name": "硬石头",
-      "icon": "hard-stone",
-      "kind": "passive",
-      "quality": 1,
-      "pools": [
-        "O"
-      ],
-      "desc": "击退 +50%",
-      "effect": {
-        "knockMul": 1.5
-      }
-    },
-    "twisted-spoon": {
-      "name": "弯曲的汤匙",
-      "icon": "twisted-spoon",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "S"
-      ],
-      "desc": "弹道轻微追踪",
-      "effect": {
-        "homing": 0.1
-      }
-    },
-    "leftovers-pick": {
-      "name": "捡拾袋",
-      "icon": "leftovers-pick",
-      "kind": "passive",
-      "quality": 1,
-      "pools": [
-        "O"
-      ],
-      "desc": "掉落物自动飘来",
-      "effect": {
-        "magnet": 2.6
-      }
-    },
-    "drill-item": {
-      "name": "贯穿钻头",
-      "icon": "razor-fang",
-      "kind": "passive",
-      "quality": 3,
-      "pools": [
-        "T"
-      ],
-      "desc": "弹体可贯穿 1 个敌人",
-      "effect": {
-        "pierce": 1
-      }
-    },
-    "split-seed": {
-      "name": "分裂种子",
-      "icon": "miracle-seed",
-      "kind": "passive",
-      "quality": 3,
-      "pools": [
-        "T"
-      ],
-      "desc": "命中后分裂两枚小子弹",
-      "effect": {
-        "split": true
-      }
-    },
-    "hp-up": {
-      "name": "HP增强剂",
-      "icon": "hp-up",
-      "kind": "stat",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "亲密度上限 +1 大心",
-      "effect": {
-        "maxHp": 2
-      }
-    },
-    "protein": {
-      "name": "蛋白质",
-      "icon": "protein",
-      "kind": "stat",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "伤害提升值 +1",
-      "effect": {
-        "dmgUps": 1
-      }
-    },
-    "iron": {
-      "name": "铁",
-      "icon": "iron",
-      "kind": "stat",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "受伤 10% 概率完全格挡",
-      "effect": {
-        "blockChance": 0.1
-      }
-    },
-    "calcium": {
-      "name": "钙",
-      "icon": "calcium",
-      "kind": "stat",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "出招速度 +0.4",
-      "effect": {
-        "tears": 0.4
-      }
-    },
-    "zinc": {
-      "name": "锌",
-      "icon": "zinc",
-      "kind": "stat",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "受击伤害偶尔减半",
-      "effect": {
-        "hurtResist": 0.15
-      }
-    },
-    "carbos": {
-      "name": "碳水化合物",
-      "icon": "carbos",
-      "kind": "stat",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "移动速度 +0.15",
-      "effect": {
-        "speedAdd": 0.15
-      }
-    },
-    "pp-up": {
-      "name": "PP提升剂",
-      "icon": "pp-up",
-      "kind": "stat",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "大招充能 +25%",
-      "effect": {
-        "ppMul": 1.25
-      }
-    },
-    "pp-max": {
-      "name": "PP极限提升剂",
-      "icon": "pp-max",
-      "kind": "stat",
-      "quality": 2,
-      "pools": [
-        "S"
-      ],
-      "desc": "大招所需 PP -15%",
-      "effect": {
-        "ppCost": 0.85
-      }
-    },
-    "sitrus-berry": {
-      "name": "文柚果",
-      "icon": "sitrus-berry",
-      "kind": "consumable",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "使用后回复 2 格（E）",
-      "effect": {
-        "heal": 2
-      }
-    },
-    "cheri-berry": {
-      "name": "木子果",
-      "icon": "cheri-berry",
-      "kind": "consumable",
-      "quality": 1,
-      "pools": [
-        "O"
-      ],
-      "desc": "使用后回复 1 格（E）",
-      "effect": {
-        "heal": 1
-      }
-    },
-    "leftovers": {
-      "name": "剩饭",
-      "icon": "leftovers",
-      "kind": "trinket",
-      "quality": 2,
-      "pools": [
-        "S"
-      ],
-      "desc": "纪念品：每清一房回半格",
-      "effect": {
-        "regenRoom": 0.5
-      }
-    },
-    "bright-powder": {
-      "name": "光粉",
-      "icon": "bright-powder",
-      "kind": "trinket",
-      "quality": 2,
-      "pools": [
-        "S"
-      ],
-      "desc": "纪念品：10% 闪避",
-      "effect": {
-        "dodge": 0.1
-      }
-    },
-    "focus-sash": {
-      "name": "气势披带",
-      "icon": "focus-sash",
-      "kind": "trinket",
-      "quality": 3,
-      "pools": [
-        "T"
-      ],
-      "desc": "纪念品：致命伤保留 1 格（每层一次）",
-      "effect": {
-        "lethalGuard": true
-      }
-    },
-    "thunder-stone": {
-      "name": "雷之石",
-      "icon": "thunder-stone",
-      "kind": "consumable",
-      "quality": 2,
-      "pools": [
-        "T",
-        "S",
-        "O"
-      ],
-      "desc": "第 2 层起使用即进化（雷丘）",
-      "effect": {
-        "evolve": "raichu"
-      }
-    },
-    "tm-tri": {
-      "name": "技能机·三重攻击",
-      "icon": "tm-tri",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "S",
-        "T",
-        "O"
-      ],
-      "learn": [
-        "pikachu",
-        "eevee",
-        "cubone",
-        "poliwhirl",
-        "charizard",
-        "scizor",
-        "lucario",
-        "rayquaza"
-      ],
-      "desc": "装填 B 槽：一次射出 3 发扇形弹 · 按 Q 切换 A/B",
-      "effect": {
-        "tm": "tri-attack"
-      }
-    },
-    "tm-aerial": {
-      "name": "技能机·燕返",
-      "icon": "tm-aerial",
-      "kind": "passive",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "learn": [
-        "pikachu",
-        "eevee",
-        "cubone",
-        "poliwhirl",
-        "charizard",
-        "scizor",
-        "lucario",
-        "rayquaza"
-      ],
-      "desc": "装填 B 槽：必定命中的追踪燕斩 · 按 Q 切换 A/B",
-      "effect": {
-        "tm": "aerial-ace"
-      }
-    },
-    "tm-hyper": {
-      "name": "技能机·破坏光线",
-      "icon": "tm-hyper",
-      "kind": "passive",
-      "quality": 3,
-      "pools": [
-        "S",
-        "T"
-      ],
-      "learn": [
-        "pikachu",
-        "eevee",
-        "cubone",
-        "poliwhirl",
-        "charizard",
-        "scizor",
-        "lucario",
-        "rayquaza"
-      ],
-      "desc": "装填 B 槽：贯穿一切的巨型光炮（攻速 ×2.6 慢）· 按 Q 切换 A/B",
-      "effect": {
-        "tm": "hyper-beam"
-      }
-    },
-    "tm-firepunch": {
-      "name": "技能机·火焰拳",
-      "icon": "tm-firepunch",
-      "kind": "passive",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "learn": [
-        "cubone"
-      ],
-      "desc": "装填 B 槽：中距灼热的铁拳 · 按 Q 切换 A/B",
-      "effect": {
-        "tm": "fire-punch"
-      }
-    },
-    "black-sludge": {
-      "name": "黑色污泥",
-      "icon": "black-sludge",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "S"
-      ],
-      "desc": "毒招式伤害 +20%；每清一房回半格亲密度",
-      "effect": {
-        "typeMul": {
-          "poison": 1.2
-        },
-        "regenRoom": 0.5
-      }
-    },
-    "electric-seed": {
-      "name": "电气种子",
-      "icon": "electric-seed",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "X"
-      ],
-      "desc": "清房后，下一间战斗房的前 3 发弹带连锁闪电（跳向附近敌人）",
-      "effect": {
-        "chainShots": 3
-      }
-    },
-    "flame-orb": {
-      "name": "火焰宝珠",
-      "icon": "flame-orb",
-      "kind": "passive",
-      "quality": 4,
-      "pools": [
-        "D"
-      ],
-      "desc": "近身灼烧光环（范围 2.2）；代价：每约两房自身失去 1 格亲密度",
-      "effect": {
-        "auraDps": 7,
-        "auraR": 2.2,
-        "auraSelfHurt": 0.5
-      }
-    },
-    "toxic-orb": {
-      "name": "剧毒宝珠",
-      "icon": "toxic-orb",
-      "kind": "passive",
-      "quality": 4,
-      "pools": [
-        "D"
-      ],
-      "desc": "弹命中 30% 使敌中毒（持续掉血）；代价：每间战斗房 25% 概率自身中毒失去 1 格",
-      "effect": {
-        "poisonChance": 0.3,
-        "toxicSelf": 0.25
-      }
-    },
-    "never-melt": {
-      "name": "不融冰",
-      "icon": "never-melt",
-      "kind": "passive",
-      "quality": 3,
-      "pools": [
-        "A"
-      ],
-      "desc": "冰招式伤害 +20%；所有弹 8% 概率冰冻敌人 0.8s",
-      "effect": {
-        "typeMul": {
-          "ice": 1.2
-        },
-        "freezeChance": 0.08
-      }
-    },
-    "soothe-bell": {
-      "name": "安抚之铃",
-      "icon": "soothe-bell",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "A"
-      ],
-      "desc": "亲密度上限 +2 格",
-      "effect": {
-        "maxHp": 2
-      }
-    },
-    "evo-stone": {
-      "name": "进化奇石",
-      "icon": "evo-stone",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "A"
-      ],
-      "desc": "未进化时 15% 概率格挡伤害（进化后失效）",
-      "effect": {
-        "unevolvedBlock": 0.15
-      }
-    },
-    "rocky-helmet": {
-      "name": "凸凸头盔",
-      "icon": "rocky-helmet",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "S"
-      ],
-      "desc": "受到接触伤害时反伤 3 点并击退对方",
-      "effect": {
-        "retaliate": 3
-      }
-    },
-    "bouncy-ball": {
-      "name": "弹力球",
-      "icon": "bouncy-ball",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "X"
-      ],
-      "desc": "弹体可在墙壁反弹 2 次",
-      "effect": {
-        "bounce": 2
-      }
-    },
-    "icy-rock": {
-      "name": "冰冷岩石",
-      "icon": "icy-rock",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "O"
-      ],
-      "desc": "冰招式伤害 +10%；12% 概率冰冻敌人 0.8s",
-      "effect": {
-        "typeMul": {
-          "ice": 1.1
-        },
-        "freezeChance": 0.12
-      }
-    },
-    "gale-wing": {
-      "name": "疾风羽",
-      "icon": "gale-wing",
-      "kind": "passive",
-      "quality": 1,
-      "pools": [
-        "O"
-      ],
-      "desc": "对飞行系敌人伤害 +30%",
-      "effect": {
-        "flyingMul": 1.3
-      }
-    },
-    "metronome": {
-      "name": "节拍器",
-      "icon": "metronome",
-      "kind": "passive",
-      "quality": 3,
-      "pools": [
-        "S"
-      ],
-      "desc": "连续命中不断提高伤害（每发 +4%，最高 +40%；受伤重置）",
-      "effect": {
-        "hitRamp": 0.04
-      }
-    },
-    "thick-club": {
-      "name": "粗骨头",
-      "icon": "thick-club",
-      "kind": "passive",
-      "quality": 3,
-      "pools": [
-        "T"
-      ],
-      "desc": "卡拉卡拉专属：特攻 ×1.6（其他搭档视为收藏品）",
-      "effect": {
-        "speciesDmgMul": {
-          "species": "cubone",
-          "mul": 1.6
-        }
-      }
-    },
-    "sacred-ash": {
-      "name": "圣灰",
-      "icon": "sacred-ash",
-      "kind": "passive",
-      "quality": 4,
-      "pools": [
-        "A"
-      ],
-      "desc": "进入道馆（Boss 房）时自动回满亲密度（每层一次）",
-      "effect": {
-        "bossFullHeal": true
-      }
-    },
-    "moon-stone": {
-      "name": "月之石",
-      "icon": "moon-stone",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "T"
-      ],
-      "desc": "每次进入新层：PP 回满并回复 1 格亲密度",
-      "effect": {
-        "floorPp": true
-      }
-    },
-    "deep-sea-tooth": {
-      "name": "深海之牙",
-      "icon": "deep-sea-tooth",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "S"
-      ],
-      "desc": "弹速 +20%；水招式伤害 +15%",
-      "effect": {
-        "shotSpeedMul": 1.2,
-        "typeMul": {
-          "water": 1.15
-        }
-      }
-    },
-    "binding-band": {
-      "name": "束缚带",
-      "icon": "binding-band",
-      "kind": "passive",
-      "quality": 1,
-      "pools": [
-        "O"
-      ],
-      "desc": "弹命中使敌人减速 1.5s",
-      "effect": {
-        "slowOnHit": 1.5
-      }
-    },
-    "soul-dew": {
-      "name": "心之水滴",
-      "icon": "soul-dew",
-      "kind": "passive",
-      "quality": 3,
-      "pools": [
-        "D"
-      ],
-      "desc": "特攻 ×1.25、弹速 +15%",
-      "effect": {
-        "dmgMul": 1.25,
-        "shotSpeedMul": 1.15
-      }
-    },
-    "pecha-berry": {
-      "name": "桃桃果",
-      "icon": "pecha-berry",
-      "kind": "consumable",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "5 秒内免疫接触伤害 · 按 E 使用",
-      "effect": {
-        "buffContact": 5
-      }
-    },
-    "lum-berry": {
-      "name": "木子果",
-      "icon": "lum-berry",
-      "kind": "consumable",
-      "quality": 1,
-      "pools": [
-        "O"
-      ],
-      "desc": "净化异常状态（解除操作反转等）并回复 1 格 · 按 E 使用",
-      "effect": {
-        "cure": true,
-        "heal": 1
-      }
-    },
-    "leppa-berry": {
-      "name": "苹野果",
-      "icon": "leppa-berry",
-      "kind": "consumable",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "Z 招式 PP 立即回满 · 按 E 使用",
-      "effect": {
-        "ppFull": true
-      }
-    },
-    "lansat-berry": {
-      "name": "龙睛果",
-      "icon": "lansat-berry",
-      "kind": "consumable",
-      "quality": 2,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "10 秒护盾：格挡一次伤害 · 按 E 使用",
-      "effect": {
-        "buffGuard": 10
-      }
-    },
-    "salac-berry": {
-      "name": "沙鳞果",
-      "icon": "salac-berry",
-      "kind": "consumable",
-      "quality": 1,
-      "pools": [
-        "O"
-      ],
-      "desc": "5 秒内移速 +30% · 按 E 使用",
-      "effect": {
-        "buffSpeed": 5
-      }
-    },
-    "petaya-berry": {
-      "name": "龙火果",
-      "icon": "petaya-berry",
-      "kind": "consumable",
-      "quality": 2,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "8 秒内特攻 ×1.5 · 按 E 使用",
-      "effect": {
-        "buffDmg": 8
-      }
-    },
-    "rare-candy": {
-      "name": "神奇糖果",
-      "icon": "rare-candy",
-      "kind": "consumable",
-      "quality": 3,
-      "pools": [
-        "T",
-        "S"
-      ],
-      "desc": "PP 回满并回复 2 格亲密度 · 按 E 使用",
-      "effect": {
-        "ppFull": true,
-        "heal": 2
-      }
-    },
-    "escape-rope": {
-      "name": "离洞绳",
-      "icon": "escape-rope",
-      "kind": "consumable",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "desc": "传送回本层出生房 · 按 E 使用",
-      "effect": {
-        "teleport": true
-      }
-    },
-    "amulet-coin": {
-      "name": "护符金币",
-      "icon": "amulet-coin",
-      "kind": "trinket",
-      "quality": 2,
-      "pools": [
-        "S"
-      ],
-      "desc": "纪念品：金钱获取 +25%（概率多 1）",
-      "effect": {
-        "moneyMul": 1.25
-      }
-    },
-    "shell-bell": {
-      "name": "贝壳之铃",
-      "icon": "shell-bell",
-      "kind": "trinket",
-      "quality": 3,
-      "pools": [
-        "T"
-      ],
-      "desc": "纪念品：每累计造成 40 点伤害回复 1 格",
-      "effect": {
-        "echoHeal": 40
-      }
-    },
-    "lucky-egg": {
-      "name": "幸运蛋",
-      "icon": "lucky-egg",
-      "kind": "trinket",
-      "quality": 2,
-      "pools": [
-        "S"
-      ],
-      "desc": "纪念品：掉落运气 +1（掉落判定 +0.1）",
-      "effect": {
-        "luckAdd": 1
-      }
-    },
-    "silver-spray": {
-      "name": "白银喷雾",
-      "icon": "silver-spray",
-      "kind": "trinket",
-      "quality": 2,
-      "pools": [
-        "T"
-      ],
-      "desc": "纪念品：普通房敌人数 -10%",
-      "effect": {
-        "enemyMul": 0.9
-      }
-    },
-    "purify-charm": {
-      "name": "净化之符",
-      "icon": "purify-charm",
-      "kind": "trinket",
-      "quality": 1,
-      "pools": [
-        "A"
-      ],
-      "desc": "纪念品：受伤后的无敌时间 +0.4 秒",
-      "effect": {
-        "iframesAdd": 0.4
-      }
-    },
-    "rocket-card": {
-      "name": "火箭队会员卡",
-      "icon": "rocket-card",
-      "kind": "trinket",
-      "quality": 2,
-      "pools": [
-        "D"
-      ],
-      "desc": "纪念品：黑市多上架一件商品",
-      "effect": {
-        "bmSlots": 1
-      }
-    },
-    "cave-compass": {
-      "name": "洞窟罗盘",
-      "icon": "cave-compass",
-      "kind": "trinket",
-      "quality": 2,
-      "pools": [
-        "X"
-      ],
-      "desc": "纪念品：进入新层即在小地图显示隐藏房",
-      "effect": {
-        "compass": true
-      }
-    },
-    "badge-gray": {
-      "name": "灰色徽章",
-      "icon": "badge-gray",
-      "kind": "badge",
-      "quality": 3,
-      "pools": [],
-      "desc": "小刚的徽章：击退 +25%",
-      "effect": {
-        "knockMul": 1.25
-      }
-    },
-    "badge-orange": {
-      "name": "橙色徽章",
-      "icon": "badge-orange",
-      "kind": "badge",
-      "quality": 3,
-      "pools": [],
-      "desc": "马志士的徽章：弹速 +0.2",
-      "effect": {
-        "shotSpeedAdd": 0.2
-      }
-    },
-    "badge-gold": {
-      "name": "金色徽章",
-      "icon": "badge-gold",
-      "kind": "badge",
-      "quality": 3,
-      "pools": [],
-      "desc": "娜姿的徽章：普通敌人弹速 -10%",
-      "effect": {
-        "enemyShotMul": 0.9
-      }
-    },
-    "badge-purple": {
-      "name": "幽冥徽章",
-      "icon": "badge-purple",
-      "kind": "badge",
-      "quality": 3,
-      "pools": [],
-      "desc": "菊子的徽章：命中使敌人减速 1 秒",
-      "effect": {
-        "slowOnHit": 1.0
-      }
-    },
-    "tm-shadow": {
-      "name": "技能机·暗影球",
-      "icon": "tm-shadow",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "S",
-        "T",
-        "O"
-      ],
-      "learn": [
-        "pikachu",
-        "eevee",
-        "cubone",
-        "poliwhirl",
-        "charizard",
-        "scizor",
-        "lucario",
-        "rayquaza"
-      ],
-      "desc": "装填 B 槽：贯穿影弹，消散处留影火残响（踏中持续掉血）· 按 Q 切换 A/B",
-      "effect": {
-        "tm": "shadow-ball"
-      }
-    },
-    "tm-boomer": {
-      "name": "技能机·龙之波动",
-      "icon": "tm-boomer",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "S",
-        "T"
-      ],
-      "learn": [
-        "pikachu",
-        "charizard",
-        "lucario",
-        "rayquaza"
-      ],
-      "desc": "装填 B 槽：回旋龙波，飞到尽头折返接回手上（去/回各结算一次）· 按 Q 切换 A/B",
-      "effect": {
-        "tm": "dragon-wave"
-      }
-    },
-    "tm-ice": {
-      "name": "技能机·冰冻光束",
-      "icon": "tm-ice",
-      "kind": "passive",
-      "quality": 1,
-      "pools": [
-        "S",
-        "O"
-      ],
-      "learn": [
-        "pikachu",
-        "eevee",
-        "poliwhirl",
-        "charizard",
-        "lucario",
-        "rayquaza"
-      ],
-      "desc": "装填 B 槽：命中减速 1.2s、10% 冰冻 · 按 Q 切换 A/B",
-      "effect": {
-        "tm": "ice-beam"
-      }
-    },
-    "tm-dark": {
-      "name": "技能机·恶之波动",
-      "icon": "tm-dark",
-      "kind": "passive",
-      "quality": 2,
-      "pools": [
-        "S",
-        "T"
-      ],
-      "learn": [
-        "cubone",
-        "charizard",
-        "lucario",
-        "rayquaza"
-      ],
-      "desc": "装填 B 槽：恶之重炮（慢速高威力+重击退）· 按 Q 切换 A/B",
-      "effect": {
-        "tm": "dark-pulse"
-      }
-    }
+ "v": 1,
+ "_comment": "M3 道具 33 件（被动 20 + 强化 8 + 消耗品 2 + 纪念品 3）。品质 0-4；池 T=宝箱 S=商店 O=普通掉落 C=挑战奖励 X=隐藏房。effect 由 items.js 解释为 mods。",
+ "items": {
+  "tm-water": {
+   "name": "技能机·水枪",
+   "icon": "tm-water",
+   "kind": "passive",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "装填 B 槽：水枪（弹速快射程长）· 按 Q 切换 A/B",
+   "effect": {
+    "tm": "water-gun"
+   },
+   "learn": [
+    "eevee",
+    "poliwhirl",
+    "lapras"
+   ]
   },
-  "_pools": "T 宝箱房 / S 商店 / O 普通房掉落 / C 挑战奖励 / X 隐藏房 / D 黑市 / A 祭坛。抽池规则见 items.js。",
-  "poolConfig": {
-    "treasure": {
-      "T": 5,
-      "S": 2,
-      "O": 1
+  "tm-fire": {
+   "name": "技能机·火焰漩涡",
+   "icon": "tm-fire",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "T",
+    "S"
+   ],
+   "desc": "装填 B 槽：火焰弹（15% 灼烧）· 按 Q 切换 A/B",
+   "effect": {
+    "tm": "fire-spin",
+    "typeMul": {
+     "fire": 1.1
     },
-    "shop": {
-      "T": 2,
-      "S": 4,
-      "O": 1
-    },
-    "drop": {
-      "O": 5,
-      "S": 1,
-      "T": 1
-    },
-    "challenge": {
-      "T": 4,
-      "S": 2,
-      "O": 2
-    },
-    "secret": {
-      "T": 3,
-      "O": 2,
-      "S": 1
-    },
-    "blackmarket": {
-      "D": 4,
-      "T": 2,
-      "S": 1
-    },
-    "altar": {
-      "A": 5,
-      "S": 1
+    "burnChance": 0.15
+   },
+   "learn": [
+    "eevee"
+   ]
+  },
+  "tm-grass": {
+   "name": "技能机·打草结",
+   "icon": "tm-grass",
+   "kind": "passive",
+   "quality": 1,
+   "pools": [
+    "O"
+   ],
+   "desc": "装填 B 槽：打草结（对重型敌 ×2）· 按 Q 切换 A/B",
+   "effect": {
+    "tm": "grass-knot"
+   },
+   "learn": [
+    "pikachu",
+    "poliwhirl"
+   ]
+  },
+  "charcoal": {
+   "name": "木炭",
+   "icon": "charcoal",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "T"
+   ],
+   "desc": "火招式伤害 +20%",
+   "effect": {
+    "typeMul": {
+     "fire": 1.2
     }
+   }
+  },
+  "magnet-item": {
+   "name": "磁铁",
+   "icon": "magnet",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "T"
+   ],
+   "desc": "电招式伤害 +20%，免疫麻痹",
+   "effect": {
+    "typeMul": {
+     "electric": 1.2
+    }
+   }
+  },
+  "mystic-water": {
+   "name": "神秘水滴",
+   "icon": "mystic-water",
+   "kind": "passive",
+   "quality": 1,
+   "pools": [
+    "O"
+   ],
+   "desc": "水招式伤害 +20%",
+   "effect": {
+    "typeMul": {
+     "water": 1.2
+    }
+   }
+  },
+  "choice-specs": {
+   "name": "讲究眼镜",
+   "icon": "choice-specs",
+   "kind": "passive",
+   "quality": 3,
+   "pools": [
+    "T",
+    "S"
+   ],
+   "desc": "特攻 ×1.5，锁定 A 槽",
+   "effect": {
+    "dmgMul": 1.5,
+    "lockB": true
+   }
+  },
+  "choice-scarf": {
+   "name": "讲究围巾",
+   "icon": "choice-scarf",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "S"
+   ],
+   "desc": "移速 +0.3，特攻 -10%",
+   "effect": {
+    "speedAdd": 0.3,
+    "dmgMul": 0.9
+   }
+  },
+  "wide-lens": {
+   "name": "广角镜",
+   "icon": "wide-lens",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "T"
+   ],
+   "desc": "弹体变大，更易命中",
+   "effect": {
+    "sizeMul": 1.25
+   }
+  },
+  "scope-lens": {
+   "name": "焦点镜",
+   "icon": "scope-lens",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "S"
+   ],
+   "desc": "暴击率 +10%（×1.5 伤害）",
+   "effect": {
+    "crit": 0.1
+   }
+  },
+  "expert-belt": {
+   "name": "达人带",
+   "icon": "expert-belt",
+   "kind": "passive",
+   "quality": 3,
+   "pools": [
+    "T"
+   ],
+   "desc": "克制命中再 +25%",
+   "effect": {
+    "superBonus": 0.25
+   }
+  },
+  "big-root": {
+   "name": "大根茎",
+   "icon": "big-root",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "T"
+   ],
+   "desc": "击杀时 20% 回半格",
+   "effect": {
+    "killHeal": 0.2
+   }
+  },
+  "light-ball": {
+   "name": "电气球",
+   "icon": "light-ball",
+   "kind": "passive",
+   "quality": 3,
+   "pools": [
+    "T"
+   ],
+   "desc": "皮卡丘专属：特攻 ×2（进化后失效）",
+   "effect": {
+    "speciesDmgMul": {
+     "species": "pikachu",
+     "mul": 2
+    }
+   }
+  },
+  "kings-rock": {
+   "name": "王者之证",
+   "icon": "kings-rock",
+   "kind": "passive",
+   "quality": 3,
+   "pools": [
+    "T"
+   ],
+   "desc": "命中 12% 使敌畏缩 0.6s",
+   "effect": {
+    "flinch": 0.12
+   }
+  },
+  "quick-claw": {
+   "name": "先制之爪",
+   "icon": "quick-claw",
+   "kind": "passive",
+   "quality": 1,
+   "pools": [
+    "O"
+   ],
+   "desc": "出招速度 +0.5",
+   "effect": {
+    "tears": 0.5
+   }
+  },
+  "hard-stone": {
+   "name": "硬石头",
+   "icon": "hard-stone",
+   "kind": "passive",
+   "quality": 1,
+   "pools": [
+    "O"
+   ],
+   "desc": "击退 +50%",
+   "effect": {
+    "knockMul": 1.5
+   }
+  },
+  "twisted-spoon": {
+   "name": "弯曲的汤匙",
+   "icon": "twisted-spoon",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "S"
+   ],
+   "desc": "弹道轻微追踪",
+   "effect": {
+    "homing": 0.1
+   }
+  },
+  "leftovers-pick": {
+   "name": "捡拾袋",
+   "icon": "leftovers-pick",
+   "kind": "passive",
+   "quality": 1,
+   "pools": [
+    "O"
+   ],
+   "desc": "掉落物自动飘来",
+   "effect": {
+    "magnet": 2.6
+   }
+  },
+  "drill-item": {
+   "name": "贯穿钻头",
+   "icon": "razor-fang",
+   "kind": "passive",
+   "quality": 3,
+   "pools": [
+    "T"
+   ],
+   "desc": "弹体可贯穿 1 个敌人",
+   "effect": {
+    "pierce": 1
+   }
+  },
+  "split-seed": {
+   "name": "分裂种子",
+   "icon": "miracle-seed",
+   "kind": "passive",
+   "quality": 3,
+   "pools": [
+    "T"
+   ],
+   "desc": "命中后分裂两枚小子弹",
+   "effect": {
+    "split": true
+   }
+  },
+  "hp-up": {
+   "name": "HP增强剂",
+   "icon": "hp-up",
+   "kind": "stat",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "亲密度上限 +1 大心",
+   "effect": {
+    "maxHp": 2
+   }
+  },
+  "protein": {
+   "name": "蛋白质",
+   "icon": "protein",
+   "kind": "stat",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "伤害提升值 +1",
+   "effect": {
+    "dmgUps": 1
+   }
+  },
+  "iron": {
+   "name": "铁",
+   "icon": "iron",
+   "kind": "stat",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "受伤 10% 概率完全格挡",
+   "effect": {
+    "blockChance": 0.1
+   }
+  },
+  "calcium": {
+   "name": "钙",
+   "icon": "calcium",
+   "kind": "stat",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "出招速度 +0.4",
+   "effect": {
+    "tears": 0.4
+   }
+  },
+  "zinc": {
+   "name": "锌",
+   "icon": "zinc",
+   "kind": "stat",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "受击伤害偶尔减半",
+   "effect": {
+    "hurtResist": 0.15
+   }
+  },
+  "carbos": {
+   "name": "碳水化合物",
+   "icon": "carbos",
+   "kind": "stat",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "移动速度 +0.15",
+   "effect": {
+    "speedAdd": 0.15
+   }
+  },
+  "pp-up": {
+   "name": "PP提升剂",
+   "icon": "pp-up",
+   "kind": "stat",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "大招充能 +25%",
+   "effect": {
+    "ppMul": 1.25
+   }
+  },
+  "pp-max": {
+   "name": "PP极限提升剂",
+   "icon": "pp-max",
+   "kind": "stat",
+   "quality": 2,
+   "pools": [
+    "S"
+   ],
+   "desc": "大招所需 PP -15%",
+   "effect": {
+    "ppCost": 0.85
+   }
+  },
+  "sitrus-berry": {
+   "name": "文柚果",
+   "icon": "sitrus-berry",
+   "kind": "consumable",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "使用后回复 2 格（E）",
+   "effect": {
+    "heal": 2
+   }
+  },
+  "cheri-berry": {
+   "name": "木子果",
+   "icon": "cheri-berry",
+   "kind": "consumable",
+   "quality": 1,
+   "pools": [
+    "O"
+   ],
+   "desc": "使用后回复 1 格（E）",
+   "effect": {
+    "heal": 1
+   }
+  },
+  "leftovers": {
+   "name": "剩饭",
+   "icon": "leftovers",
+   "kind": "trinket",
+   "quality": 2,
+   "pools": [
+    "S"
+   ],
+   "desc": "纪念品：每清一房回半格",
+   "effect": {
+    "regenRoom": 0.5
+   }
+  },
+  "bright-powder": {
+   "name": "光粉",
+   "icon": "bright-powder",
+   "kind": "trinket",
+   "quality": 2,
+   "pools": [
+    "S"
+   ],
+   "desc": "纪念品：10% 闪避",
+   "effect": {
+    "dodge": 0.1
+   }
+  },
+  "focus-sash": {
+   "name": "气势披带",
+   "icon": "focus-sash",
+   "kind": "trinket",
+   "quality": 3,
+   "pools": [
+    "T"
+   ],
+   "desc": "纪念品：致命伤保留 1 格（每层一次）",
+   "effect": {
+    "lethalGuard": true
+   }
+  },
+  "thunder-stone": {
+   "name": "雷之石",
+   "icon": "thunder-stone",
+   "kind": "consumable",
+   "quality": 2,
+   "pools": [
+    "T",
+    "S",
+    "O"
+   ],
+   "desc": "第 2 层起使用即进化（雷丘）",
+   "effect": {
+    "evolve": "raichu"
+   }
+  },
+  "tm-tri": {
+   "name": "技能机·三重攻击",
+   "icon": "tm-tri",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "S",
+    "T",
+    "O"
+   ],
+   "learn": [
+    "pikachu",
+    "eevee",
+    "cubone",
+    "poliwhirl",
+    "charizard",
+    "scizor",
+    "lucario",
+    "rayquaza",
+    "lapras",
+    "misdreavus"
+   ],
+   "desc": "装填 B 槽：一次射出 3 发扇形弹 · 按 Q 切换 A/B",
+   "effect": {
+    "tm": "tri-attack"
+   }
+  },
+  "tm-aerial": {
+   "name": "技能机·燕返",
+   "icon": "tm-aerial",
+   "kind": "passive",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "learn": [
+    "pikachu",
+    "eevee",
+    "cubone",
+    "poliwhirl",
+    "charizard",
+    "scizor",
+    "lucario",
+    "rayquaza",
+    "absol",
+    "misdreavus"
+   ],
+   "desc": "装填 B 槽：必定命中的追踪燕斩 · 按 Q 切换 A/B",
+   "effect": {
+    "tm": "aerial-ace"
+   }
+  },
+  "tm-hyper": {
+   "name": "技能机·破坏光线",
+   "icon": "tm-hyper",
+   "kind": "passive",
+   "quality": 3,
+   "pools": [
+    "S",
+    "T"
+   ],
+   "learn": [
+    "pikachu",
+    "eevee",
+    "cubone",
+    "poliwhirl",
+    "charizard",
+    "scizor",
+    "lucario",
+    "rayquaza"
+   ],
+   "desc": "装填 B 槽：贯穿一切的巨型光炮（攻速 ×2.6 慢）· 按 Q 切换 A/B",
+   "effect": {
+    "tm": "hyper-beam"
+   }
+  },
+  "tm-firepunch": {
+   "name": "技能机·火焰拳",
+   "icon": "tm-firepunch",
+   "kind": "passive",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "learn": [
+    "cubone"
+   ],
+   "desc": "装填 B 槽：中距灼热的铁拳 · 按 Q 切换 A/B",
+   "effect": {
+    "tm": "fire-punch"
+   }
+  },
+  "black-sludge": {
+   "name": "黑色污泥",
+   "icon": "black-sludge",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "S"
+   ],
+   "desc": "毒招式伤害 +20%；每清一房回半格亲密度",
+   "effect": {
+    "typeMul": {
+     "poison": 1.2
+    },
+    "regenRoom": 0.5
+   }
+  },
+  "electric-seed": {
+   "name": "电气种子",
+   "icon": "electric-seed",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "X"
+   ],
+   "desc": "清房后，下一间战斗房的前 3 发弹带连锁闪电（跳向附近敌人）",
+   "effect": {
+    "chainShots": 3
+   }
+  },
+  "flame-orb": {
+   "name": "火焰宝珠",
+   "icon": "flame-orb",
+   "kind": "passive",
+   "quality": 4,
+   "pools": [
+    "D"
+   ],
+   "desc": "近身灼烧光环（范围 2.2）；代价：每约两房自身失去 1 格亲密度",
+   "effect": {
+    "auraDps": 7,
+    "auraR": 2.2,
+    "auraSelfHurt": 0.5
+   }
+  },
+  "toxic-orb": {
+   "name": "剧毒宝珠",
+   "icon": "toxic-orb",
+   "kind": "passive",
+   "quality": 4,
+   "pools": [
+    "D"
+   ],
+   "desc": "弹命中 30% 使敌中毒（持续掉血）；代价：每间战斗房 25% 概率自身中毒失去 1 格",
+   "effect": {
+    "poisonChance": 0.3,
+    "toxicSelf": 0.25
+   }
+  },
+  "never-melt": {
+   "name": "不融冰",
+   "icon": "never-melt",
+   "kind": "passive",
+   "quality": 3,
+   "pools": [
+    "A"
+   ],
+   "desc": "冰招式伤害 +20%；所有弹 8% 概率冰冻敌人 0.8s",
+   "effect": {
+    "typeMul": {
+     "ice": 1.2
+    },
+    "freezeChance": 0.08
+   }
+  },
+  "soothe-bell": {
+   "name": "安抚之铃",
+   "icon": "soothe-bell",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "A"
+   ],
+   "desc": "亲密度上限 +2 格",
+   "effect": {
+    "maxHp": 2
+   }
+  },
+  "evo-stone": {
+   "name": "进化奇石",
+   "icon": "evo-stone",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "A"
+   ],
+   "desc": "未进化时 15% 概率格挡伤害（进化后失效）",
+   "effect": {
+    "unevolvedBlock": 0.15
+   }
+  },
+  "rocky-helmet": {
+   "name": "凸凸头盔",
+   "icon": "rocky-helmet",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "S"
+   ],
+   "desc": "受到接触伤害时反伤 3 点并击退对方",
+   "effect": {
+    "retaliate": 3
+   }
+  },
+  "bouncy-ball": {
+   "name": "弹力球",
+   "icon": "bouncy-ball",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "X"
+   ],
+   "desc": "弹体可在墙壁反弹 2 次",
+   "effect": {
+    "bounce": 2
+   }
+  },
+  "icy-rock": {
+   "name": "冰冷岩石",
+   "icon": "icy-rock",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "O"
+   ],
+   "desc": "冰招式伤害 +10%；12% 概率冰冻敌人 0.8s",
+   "effect": {
+    "typeMul": {
+     "ice": 1.1
+    },
+    "freezeChance": 0.12
+   }
+  },
+  "gale-wing": {
+   "name": "疾风羽",
+   "icon": "gale-wing",
+   "kind": "passive",
+   "quality": 1,
+   "pools": [
+    "O"
+   ],
+   "desc": "对飞行系敌人伤害 +30%",
+   "effect": {
+    "flyingMul": 1.3
+   }
+  },
+  "metronome": {
+   "name": "节拍器",
+   "icon": "metronome",
+   "kind": "passive",
+   "quality": 3,
+   "pools": [
+    "S"
+   ],
+   "desc": "连续命中不断提高伤害（每发 +4%，最高 +40%；受伤重置）",
+   "effect": {
+    "hitRamp": 0.04
+   }
+  },
+  "thick-club": {
+   "name": "粗骨头",
+   "icon": "thick-club",
+   "kind": "passive",
+   "quality": 3,
+   "pools": [
+    "T"
+   ],
+   "desc": "卡拉卡拉专属：特攻 ×1.6（其他搭档视为收藏品）",
+   "effect": {
+    "speciesDmgMul": {
+     "species": "cubone",
+     "mul": 1.6
+    }
+   }
+  },
+  "sacred-ash": {
+   "name": "圣灰",
+   "icon": "sacred-ash",
+   "kind": "passive",
+   "quality": 4,
+   "pools": [
+    "A"
+   ],
+   "desc": "进入道馆（Boss 房）时自动回满亲密度（每层一次）",
+   "effect": {
+    "bossFullHeal": true
+   }
+  },
+  "moon-stone": {
+   "name": "月之石",
+   "icon": "moon-stone",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "T"
+   ],
+   "desc": "每次进入新层：PP 回满并回复 1 格亲密度",
+   "effect": {
+    "floorPp": true
+   }
+  },
+  "deep-sea-tooth": {
+   "name": "深海之牙",
+   "icon": "deep-sea-tooth",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "S"
+   ],
+   "desc": "弹速 +20%；水招式伤害 +15%",
+   "effect": {
+    "shotSpeedMul": 1.2,
+    "typeMul": {
+     "water": 1.15
+    }
+   }
+  },
+  "binding-band": {
+   "name": "束缚带",
+   "icon": "binding-band",
+   "kind": "passive",
+   "quality": 1,
+   "pools": [
+    "O"
+   ],
+   "desc": "弹命中使敌人减速 1.5s",
+   "effect": {
+    "slowOnHit": 1.5
+   }
+  },
+  "soul-dew": {
+   "name": "心之水滴",
+   "icon": "soul-dew",
+   "kind": "passive",
+   "quality": 3,
+   "pools": [
+    "D"
+   ],
+   "desc": "特攻 ×1.25、弹速 +15%",
+   "effect": {
+    "dmgMul": 1.25,
+    "shotSpeedMul": 1.15
+   }
+  },
+  "pecha-berry": {
+   "name": "桃桃果",
+   "icon": "pecha-berry",
+   "kind": "consumable",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "5 秒内免疫接触伤害 · 按 E 使用",
+   "effect": {
+    "buffContact": 5
+   }
+  },
+  "lum-berry": {
+   "name": "木子果",
+   "icon": "lum-berry",
+   "kind": "consumable",
+   "quality": 1,
+   "pools": [
+    "O"
+   ],
+   "desc": "净化异常状态（解除操作反转等）并回复 1 格 · 按 E 使用",
+   "effect": {
+    "cure": true,
+    "heal": 1
+   }
+  },
+  "leppa-berry": {
+   "name": "苹野果",
+   "icon": "leppa-berry",
+   "kind": "consumable",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "Z 招式 PP 立即回满 · 按 E 使用",
+   "effect": {
+    "ppFull": true
+   }
+  },
+  "lansat-berry": {
+   "name": "龙睛果",
+   "icon": "lansat-berry",
+   "kind": "consumable",
+   "quality": 2,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "10 秒护盾：格挡一次伤害 · 按 E 使用",
+   "effect": {
+    "buffGuard": 10
+   }
+  },
+  "salac-berry": {
+   "name": "沙鳞果",
+   "icon": "salac-berry",
+   "kind": "consumable",
+   "quality": 1,
+   "pools": [
+    "O"
+   ],
+   "desc": "5 秒内移速 +30% · 按 E 使用",
+   "effect": {
+    "buffSpeed": 5
+   }
+  },
+  "petaya-berry": {
+   "name": "龙火果",
+   "icon": "petaya-berry",
+   "kind": "consumable",
+   "quality": 2,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "8 秒内特攻 ×1.5 · 按 E 使用",
+   "effect": {
+    "buffDmg": 8
+   }
+  },
+  "rare-candy": {
+   "name": "神奇糖果",
+   "icon": "rare-candy",
+   "kind": "consumable",
+   "quality": 3,
+   "pools": [
+    "T",
+    "S"
+   ],
+   "desc": "PP 回满并回复 2 格亲密度 · 按 E 使用",
+   "effect": {
+    "ppFull": true,
+    "heal": 2
+   }
+  },
+  "escape-rope": {
+   "name": "离洞绳",
+   "icon": "escape-rope",
+   "kind": "consumable",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "desc": "传送回本层出生房 · 按 E 使用",
+   "effect": {
+    "teleport": true
+   }
+  },
+  "amulet-coin": {
+   "name": "护符金币",
+   "icon": "amulet-coin",
+   "kind": "trinket",
+   "quality": 2,
+   "pools": [
+    "S"
+   ],
+   "desc": "纪念品：金钱获取 +25%（概率多 1）",
+   "effect": {
+    "moneyMul": 1.25
+   }
+  },
+  "shell-bell": {
+   "name": "贝壳之铃",
+   "icon": "shell-bell",
+   "kind": "trinket",
+   "quality": 3,
+   "pools": [
+    "T"
+   ],
+   "desc": "纪念品：每累计造成 40 点伤害回复 1 格",
+   "effect": {
+    "echoHeal": 40
+   }
+  },
+  "lucky-egg": {
+   "name": "幸运蛋",
+   "icon": "lucky-egg",
+   "kind": "trinket",
+   "quality": 2,
+   "pools": [
+    "S"
+   ],
+   "desc": "纪念品：掉落运气 +1（掉落判定 +0.1）",
+   "effect": {
+    "luckAdd": 1
+   }
+  },
+  "silver-spray": {
+   "name": "白银喷雾",
+   "icon": "silver-spray",
+   "kind": "trinket",
+   "quality": 2,
+   "pools": [
+    "T"
+   ],
+   "desc": "纪念品：普通房敌人数 -10%",
+   "effect": {
+    "enemyMul": 0.9
+   }
+  },
+  "purify-charm": {
+   "name": "净化之符",
+   "icon": "purify-charm",
+   "kind": "trinket",
+   "quality": 1,
+   "pools": [
+    "A"
+   ],
+   "desc": "纪念品：受伤后的无敌时间 +0.4 秒",
+   "effect": {
+    "iframesAdd": 0.4
+   }
+  },
+  "rocket-card": {
+   "name": "火箭队会员卡",
+   "icon": "rocket-card",
+   "kind": "trinket",
+   "quality": 2,
+   "pools": [
+    "D"
+   ],
+   "desc": "纪念品：黑市多上架一件商品",
+   "effect": {
+    "bmSlots": 1
+   }
+  },
+  "cave-compass": {
+   "name": "洞窟罗盘",
+   "icon": "cave-compass",
+   "kind": "trinket",
+   "quality": 2,
+   "pools": [
+    "X"
+   ],
+   "desc": "纪念品：进入新层即在小地图显示隐藏房",
+   "effect": {
+    "compass": true
+   }
+  },
+  "badge-gray": {
+   "name": "灰色徽章",
+   "icon": "badge-gray",
+   "kind": "badge",
+   "quality": 3,
+   "pools": [],
+   "desc": "小刚的徽章：击退 +25%",
+   "effect": {
+    "knockMul": 1.25
+   }
+  },
+  "badge-orange": {
+   "name": "橙色徽章",
+   "icon": "badge-orange",
+   "kind": "badge",
+   "quality": 3,
+   "pools": [],
+   "desc": "马志士的徽章：弹速 +0.2",
+   "effect": {
+    "shotSpeedAdd": 0.2
+   }
+  },
+  "badge-gold": {
+   "name": "金色徽章",
+   "icon": "badge-gold",
+   "kind": "badge",
+   "quality": 3,
+   "pools": [],
+   "desc": "娜姿的徽章：普通敌人弹速 -10%",
+   "effect": {
+    "enemyShotMul": 0.9
+   }
+  },
+  "badge-purple": {
+   "name": "幽冥徽章",
+   "icon": "badge-purple",
+   "kind": "badge",
+   "quality": 3,
+   "pools": [],
+   "desc": "菊子的徽章：命中使敌人减速 1 秒",
+   "effect": {
+    "slowOnHit": 1.0
+   }
+  },
+  "tm-shadow": {
+   "name": "技能机·暗影球",
+   "icon": "tm-shadow",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "S",
+    "T",
+    "O"
+   ],
+   "learn": [
+    "pikachu",
+    "eevee",
+    "cubone",
+    "poliwhirl",
+    "charizard",
+    "scizor",
+    "lucario",
+    "rayquaza",
+    "absol",
+    "misdreavus"
+   ],
+   "desc": "装填 B 槽：贯穿影弹，消散处留影火残响（踏中持续掉血）· 按 Q 切换 A/B",
+   "effect": {
+    "tm": "shadow-ball"
+   }
+  },
+  "tm-boomer": {
+   "name": "技能机·龙之波动",
+   "icon": "tm-boomer",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "S",
+    "T"
+   ],
+   "learn": [
+    "pikachu",
+    "charizard",
+    "lucario",
+    "rayquaza"
+   ],
+   "desc": "装填 B 槽：回旋龙波，飞到尽头折返接回手上（去/回各结算一次）· 按 Q 切换 A/B",
+   "effect": {
+    "tm": "dragon-wave"
+   }
+  },
+  "tm-ice": {
+   "name": "技能机·冰冻光束",
+   "icon": "tm-ice",
+   "kind": "passive",
+   "quality": 1,
+   "pools": [
+    "S",
+    "O"
+   ],
+   "learn": [
+    "pikachu",
+    "eevee",
+    "poliwhirl",
+    "charizard",
+    "lucario",
+    "rayquaza",
+    "lapras"
+   ],
+   "desc": "装填 B 槽：命中减速 1.2s、10% 冰冻 · 按 Q 切换 A/B",
+   "effect": {
+    "tm": "ice-beam"
+   }
+  },
+  "tm-dark": {
+   "name": "技能机·恶之波动",
+   "icon": "tm-dark",
+   "kind": "passive",
+   "quality": 2,
+   "pools": [
+    "S",
+    "T"
+   ],
+   "learn": [
+    "cubone",
+    "charizard",
+    "lucario",
+    "rayquaza",
+    "absol"
+   ],
+   "desc": "装填 B 槽：恶之重炮（慢速高威力+重击退）· 按 Q 切换 A/B",
+   "effect": {
+    "tm": "dark-pulse"
+   }
+  },
+  "feather-mew": {
+   "name": "梦幻的羽毛",
+   "icon": "feather-mew",
+   "kind": "trinket",
+   "quality": 4,
+   "pools": [],
+   "desc": "梦的凭证：持有者可沿 F5 楼梯深入梦境裂隙（纪念品位持有）"
   }
+ },
+ "_pools": "T 宝箱房 / S 商店 / O 普通房掉落 / C 挑战奖励 / X 隐藏房 / D 黑市 / A 祭坛。抽池规则见 items.js。",
+ "poolConfig": {
+  "treasure": {
+   "T": 5,
+   "S": 2,
+   "O": 1
+  },
+  "shop": {
+   "T": 2,
+   "S": 4,
+   "O": 1
+  },
+  "drop": {
+   "O": 5,
+   "S": 1,
+   "T": 1
+  },
+  "challenge": {
+   "T": 4,
+   "S": 2,
+   "O": 2
+  },
+  "secret": {
+   "T": 3,
+   "O": 2,
+   "S": 1
+  },
+  "blackmarket": {
+   "D": 4,
+   "T": 2,
+   "S": 1
+  },
+  "altar": {
+   "A": 5,
+   "S": 1
+  }
+ }
 }

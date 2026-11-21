@@ -826,6 +826,28 @@ export function spawnPool(state, b, data) {
   state.events.push({ t: 'zone-spawn', x: b.x, y: b.y, r: spec.r, owner: b.owner });
 }
 
+// ---------- 结局结算（M11-C）：以撒式编号卡四结局 ----------
+// ① 浅眠：F5 净化梦幻后从离开的洞口走人
+// ② 真净化：深入 F6 击破梦魇之源，开终焉宝箱
+// ③ 镜之并肩：②+本局已击败裂缝超梦（超梦认可）
+// ④ 无瑕之梦：③+全程无黑市交易+全五层（含馆主战）无伤
+function computeEnding(state) {
+  if (state.flags.mewtwoDown) {
+    const hurtless = [1, 2, 3, 4, 5].every((f) => !(state.stats.hurtFloors || []).includes(f));
+    if (hurtless && !(state.stats.bmDeals > 0)) return 4;
+    return 3;
+  }
+  return 2;
+}
+
+function finishEnding(state, data, no) {
+  state.over = true; state.win = true;
+  state.stats.endingNo = no;
+  state.stats.tRun = state.t - (state.stats.t0 || 0);
+  state.events.push({ t: 'ending', no, x: state.player.x, y: state.player.y });
+  state.events.push({ t: 'floor-clear', x: state.player.x, y: state.player.y });
+}
+
 export function stepZones(state, data) {
   for (let i = state.zones.length - 1; i >= 0; i--) {
     const z = state.zones[i];
@@ -1062,11 +1084,20 @@ export function stepEnemies(state, input, data) {
           state.pickups.push(mkPickup(state, 'heart', e.x + 1.2, e.y));
           state.events.push({ t: 'mewtwo-down', x: e.x, y: e.y });
           engine_recompute(state, data);              // 伤害 ×1.15 立即生效
-        } else if (state.floorNo >= 6) {
-          // F6 梦境裂隙胜利（达克莱伊）：净化结局演出（不倒下，被净化）——M11-C 升级为终焉宝箱结算
-          state.over = true; state.win = true;
+        } else if (state.floorNo === 5) {
+          // F5 梦幻终战胜利（M11-C 双出口）：楼梯（需羽毛 → F6 梦境裂隙）+ 离开的洞口（结局①浅眠）+ 梦幻的羽毛
+          state.events.push({ t: 'boss-clear', floor: state.floorNo, x: e.x, y: e.y });
           state.events.push({ t: 'mew-purify', x: e.x, y: e.y, name: e.name });
-          state.events.push({ t: 'floor-clear', x: e.x, y: e.y });
+          state.pickups.push(mkPickup(state, 'stairs', state.roomW / 2, state.roomH / 2 - 1.6));
+          state.pickups.push(mkPickup(state, 'stairs-leave', state.roomW / 2, state.roomH / 2 + 1.6));
+          state.pickups.push(mkPickup(state, 'trinket', state.roomW / 2, state.roomH / 2, 'feather-mew'));
+          for (let k = 0; k < 6; k++) {
+            state.pickups.push(mkPickup(state, 'coin', e.x + (state.rand() - 0.5) * 2.5, e.y + (state.rand() - 0.5) * 2.5));
+          }
+        } else if (state.floorNo >= 6) {
+          // F6 达克莱伊击破（M11-C 终焉宝箱）：不掉楼梯不结算——梦之宝箱落地，主动开箱才正式结束
+          state.events.push({ t: 'darkrai-down', x: e.x, y: e.y });
+          state.pickups.push(mkPickup(state, 'final-chest', state.roomW / 2, state.roomH / 2));
         } else {
           state.events.push({ t: 'boss-clear', floor: state.floorNo, x: e.x, y: e.y });
           // 楼梯 + 撒钱
@@ -1548,6 +1579,7 @@ export function stepRoom(state, input, data) {
           p.hpPaid = (p.hpPaid || 0) + d.priceHp;
           engine_recompute(state, data);
           p.hp = Math.min(p.hp, p.maxHp);
+          state.stats.bmDeals = (state.stats.bmDeals || 0) + 1;   // 结局④「无瑕之梦」要求全程无邪恶交易（M11-C）
           state.events.push({ t: 'bm-deal', itemId: d.itemId, hpCost: d.priceHp });
           takePedestal(state, data, d);
         }
@@ -1711,8 +1743,25 @@ function stepPickups(state, data) {
       let taken = true;
       switch (k.kind) {
         case 'stairs':
+          // F5 梦境裂隙楼梯（M11-C）：需持「梦幻的羽毛」才能深入 F6；否则停在原地提示
+          if (state.floorNo === 5 && !(state.flags.feather || p.inv.trinket === 'feather-mew')) {
+            taken = false;
+            if (state.t - (state.featherMsgT || -9) > 2.5) {
+              state.featherMsgT = state.t;
+              state.events.push({ t: 'stairs-locked', x: k.x, y: k.y });
+            }
+            break;
+          }
           goNextFloor(state, data);
           return;                                     // 房间已重建，拾取列表已清
+        case 'stairs-leave':
+          // 离开的洞口（M11-C 结局①）：净化梦幻后带着平静离开
+          finishEnding(state, data, 1);
+          return;
+        case 'final-chest':
+          // 终焉宝箱（M11-C 以撒式结算）：主动开箱才正式结束游戏流程
+          finishEnding(state, data, computeEnding(state));
+          return;
         case 'coin':
           p.money += 1 + ((m.moneyMul > 1 && state.rand() < (m.moneyMul - 1)) ? 1 : 0);   // 护符金币
           state.stats.coins += 1; break;
@@ -1724,6 +1773,7 @@ function stepPickups(state, data) {
         case 'trinket':
           if (!p.inv.trinket) p.inv.trinket = k.itemId;
           else swapToSlot(state, 'trinket', k);       // M10：槽满触碰即换（不再"安静躺在原地"）
+          if (k.itemId === 'feather-mew') state.flags.feather = true;   // 梦的凭证（M11-C）：拾取即永久有效，换掉纪念品也不失效
           break;
         case 'heart':
           if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + data.balance.pickup.heartHeal); state.events.push({ t: 'heal', heal: data.balance.pickup.heartHeal }); }

@@ -30,6 +30,10 @@ export const DEX_EXTRA = {
   scizor: { dex: 212, name: '巨钳螳螂', anim: 'scizor', tag: '解锁伙伴' },
   lucario: { dex: 448, name: '路卡利欧', anim: 'lucario', tag: '解锁伙伴' },
   rayquaza: { dex: 384, name: '裂空座', anim: 'rayquaza', tag: '传说' },
+  // M11-C 新搭档
+  absol: { dex: 359, name: '阿勃梭鲁', anim: 'absol', tag: '解锁伙伴' },
+  lapras: { dex: 131, name: '拉普拉斯', anim: 'lapras', tag: '解锁伙伴' },
+  misdreavus: { dex: 200, name: '梦妖', anim: 'misdreavus', tag: '解锁伙伴' },
 };
 // 分裂子种 → 本体（小臭泥并入臭泥）
 export const DEX_ALIAS = { 'grimer-small': 'grimer' };

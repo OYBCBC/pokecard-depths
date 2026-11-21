@@ -32,6 +32,12 @@ export const ACHVS = [
   { id: 'vault-1', name: '撬锁行家', desc: '打开一间上锁的宝物密室' },
   { id: 'elite-10', name: '精英猎手', desc: '累计击倒 10 只精英宝可梦' },
   { id: 'mewtwo-down', name: '超越了梦', desc: '在裂缝深处击败超梦', unlock: 'rayquaza' },
+  // M11-C 结局画廊 + 新搭档解锁
+  { id: 'ending-1', name: '浅眠', desc: '见证结局①：净化梦幻后带着平静离开' },
+  { id: 'ending-2', name: '真净化', desc: '见证结局②：深入梦境裂隙，开箱终结梦魇' },
+  { id: 'ending-3', name: '镜之并肩', desc: '见证结局③：带着超梦的认可直面梦魇', unlock: 'absol' },
+  { id: 'ending-4', name: '无瑕之梦', desc: '见证结局④：全馆主无伤·无黑市交易的完美梦', unlock: 'lapras' },
+  { id: 'ghost-floor-clean', name: '幽冥无伤', desc: '无伤通过幽冥层（菊子也伤不到你）', unlock: 'misdreavus' },
   // M9.2 跨世代搭档批
   { id: 'no-hurt-2floors', name: '烈焰之心', desc: '单局连续无伤通过两层', unlock: 'charizard' },
   { id: 'dex-20', name: '洞窟学者', desc: '图鉴点亮 20 种', unlock: 'lucario' },
@@ -40,7 +46,8 @@ const BY_ID = new Map(ACHVS.map((a) => [a.id, a]));
 
 /** 成就 id → 解锁的宝可梦（反向索引，species.json 的 unlock 字段同源） */
 export const UNLOCK_SPECIES = { 'no-hurt-floor': 'cubone', 'dex-12': 'eevee', 'camp-5': 'poliwhirl',
-  'kills-300': 'scizor', 'mewtwo-down': 'rayquaza', 'no-hurt-2floors': 'charizard', 'dex-20': 'lucario' };
+  'kills-300': 'scizor', 'mewtwo-down': 'rayquaza', 'no-hurt-2floors': 'charizard', 'dex-20': 'lucario',
+  'ending-3': 'absol', 'ending-4': 'lapras', 'ghost-floor-clean': 'misdreavus' };
 
 /** 物种是否可选（species.unlock 为空 = 默认解锁；否则查成就集合） */
 export function starterUnlocked(species, achvSet) {
@@ -98,7 +105,12 @@ export function achvApply(achvSet, meta, { run = null, events = [], dexCount = 0
         if (run && !(run.stats.hurtFloors || []).includes(ev.floor)) grant('no-hurt-floor');
         // 连过两层无伤：F2 馆主倒下时检查 1、2 两层（已通关的层）都无伤——不能把未到达的层算进去
         if (run && ev.floor >= 2 && [1, 2].every((f) => !(run.stats.hurtFloors || []).includes(f))) grant('no-hurt-2floors');
+        // 幽冥无伤（M11-C）：F4 菊子倒下时 F4 全程无伤
+        if (run && ev.floor === 4 && !(run.stats.hurtFloors || []).includes(4)) grant('ghost-floor-clean');
         if (p && p.companion) grant('companion-win');
+        break;
+      case 'ending':
+        grant('ending-' + ev.no);   // 结局编号卡（M11-C：①浅眠 ②真净化 ③镜之并肩 ④无瑕之梦）
         break;
       case 'floor-clear':
         grant('champion');

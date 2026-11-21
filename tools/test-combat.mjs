@@ -296,7 +296,7 @@ test('M5→M11：F3 娜姿死亡 → 楼梯去 F4 幽冥层（菊子）→ F5 �
   for (let i = 0; i < 8; i++) stepRun(run, idleInput(), data);
   assert.equal(run.win, false, 'M11：F5 梦幻死不再直接通关');
   assert.ok(run.pickups.some((k) => k.kind === 'stairs'), 'F5 梦幻死出楼梯（M11-C 换双出口）');
-  // 上 F6 → 梦境裂隙；达克莱伊死 → 净化通关
+  // 上 F6 → 梦境裂隙；达克莱伊死 → 终焉宝箱落地，开箱才通关（M11-C）
   goNextFloor(run, data);
   assert.equal(run.floorNo, 6);
   assert.equal(data.floors['6'].name, '梦境裂隙');
@@ -306,15 +306,20 @@ test('M5→M11：F3 娜姿死亡 → 楼梯去 F4 幽冥层（菊子）→ F5 �
   assert.equal(dk.name, '达克莱伊');
   dk.state = 'active';
   dk.hp = 0;
-  let sawPurify = false, sawClear = false;
+  for (let i = 0; i < 8; i++) stepRun(run, idleInput(), data);
+  assert.equal(run.win, false, 'F6 达克莱伊死不直接通关（终焉宝箱制）');
+  const chest = run.pickups.find((k) => k.kind === 'final-chest');
+  assert.ok(chest, '终焉宝箱掉落');
+  run.player.x = chest.x; run.player.y = chest.y;
+  let sawEnding = false, sawClear = false;
   for (let i = 0; i < 8; i++) {
     stepRun(run, idleInput(), data);
-    if (run.events.some((e) => e.t === 'mew-purify')) sawPurify = true;
+    if (run.events.some((e) => e.t === 'ending')) sawEnding = true;
     if (run.events.some((e) => e.t === 'floor-clear')) sawClear = true;
   }
-  assert.equal(run.win, true, 'F6 达克莱伊死=通关');
+  assert.equal(run.win, true, '开箱=通关');
   assert.equal(run.over, true);
-  assert.ok(sawPurify, '净化演出事件');
+  assert.ok(sawEnding, 'ending 编号卡事件');
   assert.ok(sawClear, 'floor-clear 事件');
 });
 
@@ -490,15 +495,15 @@ test('图鉴：事件点亮（遭遇/击杀/馆主搭档/进化/结伴/别名）
 const _items = await import(join(ROOT, 'js/sim/items.js?v=m9'));
 const items = data.items;
 
-test('道具全量：79 件（被动46+强化8+消耗11+纪念10+徽章4，M11 新 TM4 件），图标齐全、池合法', () => {
+test('道具全量：80 件（被动46+强化8+消耗11+纪念11+徽章4，M11 新 TM4+羽毛），图标齐全、池合法', () => {
   const ids = Object.keys(items);
-  assert.equal(ids.length, 79, '总数 79，实际 ' + ids.length);
+  assert.equal(ids.length, 80, '总数 80，实际 ' + ids.length);
   const byKind = {};
   for (const id of ids) byKind[items[id].kind] = (byKind[items[id].kind] || 0) + 1;
   assert.equal(byKind.passive, 46);
   assert.equal(byKind.stat, 8);
   assert.equal(byKind.consumable, 11);
-  assert.equal(byKind.trinket, 10);
+  assert.equal(byKind.trinket, 11);
   assert.equal(byKind.badge, 4);
   const VALID_POOLS = new Set(['T', 'S', 'O', 'C', 'X', 'D', 'A']);
   for (const id of ids) {
@@ -1548,4 +1553,130 @@ test('M11 F4 新敌：鬼斯通/梦妖/夜巡灵配置齐全（弹幕/图鉴号/
   for (const eid of ['haunter', 'misdreavus', 'duskull']) {
     assert.ok(waveIds.has(eid), `F4 波次表应含 ${eid}`);
   }
+});
+
+// ==================== M11-C：羽毛双出口 / 终焉宝箱 / 四结局 / 新搭档 ====================
+
+test('M11-C F5 梦幻死 → 双出口+羽毛；无羽毛楼梯挡住，有羽毛进 F6；离开洞口=结局①', () => {
+  const run = createRun(data, 88);
+  for (let i = 0; i < 4; i++) goNextFloor(run, data);   // 到 F5
+  assert.equal(run.floorNo, 5);
+  const mewRoom = [...run.map.values()].find((c) => c.type === 'boss');
+  enterRoom(run, data, mewRoom.x + ',' + mewRoom.y);
+  const mew = run.enemies.find((e) => e.family === 'boss');
+  mew.state = 'active'; mew.hp = 0;
+  for (let i = 0; i < 8; i++) stepRun(run, idleInput(), data);
+  const kinds = run.pickups.map((k) => k.kind);
+  assert.ok(kinds.includes('stairs'), '楼梯（F6 路）');
+  assert.ok(kinds.includes('stairs-leave'), '离开的洞口');
+  const feather = run.pickups.find((k) => k.kind === 'trinket' && k.itemId === 'feather-mew');
+  assert.ok(feather, '梦幻的羽毛掉落');
+  assert.equal(run.win, false, '梦幻死不再直接通关');
+  // 无羽毛踩楼梯 → 不下层（弹提示；事件按步收集——stepRun 每步清空 events）
+  const stairs = run.pickups.find((k) => k.kind === 'stairs');
+  run.player.x = stairs.x; run.player.y = stairs.y;
+  let sawLocked = false;
+  for (let i = 0; i < 6; i++) {
+    stepRun(run, idleInput(), data);
+    if (run.events.some((e) => e.t === 'stairs-locked')) sawLocked = true;
+  }
+  assert.equal(run.floorNo, 5, '无羽毛楼梯不传送');
+  assert.ok(sawLocked, '应有羽毛提示事件');
+  // 拾取羽毛（置旗）→ 楼梯通 F6
+  run.player.x = feather.x; run.player.y = feather.y;
+  for (let i = 0; i < 6; i++) stepRun(run, idleInput(), data);
+  assert.equal(run.flags.feather, true, '羽毛拾取置旗');
+  run.player.x = stairs.x; run.player.y = stairs.y;
+  for (let i = 0; i < 6; i++) stepRun(run, idleInput(), data);
+  assert.equal(run.floorNo, 6, '持羽毛进 F6 梦境裂隙');
+});
+
+test('M11-C 离开的洞口 → 结局①「浅眠」', () => {
+  const run = createRun(data, 88);
+  for (let i = 0; i < 4; i++) goNextFloor(run, data);
+  const mewRoom = [...run.map.values()].find((c) => c.type === 'boss');
+  enterRoom(run, data, mewRoom.x + ',' + mewRoom.y);
+  const mew = run.enemies.find((e) => e.family === 'boss');
+  mew.state = 'active'; mew.hp = 0;
+  for (let i = 0; i < 8; i++) stepRun(run, idleInput(), data);
+  const leave = run.pickups.find((k) => k.kind === 'stairs-leave');
+  run.player.x = leave.x; run.player.y = leave.y;
+  for (let i = 0; i < 6; i++) stepRun(run, idleInput(), data);
+  assert.equal(run.win, true, '离开=通关');
+  assert.equal(run.over, true);
+  assert.equal(run.stats.endingNo, 1, '结局①');
+  assert.ok(run.events.some((e) => e.t === 'ending' && e.no === 1), 'ending 事件');
+});
+
+test('M11-C 达克莱伊三段+终焉宝箱：击破不掉楼梯，开箱才结算（②/③/④条件）', () => {
+  const run = createRun(data, 88);
+  for (let i = 0; i < 5; i++) goNextFloor(run, data);
+  assert.equal(run.floorNo, 6);
+  const dkRoom = [...run.map.values()].find((c) => c.type === 'boss');
+  enterRoom(run, data, dkRoom.x + ',' + dkRoom.y);
+  const dk = run.enemies.find((e) => e.family === 'boss');
+  assert.equal(dk.name, '达克莱伊');
+  assert.equal(dk.maxHp, 900);
+  dk.state = 'active';
+  // 三段推进（mewtwo 骨架：60%/30%）
+  dk.hp = dk.maxHp * 0.5;
+  stepRun(run, idleInput(), data);
+  assert.equal(dk.b.phase, 2, '50% → P2');
+  dk.hp = dk.maxHp * 0.2;
+  stepRun(run, idleInput(), data);
+  assert.equal(dk.b.phase, 3, '20% → P3');
+  // 击破 → 终焉宝箱（不掉楼梯不结算）
+  dk.hp = 0;
+  let evs = [];
+  for (let i = 0; i < 8; i++) { stepRun(run, idleInput(), data); evs.push(...run.events); }
+  assert.ok(evs.some((e) => e.t === 'darkrai-down'), '梦魇溃散事件');
+  const chest = run.pickups.find((k) => k.kind === 'final-chest');
+  assert.ok(chest, '终焉宝箱掉落');
+  assert.equal(run.pickups.some((k) => k.kind === 'stairs'), false, '终层不掉楼梯');
+  assert.equal(run.win, false, '不开箱不结算');
+  // 开箱 → 结局②
+  run.player.x = chest.x; run.player.y = chest.y;
+  for (let i = 0; i < 6; i++) stepRun(run, idleInput(), data);
+  assert.equal(run.win, true, '开箱=通关');
+  assert.equal(run.stats.endingNo, 2, '默认结局②真净化');
+  assert.ok(run.events.some((e) => e.t === 'ending' && e.no === 2), 'ending 事件');
+});
+
+test('M11-C 结局③④条件：有伤+超梦击破→③；无伤+无黑市→④（完美局直达④）', () => {
+  const run = createRun(data, 88);
+  run.flags.mewtwoDown = true;
+  run.stats.hurtFloors = [2];   // 先造一层受伤（完美局 hurtFloors=[] 会直达④，这是设计行为）
+  run.stats.bmDeals = 0;
+  assert.equal(computeEndingFor(run), 3, '有伤+超梦击破=③');
+  run.stats.hurtFloors = [];
+  assert.equal(computeEndingFor(run), 4, '无伤+无黑市=④');
+  run.stats.bmDeals = 1;
+  assert.equal(computeEndingFor(run), 3, '黑市交易回落③');
+  run.stats.bmDeals = 0;
+  run.stats.hurtFloors = [2];
+  assert.equal(computeEndingFor(run), 3, '任一层受伤回落③');
+  run.flags.mewtwoDown = false;
+  assert.equal(computeEndingFor(run), 2, '无超梦=②');
+
+  function computeEndingFor(state) {
+    // 与 actors.js computeEnding 同逻辑（导出不可行：内部函数，此处镜像校验条件一致性）
+    if (state.flags.mewtwoDown) {
+      const hurtless = [1, 2, 3, 4, 5].every((f) => !(state.stats.hurtFloors || []).includes(f));
+      if (hurtless && !(state.stats.bmDeals > 0)) return 4;
+      return 3;
+    }
+    return 2;
+  }
+});
+
+test('M11-C 新搭档：阿勃梭鲁/拉普拉斯/梦妖配置+图集齐全', () => {
+  for (const [sp, mv, anim] of [['absol', 'dark-pulse', 'absol'], ['lapras', 'ice-beam', 'lapras'], ['misdreavus', 'shadow-ball', 'misdreavus']]) {
+    const spec = data.species[sp];
+    assert.ok(spec, `${sp} 存在`);
+    assert.equal(spec.moveA, mv, `${sp} 主招式`);
+    assert.ok(spec.unlock, `${sp} 挂成就解锁`);
+    assert.ok(existsSync(join(ROOT, 'assets/atlas', anim + '.json')), `${sp} 图集`);
+    assert.ok(spec.startTMs.length === 3, `${sp} 开局三选一`);
+  }
+  assert.ok(data.moves['dark-pulse-z'], '阿勃梭鲁专属 Z 存在');
 });

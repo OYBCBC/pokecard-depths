@@ -1026,6 +1026,42 @@ async function boot() {
           hud.banner('梦幻被净化了……', '柔和的光芒充满晶穴，一切躁动归于宁静', 3600);
           break;
         }
+        case 'darkrai-intro': {
+          // 噩梦渐浓（M11-C）：墨色吞光 + 达克莱伊叫声
+          hud.flash();
+          camCtl.shake(0.5, 0.7);
+          cry(491, { volume: 0.85, rateJitter: false });
+          fx.burst(ev.x, ev.y, 26, 0x463878);
+          splay('bossIntro');
+          hud.banner('梦境裂隙 · 梦魇之源', '灯光暗了下来……噩梦从裂缝里漏了出来', 3600);
+          break;
+        }
+        case 'darkrai-down': {
+          // 梦.魇溃散（M11-C）：梦之宝箱落地——主动开箱才正式结算
+          camCtl.shake(0.6, 0.9);
+          fx.burst(ev.x, ev.y, 40, 0x8a78c8);
+          splay('win');
+          cry(491, { volume: 0.6 });
+          hud.banner('梦魇溃散了……', '一只泛着星辉的宝箱落在房间中央——走近打开它', 4200);
+          break;
+        }
+        case 'ending': {
+          // 结局编号卡（M11-C 以撒式）：白光 + 结局名横幅
+          const NAMES = { 1: '浅眠', 2: '真净化', 3: '镜之并肩', 4: '无瑕之梦' };
+          hud.flash();
+          setTimeout(() => hud.flash(), 350);
+          camCtl.shake(0.5, 0.8);
+          splay('win');
+          if (ev.no >= 2) cry(151, { volume: 0.9, rateJitter: false });
+          fx.burst(ev.x, ev.y, 44, 0xffffff);
+          hud.banner(`结局 ${ev.no}/4 · ${NAMES[ev.no] || ''}`, '晶穴深处的故事，到这里告一段落', 4200);
+          break;
+        }
+        case 'stairs-locked': {
+          hud.toast('楼梯向下延伸……', '黑暗太深了：需要「梦幻的羽毛」才能深入梦境裂隙');
+          splay('hurt');
+          break;
+        }
         case 'boss-slam': splay('slam'); camCtl.shake(0.3, 0.25); break;
         case 'vault-open':
           splay('tm');
@@ -1242,12 +1278,26 @@ async function boot() {
           hud.hideBossBar();
           if (run.floorNo >= 4) {
             const m2 = run.flags && run.flags.mewtwoDown;
-            hud.banner('传说之物，化作了光……', m2 ? '《晶穴深处》真·通关！' : '《晶穴深处》通关！', 4000);
+            const END_TXT = {
+              1: '带着平静离开的你在洞口回望——梦幻安睡在光里。但晶穴最深处，还有未醒的噩梦。（结局①·浅眠）',
+              2: '被净化的梦幻——梦魇在终焉宝箱的光里彻底消散。晶穴再无秘密。（结局②·真净化）',
+              3: '超梦的力量与你并肩，梦魇之源应声碎裂——两个梦，终于都醒了。（结局③·镜之并肩）',
+              4: '无伤的行者、未沾尘埃的梦——这是只属于你的完美结局。（结局④·无瑕之梦）',
+            };
+            const eno = run.stats.endingNo || (m2 ? 3 : 2);   // M11-C 四结局编号（旧流程兜底 ②/③）
+            const END_NAMES = { 1: '浅眠', 2: '真净化', 3: '镜之并肩', 4: '无瑕之梦' };
+            hud.banner(`结局 ${eno}/4 · ${END_NAMES[eno] || ''}`, `《晶穴深处》${eno >= 3 ? '真·通关' : '通关'}！`, 4000);
             run.stats.floorNo = run.floorNo;
             const dl = ((data.balance.difficulty || {})[run.difficulty] || {}).label;
+            const V_TITLES = {
+              1: '梦幻在光中安睡了',
+              2: '梦魇在终焉宝箱里消散',
+              3: '你连超梦都并肩了',
+              4: '无瑕的梦，只属于你',
+            };
             setTimeout(() => hud.showVictory(run.stats, run.seed, {
-              title: m2 ? '你连超梦都超越了' : '晶穴的传说，落下帷幕',
-              sub: m2 ? '被净化的梦幻与被认可的力量——晶穴再无秘密。' : '被净化的梦幻，在光中对你眨了眨眼——下次冒险再见。',
+              title: V_TITLES[eno] || (m2 ? '你连超梦都超越了' : '晶穴的传说，落下帷幕'),
+              sub: END_TXT[eno] || '被净化的梦幻，在光中对你眨了眨眼——下次冒险再见。',
               difficultyLabel: dl,
               challenge: encodeChallenge({ seed: run.seed, difficulty: run.difficulty, species: run.player.species0 || run.player.species }),
             }), 2000);

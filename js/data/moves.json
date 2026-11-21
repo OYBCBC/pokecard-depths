@@ -1035,6 +1035,13 @@
     "dur": 2.4
    },
    "desc": "夜影弹（M11 夜巡灵）：消散处留 2.4s 暗影毒雾"
+  },
+  "dark-pulse-z": {
+   "name": "恶之波动·Z",
+   "type": "dark",
+   "power": 145,
+   "kind": "zmove",
+   "radius": 4.4
   }
  }
 }

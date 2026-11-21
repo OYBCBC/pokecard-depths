@@ -41,9 +41,14 @@ export function spawnBoss(state, data, bossIdOverride) {
   } else if (ent.eid === 'mewtwo') {
     ent.b.tpT = 2.0; ent.b.volleyT = 3.0; ent.b.gridT = 5.0;
     ent.b.summonT = 6.0; ent.b.spikeT = 2.0; ent.b.phase3Done = false;
+  } else if (ent.eid === 'darkrai') {
+    // 梦.魇之源（M11-C 真·终 Boss）：mewtwo 三段骨架调参加密
+    ent.b.tpT = 1.6; ent.b.volleyT = 2.6; ent.b.gridT = 4.8;
+    ent.b.summonT = 5.0; ent.b.spikeT = 1.8; ent.b.phase3Done = false;
   }
   state.enemies.push(ent);
   state.events.push({ t: 'boss-intro', name: spec.name, ace: spec.anim });
+  if (ent.eid === 'darkrai') state.events.push({ t: 'darkrai-intro', x: ent.x, y: ent.y });   // 噩梦渐浓演出
 }
 
 function warn(state, x, y, r, delay, dmg, kind) {
@@ -58,7 +63,7 @@ export function stepBoss(state, e, data) {
   if (e.eid === 'sabrina') return stepSabrina(state, e, data);
   if (e.eid === 'agatha') return stepAgatha(state, e, data);
   if (e.eid === 'mew') return stepMew(state, e, data);
-  if (e.eid === 'mewtwo') return stepMewtwo(state, e, data);
+  if (e.eid === 'mewtwo' || e.eid === 'darkrai') return stepMewtwo(state, e, data);   // 梦.魇之源复用超梦骨架（cfg 调参加密，M11-C）
   e.px = e.x; e.py = e.y;
   if (e.flash > 0) e.flash -= T;
 

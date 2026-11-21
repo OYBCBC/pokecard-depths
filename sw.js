@@ -1,5 +1,5 @@
 // 由 tools/make-sw.py 生成，勿手改。VERSION 变更即全量换缓存。
-const VERSION = '23fb9f2341';
+const VERSION = '3f7b836b99';
 const PRECACHE = [
   "assets/atlas/abra.json",
   "assets/atlas/abra.png",
@@ -210,6 +210,7 @@ const PRECACHE = [
   "assets/items/escape-rope.png",
   "assets/items/evo-stone.png",
   "assets/items/expert-belt.png",
+  "assets/items/feather-mew.png",
   "assets/items/flame-orb.png",
   "assets/items/focus-sash.png",
   "assets/items/gale-wing.png",
