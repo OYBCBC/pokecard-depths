@@ -1061,6 +1061,17 @@
       "effect": {
         "enemyShotMul": 0.9
       }
+    },
+    "badge-purple": {
+      "name": "幽冥徽章",
+      "icon": "badge-purple",
+      "kind": "badge",
+      "quality": 3,
+      "pools": [],
+      "desc": "菊子的徽章：命中使敌人减速 1 秒",
+      "effect": {
+        "slowOnHit": 1.0
+      }
     }
   },
   "_pools": "T 宝箱房 / S 商店 / O 普通房掉落 / C 挑战奖励 / X 隐藏房 / D 黑市 / A 祭坛。抽池规则见 items.js。",

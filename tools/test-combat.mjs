@@ -255,7 +255,7 @@ test('M4 替补：结伴→F 切换→伤害由替补承受→濒死自动回主
   assert.equal(run.player.alive, true, '主力无损');
 });
 
-test('M5 层 3 Boss（娜姿）死亡 → 楼梯去 F4；梦幻死 → 净化通关', () => {
+test('M5→M11：F3 娜姿死亡 → 楼梯去 F4 幽冥层（菊子）→ F5 晶核之间；梦幻死 → 净化通关', () => {
   const run = createRun(data, 88);
   goNextFloor(run, data); goNextFloor(run, data);
   assert.equal(run.floorNo, 3);
@@ -268,15 +268,23 @@ test('M5 层 3 Boss（娜姿）死亡 → 楼梯去 F4；梦幻死 → 净化通
   for (let i = 0; i < 8; i++) stepRun(run, idleInput(), data);
   assert.equal(run.win, false, 'F3 不再是终点');
   assert.ok(run.pickups.some((k) => k.kind === 'stairs'), 'F3 Boss 死出楼梯');
-  // 上 F4 → 晶核之间
+  // 上 F4 → 幽冥层（菊子·耿鬼）
   goNextFloor(run, data);
   assert.equal(run.floorNo, 4);
-  assert.equal(data.floors['4'].name, '晶核之间');
+  assert.equal(data.floors['4'].name, '幽冥层');
+  const agathaRoom = [...run.map.values()].find((c) => c.type === 'boss');
+  enterRoom(run, data, agathaRoom.x + ',' + agathaRoom.y);
+  const agatha = run.enemies.find((e) => e.family === 'boss');
+  assert.equal(agatha.name, '菊子');
+  // 上 F5 → 晶核之间（梦幻终战）
+  goNextFloor(run, data);
+  assert.equal(run.floorNo, 5);
+  assert.equal(data.floors['5'].name, '晶核之间');
   const mewRoom = [...run.map.values()].find((c) => c.type === 'boss');
   enterRoom(run, data, mewRoom.x + ',' + mewRoom.y);
   const mew = run.enemies.find((e) => e.family === 'boss');
   assert.equal(mew.name, '梦幻');
-  // 三段推进：打到 66%/33% 触发 phase2/3，再打死 → 净化通关
+  // 三段推进：打到 66%/33% 触发 phase2/3，再打死 → M11 起出楼梯（梦幻不再是终点）
   mew.state = 'active';
   mew.hp = mew.maxHp * 0.5;
   stepRun(run, idleInput(), data);
@@ -285,13 +293,26 @@ test('M5 层 3 Boss（娜姿）死亡 → 楼梯去 F4；梦幻死 → 净化通
   stepRun(run, idleInput(), data);
   assert.equal(mew.b.phase, 3, '20% 血 → P3');
   mew.hp = 0;
+  for (let i = 0; i < 8; i++) stepRun(run, idleInput(), data);
+  assert.equal(run.win, false, 'M11：F5 梦幻死不再直接通关');
+  assert.ok(run.pickups.some((k) => k.kind === 'stairs'), 'F5 梦幻死出楼梯（M11-C 换双出口）');
+  // 上 F6 → 梦境裂隙；达克莱伊死 → 净化通关
+  goNextFloor(run, data);
+  assert.equal(run.floorNo, 6);
+  assert.equal(data.floors['6'].name, '梦境裂隙');
+  const dkRoom = [...run.map.values()].find((c) => c.type === 'boss');
+  enterRoom(run, data, dkRoom.x + ',' + dkRoom.y);
+  const dk = run.enemies.find((e) => e.family === 'boss');
+  assert.equal(dk.name, '达克莱伊');
+  dk.state = 'active';
+  dk.hp = 0;
   let sawPurify = false, sawClear = false;
   for (let i = 0; i < 8; i++) {
     stepRun(run, idleInput(), data);
     if (run.events.some((e) => e.t === 'mew-purify')) sawPurify = true;
     if (run.events.some((e) => e.t === 'floor-clear')) sawClear = true;
   }
-  assert.equal(run.win, true, '梦幻死=通关');
+  assert.equal(run.win, true, 'F6 达克莱伊死=通关');
   assert.equal(run.over, true);
   assert.ok(sawPurify, '净化演出事件');
   assert.ok(sawClear, 'floor-clear 事件');
@@ -469,16 +490,16 @@ test('图鉴：事件点亮（遭遇/击杀/馆主搭档/进化/结伴/别名）
 const _items = await import(join(ROOT, 'js/sim/items.js?v=m9'));
 const items = data.items;
 
-test('道具全量：74 件（被动42+强化8+消耗11+纪念10+徽章3），图标齐全、池合法', () => {
+test('道具全量：75 件（被动42+强化8+消耗11+纪念10+徽章4，M11 幽冥徽章），图标齐全、池合法', () => {
   const ids = Object.keys(items);
-  assert.equal(ids.length, 74, '总数 74，实际 ' + ids.length);
+  assert.equal(ids.length, 75, '总数 75，实际 ' + ids.length);
   const byKind = {};
   for (const id of ids) byKind[items[id].kind] = (byKind[items[id].kind] || 0) + 1;
   assert.equal(byKind.passive, 42);
   assert.equal(byKind.stat, 8);
   assert.equal(byKind.consumable, 11);
   assert.equal(byKind.trinket, 10);
-  assert.equal(byKind.badge, 3);
+  assert.equal(byKind.badge, 4);
   const VALID_POOLS = new Set(['T', 'S', 'O', 'C', 'X', 'D', 'A']);
   for (const id of ids) {
     const it = items[id];
@@ -1129,11 +1150,26 @@ test('M7 血祭坛：♥1 上限换高级货（保底 2 格）；神秘礼物免
   assert.ok(gped.taken, '免费拿走');
 });
 
+// M11 起裂缝房按概率生成（F4 8%）：测试改为手动注入（与 debug 控制台 fissure 命令同一套接线）
+function forceFissure(run) {
+  const start = run.map.get(run.cellKey);
+  for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+    const k = (start.x + dx) + ',' + (start.y + dy);
+    if (run.map.has(k)) continue;
+    const cell = { x: start.x + dx, y: start.y + dy, type: 'fissure', cleared: false, visited: false, doors: {} };
+    cell.doors[(-dx) + ',' + (-dy)] = 'fissure';
+    start.doors[dx + ',' + dy] = 'fissure';
+    run.map.set(k, cell);
+    return cell;
+  }
+  return null;
+}
+
 test('M7 超梦：裂缝房生成 → 击杀 = mewtwo-down + 旗标 + 掉落 + 不结局', () => {
   const run = createRun({ ...data, floorNo: 4 }, 999, 'pikachu', 'normal');
   const d = { ...data, floorNo: 4 };
-  const fcell = [...run.map.values()].find((c) => c.type === 'fissure');
-  assert.ok(fcell, 'F4 有裂缝房');
+  const fcell = forceFissure(run);
+  assert.ok(fcell, '注入裂缝房');
   // 撞开门再进
   const startCell = run.map.get(run.cellKey);
   enterRoom(run, d, run.cellKey);
@@ -1180,7 +1216,7 @@ test('M7 超梦：裂缝房生成 → 击杀 = mewtwo-down + 旗标 + 掉落 + �
 test('M7 超梦 P2：血量 <62% 出幻影 + 阶段事件', () => {
   const run = createRun({ ...data, floorNo: 4 }, 1001, 'pikachu', 'normal');
   const d = { ...data, floorNo: 4 };
-  const fcell = [...run.map.values()].find((c) => c.type === 'fissure');
+  const fcell = forceFissure(run);
   enterRoom(run, d, fcell.x + ',' + fcell.y);
   const m2 = run.enemies.find((e) => e.family === 'boss');
   m2.state = 'active'; m2.spawnT = 0;

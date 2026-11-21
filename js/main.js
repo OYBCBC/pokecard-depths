@@ -19,6 +19,7 @@ import { enterRoom } from './sim/actors.js?v=m9b';
 import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m9b';
 import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m9b';
 import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m9b';
+import { createDebugConsole } from './debug/console.js?v=m9b';
 
 const hud = createHud();
 const tier = detectTier();
@@ -433,14 +434,14 @@ async function boot() {
     get views() { return enemyViews; },          // selfcheck 按 id 精确取面片
     get player() { return player; }, pump: null,
     get dexState() { return dexState; },
+    _simFlags: () => ({ started, paused, sheetToggle, dbg: dbgOpen(), dex: hud.dexOpen, achv: hud.achvOpen, rot: hud.rotateOpen, end: hud.endOpen, hitStop: typeof hitStopT === 'number' ? hitStopT : 'n/a' }),
     restart: () => restartRun(),                  // 与胜负页"重新出发"同一路径（beginRun：started/精灵/横幅齐全）
     goRoom: (key) => { enterRoom(run, data, key); window.__depths.run = run; rebuildRoom(); },   // ?debug 传送
     goFloor: (n) => { while (run.floorNo < n && goNextFloor(run, data)) {} window.__depths.run = run; rebuildRoom(); },   // ?debug 跳层
     // 自动化截图专用（M7）：同步渲染一帧并在同一任务里 toDataURL。
     // 失焦/后台标签的合成器截图拿不到 WebGL 帧（present 被浏览器丢弃）——坑⑫的正解；
     // preserveDrawingBuffer=false 下缓冲在合成后即清，所以渲染与采样必须同任务（M1 踩坑）。
-    snap: (scale = 0.5) => {
-      if (postfx) postfx.composer.render(1 / 60);
+    snap: (scale = 0.5) => {      if (postfx) postfx.composer.render(1 / 60);
       else renderer.render(scene, camCtl.camera);
       const src = document.getElementById('game');
       const c = document.createElement('canvas');
@@ -450,6 +451,52 @@ async function boot() {
       return c.toDataURL('image/png');
     },
     give: (id) => { run.player.inv.passives.push(id); recompute(run, data); hud.slots(effMoveA(run), effMoveB(run), run.player.slot, run.player.mods.lockB); } };
+
+  // ---- Debug 控制台（M11）：?debug 下按 ` 呼出；?auto=cmd|cmd 深链自动执行 ----
+  let dbgConsole = null;
+  const dbgOpen = () => !!(dbgConsole && dbgConsole.isVisible());
+  let dbgPausedHere = false;
+  if (debugOn && !selfcheckOn) {
+    dbgConsole = createDebugConsole({
+      getRun: () => run,
+      data,
+      goRoom: (key) => window.__depths.goRoom(key),
+      goFloor: (n) => window.__depths.goFloor(n),
+      restart: () => restartRun(),
+      pump: (n) => { if (window.__depths.pump) window.__depths.pump(n); },
+      rebuildRoom: () => rebuildRoom(),
+      setOpen: (v) => {
+        if (v) { dbgPausedHere = !paused; setPaused(true); }
+        else if (paused && dbgPausedHere) setPaused(false);
+      },
+      achvSet: () => achvSet,
+      hudEl: () => document.getElementById('hud'),
+      speedMul: () => simSpeedMul,
+      setSpeedMul: (m) => { simSpeedMul = m; },
+    });
+    // 每条命令执行后：清残留事件（暂停期 render 不清，会重复演出）+ 重建房间视图 + 刷技能栏
+    const rawExec = dbgConsole.exec.bind(dbgConsole);
+    dbgConsole.exec = (cmd) => {
+      rawExec(cmd);
+      run.events.length = 0;
+      if (started) {
+        rebuildRoom();
+        hud.slots(effMoveA(run), effMoveB(run), run.player.slot, run.player.mods.lockB);
+      }
+    };
+    window.__depths.debug = dbgConsole;
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Backquote' && !e.repeat) { dbgConsole.toggle(); e.preventDefault(); }
+    });
+    const autoCmds = params.get('auto');
+    if (autoCmds) {
+      // setTimeout：等模块初始化走完（started/paused/restartRun 等声明在后，直接跑会 TDZ）
+      setTimeout(() => {
+        dbgConsole.open();
+        autoCmds.split('|').forEach((c) => dbgConsole.exec(c.trim()));
+      }, 0);
+    }
+  }
 
   // ---- 存档与本机榜 ----
   const BOARD_KEY = 'depths-board';
@@ -1253,6 +1300,7 @@ async function boot() {
 
   // ---- 主循环 ----
   let last = performance.now(), acc = 0, steps = 0;
+  let simSpeedMul = 1;   // debug 控制台 speed 命令（M11）
   const clock = { t: 0 };
   let doorOpenSeen = null;
   let peekPedId = -1, sheetOn = false, sheetT = 0, ingameSeen = null;
@@ -1363,10 +1411,10 @@ async function boot() {
     };
 
     // 模拟暂停：开始界面 / 图鉴 / 成就 / 暂停菜单 / 竖屏提示 / 触屏地图面板（Tab 长按的以撒式面板不停）
-    const simPaused = !started || hud.dexOpen || hud.achvOpen || paused || hud.rotateOpen || sheetToggle;
+    const simPaused = !started || hud.dexOpen || hud.achvOpen || paused || hud.rotateOpen || sheetToggle || dbgOpen();
     if (simPaused) { acc = 0; steps = 0; clearPend(); }
     else {
-      acc += dt;
+      acc += dt * simSpeedMul;   // debug 控制台 speed 命令（0.25-4）
       steps = 0;
       while (acc >= STEP && steps < 4) {
         stepRun(run, gameInput, data);

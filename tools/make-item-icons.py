@@ -230,6 +230,7 @@ ICONS = {
     'badge-gray': lambda: badge((150, 150, 158), (200, 204, 214)),
     'badge-orange': lambda: badge((226, 140, 60), (250, 196, 120)),
     'badge-gold': lambda: badge((240, 200, 70), (255, 240, 160)),
+    'badge-purple': lambda: badge((150, 100, 210), (200, 160, 250)),   # M11 幽冥徽章（菊子）
 }
 
 

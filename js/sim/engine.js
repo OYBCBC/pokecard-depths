@@ -24,7 +24,7 @@ export function dirOf(vx, vy) {
   return best;
 }
 
-export const MAX_FLOOR = 4;   // F4 晶核之间（梦幻终战）
+export const MAX_FLOOR = 6;   // F5 晶核之间（梦幻终战）+ F6 梦境裂隙（达克莱伊·真终战，M11）
 
 export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0, speciesId = 'pikachu', difficulty = 'normal') {
   const rng = makeRng(seed);

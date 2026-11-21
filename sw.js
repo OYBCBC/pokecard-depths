@@ -1,5 +1,5 @@
 // 由 tools/make-sw.py 生成，勿手改。VERSION 变更即全量换缓存。
-const VERSION = '8ee672b4d9';
+const VERSION = '3bb9026753';
 const PRECACHE = [
   "assets/atlas/abra.json",
   "assets/atlas/abra.png",
@@ -174,6 +174,7 @@ const PRECACHE = [
   "assets/items/badge-gold.png",
   "assets/items/badge-gray.png",
   "assets/items/badge-orange.png",
+  "assets/items/badge-purple.png",
   "assets/items/big-root.png",
   "assets/items/binding-band.png",
   "assets/items/black-sludge.png",
@@ -287,6 +288,7 @@ const PRECACHE = [
   "assets/tiles/ruins-wall.png",
   "assets/tiles/shadow.png",
   "css/style.css",
+  "debug.html",
   "index.html",
   "js/audio/bgm.js",
   "js/audio/cries.js",
@@ -300,6 +302,7 @@ const PRECACHE = [
   "js/data/pack-orig.json",
   "js/data/species.json",
   "js/data/typechart.json",
+  "js/debug/console.js",
   "js/gfx/camera.js",
   "js/gfx/droptex.js",
   "js/gfx/effects.js",

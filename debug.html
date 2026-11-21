@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Debug 控制台手册 — 宝可梦·晶穴深处</title>
+<link rel="icon" type="image/png" href="assets/icons/favicon.png">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0b0e18; color: #dfe6f2; font: 14px/1.7 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 20px; color: #ffe9a0; letter-spacing: 1px; margin-bottom: 4px; }
+  .sub { color: #7d8aa5; font-size: 12px; margin-bottom: 24px; }
+  .sub a { color: #7fd4ff; }
+  h2 { font-size: 14px; color: #9fd8ff; margin: 26px 0 10px; padding: 4px 10px;
+       background: rgba(127, 212, 255, 0.08); border-left: 3px solid #7fd4ff; border-radius: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: #7d8aa5; font-weight: 600; padding: 4px 10px; border-bottom: 1px solid #232d48; }
+  td { padding: 5px 10px; border-bottom: 1px solid #161c2e; vertical-align: top; }
+  td.cmd { font: 12.5px ui-monospace, Menlo, monospace; color: #7dff9b; white-space: nowrap; }
+  .links { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+  .links a { display: inline-block; padding: 6px 12px; border-radius: 6px; text-decoration: none;
+             background: #1b2440; border: 1px solid #2e3c60; color: #dfe6f2; font-size: 13px; }
+  .links a:hover { border-color: #7fd4ff; background: #253156; }
+  .note { background: rgba(255, 226, 74, 0.06); border: 1px solid rgba(255, 226, 74, 0.3);
+          border-radius: 6px; padding: 10px 14px; font-size: 12.5px; color: #ffe9a0; margin: 14px 0; }
+  code { font: 12.5px ui-monospace, Menlo, monospace; color: #7dff9b; background: #10141f;
+         padding: 1px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Debug 控制台手册</h1>
+  <div class="sub">M11 · 与 <a href="lab.html">招式靶场</a> / <a href="index.html">游戏本体</a> 同源 · 仅 <code>?debug</code> 参数下启用，正式包零影响</div>
+
+  <div class="note">
+    打开方式：进入 <a href="index.html?debug=true">游戏（?debug=true）</a> 后按 <code>`</code>（反引号）呼出控制台；
+    触屏设备点右下角 <code>⌘</code> 按钮。每条命令执行后自动刷新房间视图。
+  </div>
+
+  <h2>一键直达（?auto= 深链）</h2>
+  <div class="links">
+    <a href="index.html?debug=true&auto=stage 4">跳 F4 幽冥层</a>
+    <a href="index.html?debug=true&auto=give tm-hyper|stage 5|boss mew">梦幻终战</a>
+    <a href="index.html?debug=true&auto=stage 6|boss darkrai">达克莱伊</a>
+    <a href="index.html?debug=true&auto=fissure">裂缝房（超梦）</a>
+    <a href="index.html?debug=true&auto=god|speed 2|money 999|keys 9">无敌 + 加速 + 满钱钥匙</a>
+    <a href="index.html?debug=true&auto=give tm-shadow|give tm-boomer|give tm-ice|give tm-dark">M11-B 新 TM（实装后）</a>
+    <a href="index.html?debug=true&auto=ending 2">结局模拟（M11-C 实装后）</a>
+  </div>
+
+  <h2>命令一览</h2>
+  <table>
+    <tr><th style="width:220px">命令</th><th>说明</th></tr>
+    <tr><td class="cmd">help [命令]</td><td>命令列表 / 单条详细说明</td></tr>
+    <tr><td class="cmd">stage &lt;1-6&gt;</td><td>向前跳层（保留成长）。往回用 <code>restart 层号</code></td></tr>
+    <tr><td class="cmd">restart [层号]</td><td>重开一局，可指定起始层</td></tr>
+    <tr><td class="cmd">goto &lt;房型&gt;</td><td>传送本层房型：boss / shop / treasure / challenge / secret / camp / blackmarket / altar / vault / fissure / forge / gacha / blood / gift / start / combat</td></tr>
+    <tr><td class="cmd">boss &lt;eid&gt;</td><td>直开 Boss 战：brock / surge / sabrina / agatha / mew / mewtwo / darkrai（进 boss 或裂缝房并强制 spawn）</td></tr>
+    <tr><td class="cmd">fissure</td><td>本层强制生成裂缝房（邻出生房）并传送——M11 起裂缝房按概率生成（F4 8% / F5 12% / F6 25%），测试超梦用这条</td></tr>
+    <tr><td class="cmd">spawn &lt;eid&gt; [n]</td><td>玩家周围刷敌（enemies.json 的 id，如 <code>spawn gengar 3</code>）</td></tr>
+    <tr><td class="cmd">give &lt;itemId&gt;</td><td>道具入包（kind 决定落位：passives / trinket / consumable / badges），如 <code>give tm-hyper</code></td></tr>
+    <tr><td class="cmd">take &lt;itemId&gt;</td><td>移除一件已持有道具</td></tr>
+    <tr><td class="cmd">killall</td><td>全场 HP 清零——走正常死亡结算（Boss 奖励 / 徽章 / 结局分支都生效）</td></tr>
+    <tr><td class="cmd">clear</td><td>当前房直接置清（无死亡结算，看门/路线用）</td></tr>
+    <tr><td class="cmd">heal / hp &lt;n&gt;</td><td>回满 / 设置当前亲密度</td></tr>
+    <tr><td class="cmd">pp &lt;n&gt; / ppfull</td><td>设置 / 回满 PP</td></tr>
+    <tr><td class="cmd">money &lt;n&gt; / keys &lt;n&gt;</td><td>设置金钱 / 钥匙</td></tr>
+    <tr><td class="cmd">god</td><td>无敌切换（受击无效，弹「格挡」提示）</td></tr>
+    <tr><td class="cmd">speed &lt;0.25-4&gt;</td><td>模拟时间倍率（以撒 Debug 同款快进）</td></tr>
+    <tr><td class="cmd">hud</td><td>HUD 显隐（截图/录屏用）</td></tr>
+    <tr><td class="cmd">seed</td><td>打印种子 / 层 / 房 / 挑战码（可直接分享复现）</td></tr>
+    <tr><td class="cmd">species &lt;id&gt;</td><td>切换搭档（含未解锁：pikachu / eevee / cubone / poliwhirl / charizard / scizor / lucario / rayquaza…）</td></tr>
+    <tr><td class="cmd">difficulty &lt;normal|hard|abyss&gt;</td><td>局内切换难度三档</td></tr>
+    <tr><td class="cmd">dex / achv</td><td>图鉴全开 / 成就全开（立即写 localStorage）</td></tr>
+    <tr><td class="cmd">win</td><td>强制结算胜利（走结局演出）</td></tr>
+    <tr><td class="cmd">ending &lt;1-4&gt;</td><td>结局条件模拟（M11-C 终焉宝箱实装后生效）</td></tr>
+  </table>
+
+  <h2>行为约定</h2>
+  <table>
+    <tr><th style="width:220px">项</th><th>说明</th></tr>
+    <tr><td class="cmd">事件清空</td><td>每条命令执行后清残留事件队列并重建房间——暂停期间 render 不清事件，不处理会重复演出</td></tr>
+    <tr><td class="cmd">暂停</td><td>控制台打开时模拟暂停（同图鉴/菜单）；关闭自动恢复。你手动暂停菜单时开控制台，关闭控制台不会顺带解除你的暂停</td></tr>
+    <tr><td class="cmd">与 selfcheck 互斥</td><td><code>?selfcheck</code> 优先，控制台不注入——自动化回归不受影响</td></tr>
+    <tr><td class="cmd">正式包</td><td>无 <code>?debug</code> 参数时控制台、⌘ 按钮、<code>`</code> 监听全部不注入，玩家不可见</td></tr>
+  </table>
+</div>
+</body>
+</html>

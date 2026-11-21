@@ -86,7 +86,7 @@ export function enterRoom(state, data, cellKey) {
 
   if (cell.cleared) {
     // 保底：已击败的 Boss 房必有楼梯（非顶层）——防暂存缺失时卡死进度
-    if (cell.type === 'boss' && state.floorNo < 4 && !state.over
+    if (cell.type === 'boss' && state.floorNo < 6 && !state.over
       && !state.pickups.some((k) => k.kind === 'stairs')) {
       state.pickups.push(mkPickup(state, 'stairs', w / 2, h / 2));
     }
@@ -178,11 +178,13 @@ export function enterRoom(state, data, cellKey) {
         p.hp = p.maxHp;
         state.events.push({ t: 'ash-heal', hp: p.hp });
       }
-      spawnBoss(state, data);
+      spawnBoss(state, data, state.pendingBoss);    // debug 控制台 boss 命令可指定 Boss；常态 null
+      state.pendingBoss = null;
       break;
     case 'fissure':
       // 裂缝房（M7）：超梦挑战——可选隐藏 Boss，死了不毁存档（Boss 战失败=就地复活弹回出生房）
-      spawnBoss(state, data, 'mewtwo');
+      spawnBoss(state, data, state.pendingBoss || 'mewtwo');
+      state.pendingBoss = null;
       break;
     case 'vault': {
       // 密室（M7）：钥匙开锁，2 件高级货 + 金币雨 + 心
@@ -648,6 +650,7 @@ function tryRevealSecret(state, data) {
 export function hurtPlayer(state, dmg, data) {
   const p = state.player;
   if (!p.alive || p.iframes > 0 || p.dashActive) return false;
+  if (state.godMode) { state.events.push({ t: 'player-block', x: p.x, y: p.y, god: true }); return false; }   // debug：无敌
   const m = p.mods;
   // 龙睛果护盾：格挡一次并消耗
   if (p.buffs && p.buffs.guard > 0) {
@@ -892,7 +895,7 @@ function applyHit(state, e, b, data) {
   }
 }
 
-function killEnemy(state, e, kind = 'normal', moveId = null) {
+export function killEnemy(state, e, kind = 'normal', moveId = null) {
   if (e.state === 'dead') return;
   // 分裂（臭泥）：死时裂两只小的
   if (e.splitOnDeath && state.enemies && !e.isSplitChild) {
@@ -986,8 +989,8 @@ export function stepEnemies(state, input, data) {
           state.pickups.push(mkPickup(state, 'heart', e.x + 1.2, e.y));
           state.events.push({ t: 'mewtwo-down', x: e.x, y: e.y });
           engine_recompute(state, data);              // 伤害 ×1.15 立即生效
-        } else if (state.floorNo >= 4) {
-          // 梦幻终战胜利：净化结局演出（不倒下，被净化）
+        } else if (state.floorNo >= 6) {
+          // F6 梦境裂隙胜利（达克莱伊）：净化结局演出（不倒下，被净化）——M11-C 升级为终焉宝箱结算
           state.over = true; state.win = true;
           state.events.push({ t: 'mew-purify', x: e.x, y: e.y, name: e.name });
           state.events.push({ t: 'floor-clear', x: e.x, y: e.y });
@@ -998,8 +1001,8 @@ export function stepEnemies(state, input, data) {
           for (let k = 0; k < 6; k++) {
             state.pickups.push(mkPickup(state, 'coin', e.x + (state.rand() - 0.5) * 2.5, e.y + (state.rand() - 0.5) * 2.5));
           }
-          // 馆主徽章（F1 灰 / F2 橙 / F3 金）：全局被动
-          const badgeId = { 1: 'badge-gray', 2: 'badge-orange', 3: 'badge-gold' }[state.floorNo];
+          // 馆主徽章（F1 灰 / F2 橙 / F3 金 / F4 幽冥）：全局被动
+          const badgeId = { 1: 'badge-gray', 2: 'badge-orange', 3: 'badge-gold', 4: 'badge-purple' }[state.floorNo];
           if (badgeId && data.items[badgeId] && !state.player.inv.badges.includes(badgeId)) {
             state.player.inv.badges.push(badgeId);
             engine_recompute(state, data);

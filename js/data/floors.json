@@ -1,5 +1,6 @@
 {
- "v": 1,
+ "v": 2,
+ "_comment": "M11 六层塔：F1-F3 馆主线 → F4 幽冥层(菊子) → F5 晶核之间(梦幻终战，迷你层) → F6 梦境裂隙(达克莱伊，迷你层)。旧 F4 内容平移至 F5。",
  "floors": {
   "1": {
    "name": "洞窟层",
@@ -225,10 +226,97 @@
    "bg": 1314826
   },
   "4": {
+   "name": "幽冥层",
+   "theme": "ruins",
+   "boss": "agatha",
+   "hpMul": 2.0,
+   "waves": [
+    [
+     {
+      "id": "gastly",
+      "n": 2
+     },
+     {
+      "id": "drowzee",
+      "n": 1
+     }
+    ],
+    [
+     {
+      "id": "abra",
+      "n": 2
+     },
+     {
+      "id": "koffing",
+      "n": 1
+     }
+    ],
+    [
+     {
+      "id": "gengar",
+      "n": 1
+     },
+     {
+      "id": "gastly",
+      "n": 2
+     }
+    ],
+    [
+     {
+      "id": "drowzee",
+      "n": 2
+     },
+     {
+      "id": "abra",
+      "n": 1
+     },
+     {
+      "id": "grimer",
+      "n": 1
+     }
+    ],
+    [
+     {
+      "id": "gengar",
+      "n": 1
+     },
+     {
+      "id": "jigglypuff",
+      "n": 1
+     },
+     {
+      "id": "kecleon",
+      "n": 1
+     }
+    ],
+    [
+     {
+      "id": "gengar",
+      "n": 1
+     },
+     {
+      "id": "drowzee",
+      "n": 2
+     },
+     {
+      "id": "machop",
+      "n": 1
+     }
+    ]
+   ],
+   "lights": {
+    "hemi": 7234472,
+    "ground": 2757130,
+    "dir": 13615334,
+    "point": 13082623
+   },
+   "bg": "#0d0a1a"
+  },
+  "5": {
    "name": "晶核之间",
    "theme": "ruins",
    "boss": "mew",
-   "hpMul": 1.55,
+   "hpMul": 1.9,
    "waves": [
     [
      {
@@ -272,6 +360,55 @@
     "point": 14725375
    },
    "bg": "#1a1024"
+  },
+  "6": {
+   "name": "梦境裂隙",
+   "theme": "ruins",
+   "boss": "darkrai",
+   "hpMul": 2.0,
+   "waves": [
+    [
+     {
+      "id": "gastly",
+      "n": 2
+     },
+     {
+      "id": "abra",
+      "n": 2
+     }
+    ],
+    [
+     {
+      "id": "drowzee",
+      "n": 2
+     },
+     {
+      "id": "ditto",
+      "n": 1
+     }
+    ],
+    [
+     {
+      "id": "gastly",
+      "n": 1
+     },
+     {
+      "id": "dragonite",
+      "n": 1
+     },
+     {
+      "id": "abra",
+      "n": 1
+     }
+    ]
+   ],
+   "lights": {
+    "hemi": 9067224,
+    "ground": 2360122,
+    "dir": 14732543,
+    "point": 14100991
+   },
+   "bg": "#0a0616"
   }
  }
 }

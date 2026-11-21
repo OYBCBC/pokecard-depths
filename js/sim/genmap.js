@@ -24,8 +24,10 @@ export function genMap(rand, floorNo = 1) {
 function key(x, y) { return x + ',' + y; }
 
 function tryGen(rand, floorNo) {
-  // F4 晶核之间：迷你层（直奔梦幻终战），死端下限放宽、房数容差收紧（必须够 4 房）
-  if (floorNo >= 4) return tryGenCore(rand, 4, 1, 0, floorNo);
+  // F5/F6 迷你层（M11）：晶核之间直奔梦幻终战；梦境裂隙直通达克莱伊
+  if (floorNo >= 5) return tryGenCore(rand, 4, 1, 0, floorNo);
+  // F4 幽冥层（M11）：整层但房数压制在 12-13（拉长后控单局节奏），死端 ≥7
+  if (floorNo === 4) return tryGenCore(rand, 12 + (rand() < 0.5 ? 1 : 0), 7, 2, floorNo);
   // 死端 ≥7（M7，F1 为 6）：Boss/商店/宝箱/挑战/营地占 5 个 + 密室(F2+) 1 个，
   // 仍剩 ≥1 个战斗死端供黑市/祭坛/事件房替换（条件性替换需要额外死端——M4.5/M5 同类教训）
   return tryGenCore(rand, Math.min(20, 5 + Math.floor(10 * floorNo / 3) + (rand() < 0.5 ? 0 : 1)), floorNo >= 2 ? 7 : 6, 2, floorNo);
@@ -88,9 +90,9 @@ function tryGenCore(rand, target, minDead, tol, floorNo = 1) {
   // 锁住的宝物密室（M7，F2+）：钥匙经济的目标房
   if (floorNo >= 2) { const vault = takeDeadEnd(); if (vault) vault.type = 'vault'; }
 
-  // 大房型（M7）：非死端的普通战斗房，按层号放 1~2 个——内部放大（网格 1 格）
+  // 大房型（M7）：非死端的普通战斗房，按层号放 1~2 个——内部放大（网格 1 格）；F5/F6 迷你层不放
   const combatAll = [...cells.values()].filter((c) => c.type === 'combat');
-  const bigs = floorNo >= 4 ? [] : combatAll
+  const bigs = floorNo >= 5 ? [] : combatAll
     .filter((c) => neighborsOf(c.x, c.y).length >= 2)
     .sort((a, b) => b.d - a.d)
     .slice(0, floorNo >= 3 ? 2 : 1);
@@ -118,11 +120,33 @@ function tryGenCore(rand, target, minDead, tol, floorNo = 1) {
   }
   if (best) put(best.x, best.y, 'secret');
 
-  // 裂缝房（M7）：F4 出生房旁的超梦挑战（可选隐藏 Boss）；门缝冲刺撞开
+  // 裂缝房（M7→M11 条件化）：超梦挑战入口，门缝冲刺撞开。
+  // M11 起不再必现：F4 8% / F5 12% / F6 25% 检定（恢复隐藏 Boss 的隐藏感；debug 控制台 fissure 命令可强制生成）。
+  // 整层模式下出生房四邻通常已被 BFS 占满：在全图找「邻接 1~2 间普通/出生房、不邻任何特殊房」的空格，
+  // 越靠出生房越优先（藏得深但不至于找不到）；找不到就放弃本次检定。
   if (floorNo >= 4) {
-    const spot = N.map(([dx, dy]) => ({ x: cx + dx, y: cy + dy }))
-      .find((p) => p.x >= 0 && p.y >= 0 && p.x < GRID && p.y < GRID && !cells.has(key(p.x, p.y)));
-    if (spot) put(spot.x, spot.y, 'fissure');
+    const fissureChance = floorNo === 4 ? 0.08 : floorNo === 5 ? 0.12 : 0.25;
+    if (rand() < fissureChance) {
+      const fisSpecial = new Set(['boss', 'shop', 'treasure', 'challenge', 'camp', 'secret', 'vault', 'fissure']);
+      let best = null, bestScore = -Infinity;
+      for (let y = 0; y < GRID; y++) {
+        for (let x = 0; x < GRID; x++) {
+          if (cells.has(key(x, y))) continue;
+          let adj = 0, bad = 0;
+          for (const [dx, dy] of N) {
+            const c = cells.get(key(x + dx, y + dy));
+            if (!c) continue;
+            adj++;
+            if (fisSpecial.has(c.type)) bad++;
+          }
+          if (adj >= 1 && adj <= 2 && bad === 0) {
+            const score = -(Math.abs(x - cx) + Math.abs(y - cy)) + rand() * 2;
+            if (score > bestScore) { bestScore = score; best = { x, y }; }
+          }
+        }
+      }
+      if (best) put(best.x, best.y, 'fissure');
+    }
   }
 
   // 运行时字段

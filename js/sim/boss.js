@@ -32,6 +32,9 @@ export function spawnBoss(state, data, bossIdOverride) {
     ent.b.summonT = 2.5; ent.b.gridT = 4.0; ent.b.volleyT = 6.5;
   } else if (ent.eid === 'sabrina') {
     ent.b.mirrorT = 2.5; ent.b.tpT = 3.2;
+  } else if (ent.eid === 'agatha') {
+    ent.b.mirrorT = 2.2; ent.b.tpT = 3.0; ent.b.sneakT = 2.0; ent.b.spikeT = 2.0;
+    ent.b.phase3Done = false;
   } else if (ent.eid === 'mew') {
     ent.b.tpT = 1.4; ent.b.ringT = 2.0; ent.b.volleyT = 4.0;
     ent.b.summonT = 3.0; ent.b.spikeT = 1.2; ent.b.phase3Done = false;
@@ -53,6 +56,7 @@ export function stepBoss(state, e, data) {
   const b = e.b, cfg = b.cfg, p = state.player;
   if (e.eid === 'surge') return stepSurge(state, e, data);
   if (e.eid === 'sabrina') return stepSabrina(state, e, data);
+  if (e.eid === 'agatha') return stepAgatha(state, e, data);
   if (e.eid === 'mew') return stepMew(state, e, data);
   if (e.eid === 'mewtwo') return stepMewtwo(state, e, data);
   e.px = e.x; e.py = e.y;
@@ -318,6 +322,114 @@ function stepSabrina(state, e, data) {
 
   bossContact(state, e, 1);
   bossRain(state, e, cfg, b);
+}
+
+// ---------- 菊子（M11 F4 幽冥层馆主）：影球矩阵 / 隐身影袭 / 梦境结界 ----------
+//   P1 影球矩阵：双环暗影弹 + 常规瞬移
+//   P2（<55%）影子偷袭：隐身闪现至玩家落点，预警圈结算后现身（耿鬼式鬼影轨迹）
+//   P3（<25%）梦境结界：nova 双环 + 玩家位置/十字 spike 连击（梦幻 P3 同款骨架加密）
+function stepAgatha(state, e, data) {
+  const b = e.b, cfg = b.cfg, p = state.player;
+  e.px = e.x; e.py = e.y;
+  if (e.flash > 0) e.flash -= T;
+
+  if (!b.phase2Done && e.hp < e.maxHp * cfg.phase2At) {
+    b.phase2Done = true; b.phase = 2;
+    nova(state, e, cfg, 1);
+    state.events.push({ t: 'boss-phase2', x: e.x, y: e.y });
+  }
+  if (b.phase >= 2 && !b.phase3Done && e.hp < e.maxHp * cfg.phase3At) {
+    b.phase3Done = true; b.phase = 3;
+    nova(state, e, cfg, 2);
+    state.events.push({ t: 'boss-phase3', x: e.x, y: e.y });
+  }
+
+  // P2 起影子偷袭循环：隐身 → 漂向玩家落点 → 预警圈结算后现身
+  if (b.phase >= 2) {
+    b.sneakT -= T;
+    if (b.sneakT <= 0 && !e.hidden) {
+      e.hidden = true; e.anim = 'Hurt';
+      b.sneakAt = { x: p.x, y: p.y };
+      b.sneakT = cfg.sneak.warn;
+      warn(state, p.x, p.y, cfg.sneak.radius, cfg.sneak.warn, cfg.sneak.damage, 'agatha');
+      state.events.push({ t: 'agatha-vanish', x: e.x, y: e.y });
+    } else if (e.hidden) {
+      const dx = b.sneakAt.x - e.x, dy = b.sneakAt.y - e.y;
+      const l = Math.hypot(dx, dy) || 1;
+      e.x += (dx / l) * 6 * T; e.y += (dy / l) * 6 * T;
+      if (b.sneakT <= 0) {
+        e.hidden = false;
+        e.x = b.sneakAt.x; e.y = Math.max(1.4, Math.min(state.roomH - 1.4, b.sneakAt.y));
+        e.anim = 'Attack';
+        e.touchCd = Math.max(e.touchCd, 0.6);
+        state.events.push({ t: 'boss-erupt', x: e.x, y: e.y });
+        b.sneakT = cfg.sneak.interval * (0.85 + state.rand() * 0.3);
+      }
+    }
+  }
+
+  // 影球矩阵：双环错半格散射（隐身期间停手）
+  if (!e.hidden) {
+    b.mirrorT -= T;
+    if (b.mirrorT <= 0) {
+      b.mirrorT = b.phase === 3 ? 3.0 : b.phase === 2 ? 3.6 : 4.2;
+      for (let ring = 0; ring < cfg.mirror.rings; ring++) {
+        const off = ring * Math.PI / cfg.mirror.burst;
+        for (let i = 0; i < cfg.mirror.burst; i++) {
+          const a = (i / cfg.mirror.burst) * Math.PI * 2 + off + state.rand() * 0.2;
+          state.projectiles.push({
+            owner: 'enemy', id: state.nextId++, moveId: 'shadow-bolt',
+            x: e.x, y: e.y, px: e.x, py: e.y,
+            vx: Math.cos(a) * cfg.mirror.speed, vy: Math.sin(a) * cfg.mirror.speed,
+            life: 8 / cfg.mirror.speed, radius: 0.17,
+          });
+        }
+      }
+      state.events.push({ t: 'enemy-shoot', x: e.x, y: e.y });
+    }
+
+    // 瞬移（P2 隐身期间走影袭循环，不常规瞬移）
+    b.tpT -= T;
+    if (b.tpT <= 0) {
+      b.tpT = cfg.teleport.interval * (0.8 + state.rand() * 0.4);
+      for (let tries = 0; tries < 12; tries++) {
+        const nx = 1.5 + state.rand() * (state.roomW - 3);
+        const ny = 1.5 + state.rand() * (state.roomH - 3);
+        if (Math.hypot(nx - p.x, ny - p.y) > 3.0) {
+          state.events.push({ t: 'boss-tp', from: [e.x, e.y], to: [nx, ny] });
+          e.x = nx; e.y = ny; e.px = nx; e.py = ny;
+          break;
+        }
+      }
+    }
+  }
+
+  // P3 梦境结界：玩家位置 + 十字 spike 连击
+  if (b.phase === 3) {
+    b.spikeT -= T;
+    if (b.spikeT <= 0) {
+      b.spikeT = cfg.spikes.interval;
+      warn(state, p.x, p.y, cfg.spikes.radius, cfg.spikes.warn, cfg.spikes.damage, 'agatha');
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        warn(state,
+          Math.max(1.6, Math.min(state.roomW - 1.6, p.x + dx * 2.4)),
+          Math.max(1.6, Math.min(state.roomH - 1.6, p.y + dy * 2.4)),
+          cfg.spikes.radius * 0.85, cfg.spikes.warn + 0.25, cfg.spikes.damage, 'agatha');
+      }
+    }
+  }
+
+  // 悬浮游走（未隐身时）
+  if (!e.hidden) {
+    const ang = state.t * 0.42;
+    const tx = state.roomW / 2 + Math.cos(ang) * (state.roomW / 3.1);
+    const ty = state.roomH / 2 + Math.sin(ang * 1.2) * (state.roomH / 3.3);
+    const dx = tx - e.x, dy = ty - e.y, l = Math.hypot(dx, dy) || 1;
+    if (l > 0.3) { e.x += dx / l * e.speed * T; e.y += dy / l * e.speed * T; }
+    e.anim = 'Idle'; e.moving = false; e.dir = state.dirOf(dx, dy);
+  }
+
+  bossContact(state, e, 1);
 }
 
 // ---------- 梦幻：三段终战（P1 幻影闪现弹幕 / P2 镜像军团 / P3 晶核爆发） ----------
