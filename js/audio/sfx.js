@@ -57,7 +57,7 @@ export function createSfx({ ensureCtx } = {}) {
     src.start(t);
   }
 
-  // 音效配方（名称 → 合成序列）
+  // 音效配方（名称 → 合成序列）；o 为 play 透传的参数（如 coin 的 combo step）
   const RECIPES = {
     shot:     () => tone({ type: 'square', f0: 880, f1: 320, dur: 0.05, vol: 0.05 }),
     swing:    () => { noise({ dur: 0.11, vol: 0.11, freq: 1300, q: 0.8 }); tone({ type: 'triangle', f0: 380, f1: 150, dur: 0.09, vol: 0.06 }); },   // 近战横扫（M9）：风切 + 低音
@@ -66,11 +66,17 @@ export function createSfx({ ensureCtx } = {}) {
     hurt:     () => { tone({ type: 'sawtooth', f0: 300, f1: 90, dur: 0.22, vol: 0.26 }); noise({ dur: 0.16, vol: 0.16, freq: 700, type: 'lowpass' }); },
     dodge:    () => tone({ type: 'sine', f0: 990, f1: 1480, dur: 0.08, vol: 0.10 }),
     kill:     () => { noise({ dur: 0.14, vol: 0.18, freq: 1400, q: 0.7 }); tone({ type: 'triangle', f0: 640, f1: 110, dur: 0.14, vol: 0.15 }); },
-    coin:     () => { tone({ type: 'square', f0: 1180, dur: 0.05, vol: 0.10 }); tone({ type: 'square', f0: 1760, dur: 0.10, vol: 0.10, delay: 0.05 }); },
+    coin:     (o) => { const m = 1 + Math.min(7, o.step | 0) * 0.09;      // combo 音高递增（马里奥式），step 封顶 7
+                      tone({ type: 'square', f0: 1180 * m, dur: 0.05, vol: 0.10 });
+                      tone({ type: 'square', f0: 1760 * m, dur: 0.10, vol: 0.10, delay: 0.05 }); },
+    drop:     () => { tone({ type: 'sine', f0: 1976, dur: 0.04, vol: 0.05 }); tone({ type: 'sine', f0: 2637, dur: 0.07, vol: 0.05, delay: 0.04 }); },   // 掉落生成：轻脆叮铃
+    key:      () => { tone({ type: 'square', f0: 1318, dur: 0.06, vol: 0.10 }); tone({ type: 'square', f0: 1568, dur: 0.12, vol: 0.10, delay: 0.06 }); tone({ type: 'sine', f0: 2637, dur: 0.09, vol: 0.06, delay: 0.06 }); },   // 拾取钥匙：金属双音 + 泛音
+    beam:     () => { tone({ type: 'sawtooth', f0: 132, f1: 88, dur: 0.16, vol: 0.06 }); noise({ dur: 0.15, vol: 0.05, freq: 620, type: 'lowpass' }); },   // 喷息持续低鸣（150ms 节流连发营造持续感）
     heart:    () => { tone({ type: 'sine', f0: 660, dur: 0.09, vol: 0.16 }); tone({ type: 'sine', f0: 880, dur: 0.12, vol: 0.16, delay: 0.08 }); },
     item:     () => [523, 659, 784, 1047].forEach((f, i) => tone({ type: 'triangle', f0: f, dur: 0.09, vol: 0.13, delay: i * 0.06 })),
     tm:       () => [392, 523, 784].forEach((f, i) => tone({ type: 'square', f0: f, dur: 0.08, vol: 0.10, delay: i * 0.05 })),
     door:     () => { tone({ type: 'sine', f0: 220, f1: 440, dur: 0.18, vol: 0.16 }); noise({ dur: 0.10, vol: 0.06, freq: 500, type: 'lowpass' }); },
+    doorBoss: () => { tone({ type: 'sine', f0: 130, f1: 48, dur: 0.34, vol: 0.26 }); noise({ dur: 0.28, vol: 0.16, freq: 300, type: 'lowpass' }); tone({ type: 'square', f0: 90, f1: 60, dur: 0.22, vol: 0.08, delay: 0.04 }); },   // M10：Boss 骷髅门的沉闷轰响
     dash:     () => noise({ dur: 0.12, vol: 0.14, freq: 2600, q: 0.6 }),
     zmove:    () => { tone({ type: 'sawtooth', f0: 160, f1: 60, dur: 0.5, vol: 0.26 }); tone({ type: 'square', f0: 640, f1: 1600, dur: 0.35, vol: 0.12, delay: 0.05 }); noise({ dur: 0.4, vol: 0.18, freq: 1800, delay: 0.05 }); },
     evolve:   () => [523, 587, 659, 784, 880, 1047, 1319].forEach((f, i) => tone({ type: 'sine', f0: f, dur: 0.14, vol: 0.12, delay: i * 0.08 })),
@@ -90,7 +96,7 @@ export function createSfx({ ensureCtx } = {}) {
     regen:    () => tone({ type: 'sine', f0: 520, f1: 700, dur: 0.10, vol: 0.09 }),
   };
   // 节流表（ms）：高频事件不逐发
-  const THROTTLE = { shot: 55, swing: 70, hit: 45, superhit: 60, coin: 40, kill: 60, chain: 90,
+  const THROTTLE = { shot: 55, swing: 70, hit: 45, superhit: 60, coin: 40, kill: 60, chain: 90, drop: 120, beam: 150,
                      burn: 350, selfdot: 400, slam: 150, windup: 120, regen: 450 };
   // 音高抖动（±比例）：受击类逐发变调，连打不单调；未列出的音效保持固定音高
   const JITTER = { shot: 0.05, swing: 0.08, hit: 0.09, superhit: 0.06, weakhit: 0.10, hurt: 0.06, kill: 0.07,
@@ -98,7 +104,7 @@ export function createSfx({ ensureCtx } = {}) {
                    coin: 0.03, dash: 0.06, chain: 0.06, freeze: 0.04, poison: 0.12 };
 
   return {
-    play(name) {
+    play(name, opts) {
       const r = RECIPES[name];
       if (!r) return false;
       const now = ctx ? ctx.currentTime : 0;
@@ -107,7 +113,7 @@ export function createSfx({ ensureCtx } = {}) {
       if (!ensure()) return false;
       lastPlay[name] = ctx.currentTime;
       jitP = JITTER[name] || 0;
-      try { r(); } catch (e) { /* 音频失败静默 */ }
+      try { r(opts || {}); } catch (e) { /* 音频失败静默 */ }
       jitP = 0;
       return true;
     },

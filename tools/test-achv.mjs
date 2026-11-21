@@ -31,12 +31,16 @@ const data = {
 const idle = { move: { x: 0, y: 0 }, aim: { x: 0, y: -1 }, fire: false, dashEdge: false, slotEdge: false, useEdge: false, zEdge: false, swapEdge: false };
 
 // ---------- 成就定义 ----------
-test('ACHVS：恰好 23 个，id 唯一，3 个带物种解锁', () => {
-  assert.equal(ACHVS.length, 23);
-  assert.equal(new Set(ACHVS.map((a) => a.id)).size, 23);
+test('ACHVS：恰好 25 个，id 唯一，7 个带物种解锁（M9.2 跨世代搭档）', () => {
+  assert.equal(ACHVS.length, 25);
+  assert.equal(new Set(ACHVS.map((a) => a.id)).size, 25);
   const withUnlock = ACHVS.filter((a) => a.unlock);
-  assert.deepEqual(withUnlock.map((a) => a.id).sort(), ['camp-5', 'dex-12', 'no-hurt-floor']);
-  assert.deepEqual({ ...UNLOCK_SPECIES }, { 'no-hurt-floor': 'cubone', 'dex-12': 'eevee', 'camp-5': 'poliwhirl' });
+  assert.deepEqual(withUnlock.map((a) => a.id).sort(),
+    ['camp-5', 'dex-12', 'dex-20', 'kills-300', 'mewtwo-down', 'no-hurt-2floors', 'no-hurt-floor']);
+  assert.deepEqual({ ...UNLOCK_SPECIES }, {
+    'no-hurt-floor': 'cubone', 'dex-12': 'eevee', 'camp-5': 'poliwhirl',
+    'kills-300': 'scizor', 'mewtwo-down': 'rayquaza', 'no-hurt-2floors': 'charizard', 'dex-20': 'lucario',
+  });
 });
 
 test('starterUnlocked：皮卡丘默认解锁；三只解锁位由成就控制', () => {

@@ -1,23 +1,24 @@
 // 启动入口 M3：楼层/多房间/道具/Boss 全链路。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m9';
-import { createLights } from './gfx/lights.js?v=m9';
-import { createCamera } from './gfx/camera.js?v=m9';
-import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m9';
-import { createBillboard } from './gfx/sprites.js?v=m9';
-import { createEffects } from './gfx/effects.js?v=m9';
-import { styleOf, TYPE_COLORS } from './gfx/vfxdefs.js?v=m9';
-import { createPostfx } from './gfx/postfx.js?v=m9';
-import { createHud } from './ui/hud.js?v=m9';
-import { createCries } from './audio/cries.js?v=m9';
-import { createBgm } from './audio/bgm.js?v=m9';
-import { createSfx } from './audio/sfx.js?v=m9';
-import { createInput } from './core/input.js?v=m9';
-import { createRun, stepRun, recompute, goNextFloor, STEP } from './sim/engine.js?v=m9';
-import { enterRoom } from './sim/actors.js?v=m9';
-import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m9';
-import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m9';
-import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m9';
+import { detectTier, createRenderer, resize, viewportSize, TIERS } from './gfx/renderer.js?v=m9b';
+import { createLights } from './gfx/lights.js?v=m9b';
+import { createCamera } from './gfx/camera.js?v=m9b';
+import { buildRoom, createProps, createTelegraphFx } from './gfx/scene.js?v=m9b';
+import { makeGlowTex } from './gfx/droptex.js?v=m9b';
+import { createBillboard } from './gfx/sprites.js?v=m9b';
+import { createEffects } from './gfx/effects.js?v=m9b';
+import { styleOf, TYPE_COLORS } from './gfx/vfxdefs.js?v=m9b';
+import { createPostfx } from './gfx/postfx.js?v=m9b';
+import { createHud } from './ui/hud.js?v=m9b';
+import { createCries } from './audio/cries.js?v=m9b';
+import { createBgm } from './audio/bgm.js?v=m9b';
+import { createSfx } from './audio/sfx.js?v=m9b';
+import { createInput } from './core/input.js?v=m9b';
+import { createRun, stepRun, recompute, goNextFloor, STEP } from './sim/engine.js?v=m9b';
+import { enterRoom } from './sim/actors.js?v=m9b';
+import { saveStore, deserializeRun, dailySeed, encodeChallenge, decodeChallenge } from './sim/save.js?v=m9b';
+import { dexSpecies, dexApply, dexStore, DEX_EXTRA } from './sim/dex.js?v=m9b';
+import { ACHVS, achvApply, achvStore, metaStore, starterUnlocked, achvProgress } from './sim/achv.js?v=m9b';
 
 const hud = createHud();
 const tier = detectTier();
@@ -92,7 +93,7 @@ function composerWorks(renderer, composer, canvas) {
   }
 }
 
-const ROOM_NAMES = { start: '出生房', combat: '洞窟', treasure: '宝箱房', shop: '友好商店', challenge: '挑战房', secret: '？？？', boss: '道馆', blackmarket: '火箭队黑市', altar: '吉利蛋祭坛', camp: '救援营地' };
+const ROOM_NAMES = { start: '出生房', combat: '洞窟', treasure: '宝箱房', shop: '友好商店', challenge: '挑战房', secret: '？？？', boss: '道馆', blackmarket: '火箭队黑市', altar: '吉利蛋祭坛', camp: '救援营地', vault: '宝物密室', fissure: '裂缝', forge: '重铸工房', gacha: '赌石台', blood: '血祭坛', gift: '神秘礼物' };
 
 async function boot() {
   hud.progress(0.05, '读取数据…');
@@ -164,7 +165,7 @@ async function boot() {
   hud.progress(0.3, '加载纹理…');
   const iconSlugs = Object.values(itemsD.items).map((it) => it.icon);
   const themes = ['cave', 'plant', 'ruins'];
-  const [texList, themeTexList, flameTex, shadowTex, orbBolt, orbAcid, doorTex, crackTex, coinTex, heartTex, ringTex, iconTexList] = await Promise.all([
+  const [texList, themeTexList, flameTex, shadowTex, orbBolt, orbAcid, doorTex, bossDoorTex, crackTex, coinTex, heartTex, ringTex, iconTexList] = await Promise.all([
     Promise.all(slugs.map((s) => loadTexture(`${atlasDir}/${s}.png`, { pixel: true }).catch(() => null))),
     Promise.all(themes.flatMap((th) => [
       loadTexture(`assets/tiles/${th}-floor.png`, { pixel: true, mip: true }),
@@ -177,6 +178,7 @@ async function boot() {
     loadTexture('assets/tiles/orb-bolt.png', { pixel: true }),
     loadTexture('assets/tiles/orb-acid.png', { pixel: true }),
     loadTexture('assets/tiles/door.png', { pixel: true }),
+    loadTexture('assets/tiles/door-boss.png', { pixel: true }),
     loadTexture('assets/tiles/crack.png', { pixel: true }),
     loadTexture('assets/tiles/coin.png', { pixel: true }),
     loadTexture('assets/tiles/heart.png', { pixel: true }),
@@ -220,7 +222,7 @@ async function boot() {
 
   const curTheme = () => data.floors[run.floorNo].theme;
   const tex = {
-    flame: flameTex, door: doorTex, crack: crackTex, coin: coinTex, heart: heartTex,
+    flame: flameTex, door: doorTex, bossDoor: bossDoorTex, crack: crackTex, coin: coinTex, heart: heartTex,
   };
   Object.defineProperty(tex, 'floor', { get: () => themeTex[curTheme()].floor });
   Object.defineProperty(tex, 'floorBoss', { get: () => themeTex[curTheme()].floorBoss });
@@ -245,14 +247,15 @@ async function boot() {
   const criesOn = !(manifest && manifest.cries === false);   // 换皮包关闭叫声
   if (criesOn) {
     cries.load(25, 'assets/cries/25.ogg');
-    for (const c of [133, 104, 61, 151]) cries.load(c, `assets/cries/${c}.ogg`);   // 解锁搭档+梦幻预载
+    for (const c of [133, 104, 61, 151, 6, 212, 448, 384]) cries.load(c, `assets/cries/${c}.ogg`);   // 解锁/新搭档+梦幻预载
   }
   const cry = (id, opts) => { if (criesOn) cries.play(id, opts); };
   const bgm = createBgm({ ensureCtx: () => cries.ensureCtx(), onLog: (m) => console.info(m) });
   const sfx = createSfx({ ensureCtx: () => cries.ensureCtx() });
   sfx.setMuted(bgm.muted);                                     // 静音跨局记忆：音效与 BGM 同步（原来只记住了 BGM）
   const sfxOn = !(manifest && manifest.cries === false);      // 换皮推演关叫声时静音
-  const splay = (n) => { if (sfxOn && !selfcheckOn) sfx.play(n); };
+  const splay = (n, o) => { if (sfxOn && !selfcheckOn) sfx.play(n, o); };
+  let coinComboN = 0, coinComboT = -9;          // 金币连收 combo（音高递增用）
   const input = createInput();
   input.onFirstInteraction(() => { cries.ensureCtx(); if (!selfcheckOn) bgm.start(); });
   input.onPadConnect((id) => hud.toast('手柄已连接', (id || '').slice(0, 30)));
@@ -335,6 +338,25 @@ async function boot() {
   const enemyViews = new Map();
   let roomView = null, props = null;
 
+  // ---- 精英常驻光环（M9.2）：紫光呼吸圈，挂 bb.group 随视图生灭（selfDispose 标记由 sprites.dispose 释放） ----
+  let eliteGlowTex = null, eliteGlowGeo = null;
+  function makeEliteGlow(bb) {
+    if (!eliteGlowTex) {
+      eliteGlowTex = new THREE.CanvasTexture(makeGlowTex());
+      eliteGlowTex.colorSpace = THREE.SRGBColorSpace;
+      eliteGlowGeo = new THREE.PlaneGeometry(1, 1);
+    }
+    const m = new THREE.Mesh(eliteGlowGeo, new THREE.MeshBasicMaterial({
+      map: eliteGlowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xc79fff,
+    }));
+    m.rotation.x = -Math.PI / 2;
+    m.position.y = 0.08;
+    m.userData.selfDispose = true;               // 材质 per-instance 由 sprites.dispose 释放
+    m.userData.sharedGeo = true;                 // geometry 跨实例共享，不随单个视图 dispose
+    bb.group.add(m);
+    bb.eliteGlow = m;
+  }
+
   // ---- 图鉴：物种表 + 精灵缩略图（从图集 Idle 首帧裁剪） ----
   const dexList = dexSpecies(data);
   let dexState = (() => {
@@ -384,12 +406,20 @@ async function boot() {
     hud.clearPrices();
     const cell = run.map.get(run.cellKey);
     roomView = buildRoom(THREE, scene, tex, lights, tier, roomCfg(cell));
-    props = createProps(THREE, scene, { coin: coinTex, heart: heartTex });
+    const pedIconOf = (itemId) => {          // 结伴台座沿用国王皇冠占位（itemId 形如 companion:xxx 不在 items 表）
+      if (itemId && itemId.startsWith('companion:')) return iconTex['kings-rock'];
+      const def = itemId && data.items[itemId];
+      return def ? iconTex[def.icon] : null;
+    };
+    props = createProps(THREE, scene, {
+      door: doorTex,
+      iconOf: pedIconOf,
+    });
     for (const d of run.pedestals) if (!d.taken) {
-      const def = data.items[d.itemId];
-      props.addPedestal(d.id, d.x, d.y, def ? iconTex[def.icon] : iconTex['kings-rock']);
+      const g = props.addPedestal(d.id, d.x, d.y, pedIconOf(d.itemId));
+      g.userData.itemId = d.itemId;          // M10：syncPedestals 以此判断是否需要重建（交换回台座时 itemId 变了）
     }
-    for (const k of run.pickups) props.addPickup(k.id, k.kind, k.x, k.y);
+    for (const k of run.pickups) props.addPickup(k.id, k.kind, k.x, k.y, k.itemId);
     hud.minimap(run.map, run.cellKey);
     hud.flash();
     if (postfx && postfx.setFocusTarget) postfx.setFocusTarget(player.mesh);
@@ -861,7 +891,13 @@ async function boot() {
           else if (ev.type === 'gift') hud.banner('❁ 神秘礼物', '有人留在洞窟里的免费礼物', 2200);
           break;
         }
-        case 'room-transition': hud.flash(); splay('door'); break;
+        case 'room-transition': {
+          // 进 Boss/裂缝房：沉门音替代轻开门声（M10 骷髅门后的仪式感）
+          const tgt = ev.to && run.map.get(ev.to);
+          hud.flash();
+          splay(tgt && (tgt.type === 'boss' || tgt.type === 'fissure') ? 'doorBoss' : 'door');
+          break;
+        }
         case 'dash': splay('dash'); break;
         case 'shot': {
           splay('shot');
@@ -881,7 +917,7 @@ async function boot() {
           if (!enemyViews.has(ev.id) && atlases[anim] && texBySlug[anim]) {   // 已有视图不重建（变身保 id）；图集缺失→无视图
             const bb = createBillboard(THREE, texBySlug[anim], atlases[anim], shadowTex);
             bb.place(ev.x, ev.y); bb.setSpawnK(0.2);
-            if (ev.elite && bb.mesh) bb.mesh.scale.multiplyScalar(1.15);      // 精英体形
+            if (ev.elite && bb.mesh) { bb.mesh.scale.multiplyScalar(1.15); makeEliteGlow(bb); }   // 精英体形 + 常驻紫环
             scene.add(bb.group);
             enemyViews.set(ev.id, bb);
           }
@@ -1018,9 +1054,29 @@ async function boot() {
           props && props.removePedestal(ev.id);
           break;
         case 'pickup':
-          if (ev.kind === 'coin' || ev.kind === 'coin2') splay('coin');
+          if (ev.kind === 'coin' || ev.kind === 'coin2') {
+            // combo 音高递增：1.5s 内连收金币逐枚升调（coin2 算 2 步），封顶 7
+            if (clock.t - coinComboT > 1.5) coinComboN = 0;
+            coinComboT = clock.t;
+            coinComboN = Math.min(9, coinComboN + (ev.kind === 'coin2' ? 2 : 1));
+            splay('coin', { step: Math.min(7, coinComboN) });
+            damageNum(ev.x, ev.y, ev.kind === 'coin2' ? '+2' : '+1', 'super');
+          }
           else if (ev.kind === 'heart') { splay('heart'); damageNum(ev.x, ev.y, '+1', 'super'); }
           else if (ev.kind === 'consumable') splay('item');
+          else if (ev.kind === 'key') { splay('key'); damageNum(ev.x, ev.y, '+🔑', 'super'); }
+          else if (ev.kind === 'trinket') splay('item');
+          break;
+        case 'coin-drop':      // 击杀掉钱 / 清房掉落：轻叮 + 小金粒（音效自带 120ms 节流）
+          splay('drop');
+          fx.burst(ev.x, ev.y, 3, 0xffd75e, { spd: 1.6, up: 2.2, life: 0.32, y: 0.45 });
+          break;
+        case 'item-drop':
+          splay('drop');
+          break;
+        case 'chest-open':     // M10 木箱开箱：闷响 + 金粒迸溅
+          splay('slam');
+          fx.burst(ev.x, ev.y, 12, 0xffd75e, { spd: 2.4, up: 3.0, life: 0.5, y: 0.5 });
           break;
         case 'secret-reveal':
           roomView && roomView.revealSecret();
@@ -1166,12 +1222,14 @@ async function boot() {
         }
         case 'consumable-swap': {
           const lostName2 = (data.items[ev.lost] || {}).name || ev.lost;
-          hud.toast(`换下的 ${lostName2} 掉在脚边`, 'E 槽一件消耗品 · 用掉后再回来捡');
+          if (ev.src === 'ground') hud.toast(`换下的 ${lostName2} 掉在脚边`, 'E 槽一件消耗品 · 再碰一次可换回');
+          else hud.toast(`换下的 ${lostName2} 放回台座`, 'E 槽一件消耗品 · 想反悔走回台座换回');
           break;
         }
         case 'trinket-swap': {
           const lostName3 = (data.items[ev.lost] || {}).name || ev.lost;
-          hud.toast(`换下的 ${lostName3} 掉在脚边`, '纪念品单件 · 想换回来到脚边捡');
+          if (ev.src === 'ground') hud.toast(`换下的 ${lostName3} 掉在脚边`, '纪念品单件 · 再碰一次可换回');
+          else hud.toast(`换下的 ${lostName3} 放回台座`, '纪念品单件 · 想反悔走回台座换回');
           break;
         }
         default: break;
@@ -1361,7 +1419,14 @@ async function boot() {
       }
       if (e.state === 'spawning') bb.setSpawnK(Math.max(0.2, 1 - e.spawnT / 0.55 * 0.8));
       else bb.setSpawnK(1);
-      if (e.elite) bb.mesh.scale.multiplyScalar(1.15);   // 精灵体形 ×1.15（每帧幂等：setSpawnK 先归一）
+      if (e.elite) {
+        bb.mesh.scale.multiplyScalar(1.15);   // 精灵体形 ×1.15（每帧幂等：setSpawnK 先归一）
+        if (bb.eliteGlow) {                   // 紫环呼吸（体形随出生缩放同步）
+          const k = 1.5 * (1 + 0.1 * Math.sin(clock.t * 3.2 + e.id));
+          bb.eliteGlow.scale.set(k, k * 0.6, 1);
+          bb.eliteGlow.material.opacity = 0.5 + 0.22 * Math.sin(clock.t * 3.2 + e.id);
+        }
+      }
       bb.setPose(e.flash > 0 && e.family !== 'boss' ? 'Hurt' : e.anim, e.dir);
       if (e.stealth && e.flash <= 0 && !e.fleeing) bb.mesh.material.opacity = 0.45;
       else if (bb.mesh.material.opacity !== 1) bb.mesh.material.opacity = 1;
@@ -1383,6 +1448,19 @@ async function boot() {
 
     fx.syncProjectiles(run.projectiles, alpha, dt, data);
     teleFx.sync(run.telegraphs);
+    // 喷息光束（M9.2）：跟随玩家插值位置与瞄准角；属性色 + 呼吸低鸣（sfx 150ms 节流连发）
+    {
+      const pb = run.player;
+      const bmv = pb.beamOn && data.moves[pb.beamId];
+      const bx = (pb.px ?? pb.x) + (pb.x - (pb.px ?? pb.x)) * alpha;
+      const bz = (pb.py ?? pb.y) + (pb.y - (pb.py ?? pb.y)) * alpha;
+      if (bmv) {
+        const a = Math.atan2(pb.beamAim.y, pb.beamAim.x);
+        const pal = TYPE_COLORS[bmv.type] || TYPE_COLORS.normal;
+        fx.beamSet(true, bx, bz, a, bmv.range * ((pb.mods && pb.mods.rangeMul) || 1), bmv.halfDeg, pal[0]);
+        splay('beam');
+      } else fx.beamSet(false, bx, bz, 0, 3, 11, '#ffffff');
+    }
     fx.update(dt);
     hud.setCompass(!!(run.player.mods && run.player.mods.compass));   // 洞窟罗盘：隐藏房上图
     if (roomView) {
@@ -1399,8 +1477,14 @@ async function boot() {
         v3.set(d.x, 1.0, d.y).project(camCtl.camera);
         hud.price(d, (v3.x + 1) / 2 * window.innerWidth, (1 - (v3.y + 1) / 2) * window.innerHeight);
       }
-      props.syncPickups(run.pickups);
+      props.syncPickups(run.pickups, clock.t);
+      props.syncPedestals(run.pedestals, (itemId) => {   // M10：台座道具变化（以撒交换回台座）→ 重建视图
+        if (itemId && itemId.startsWith('companion:')) return iconTex['kings-rock'];
+        const def = itemId && data.items[itemId];
+        return def ? iconTex[def.icon] : null;
+      });
       props.update(clock.t);
+      props.setFullHp(run.player.hp >= run.player.maxHp);   // 满血时地面心灰显
     }
 
     // 台座详情卡：靠近时显示
@@ -1468,9 +1552,10 @@ async function boot() {
     else renderer.render(scene, camCtl.camera);
 
     const cell = run.map.get(run.cellKey);
+    const totalWaves = run.room.totalWaves || (run.room.type === 'challenge' ? 3 : (run.waves ? run.waves.length : 3));
     const roomLabel = run.over ? '通关！' :
       run.room.type === 'combat' || run.room.type === 'challenge'
-        ? `${ROOM_NAMES[cell.type]} · 波 ${Math.min(run.room.waveIdx + 1, 3)}/3`
+        ? `${ROOM_NAMES[cell.type]} · 波 ${Math.min(run.room.waveIdx + 1, totalWaves)}/${totalWaves}`
         : ROOM_NAMES[cell.type];
     hud.game(p.hp, p.maxHp, (effSide(run).pp || 0), p.dashCharges, data.balance.player.dashCharges,
       `第${run.floorNo}层·${data.floors[run.floorNo].name}｜${roomLabel}`, p.money,

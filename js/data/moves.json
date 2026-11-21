@@ -865,6 +865,88 @@
    "power": 155,
    "kind": "zmove",
    "radius": 5.0
+  },
+  "dragon-pulse": {
+   "name": "龙之波动",
+   "type": "dragon",
+   "power": 12,
+   "kind": "beam",
+   "category": "special",
+   "reach": "ranged",
+   "range": 4.6,
+   "halfDeg": 11,
+   "tick": 0.12,
+   "radius": 0.22,
+   "desc": "按住持续喷息：power=每 tick 伤害基准，不吃射速加成"
+  },
+  "flamethrower": {
+   "name": "喷射火焰",
+   "type": "fire",
+   "power": 13,
+   "kind": "beam",
+   "category": "special",
+   "reach": "ranged",
+   "range": 4.2,
+   "halfDeg": 13,
+   "tick": 0.12,
+   "radius": 0.24,
+   "desc": "按住持续喷息：短射程换更高单 tick 伤害"
+  },
+  "bullet-punch": {
+   "name": "子弹拳",
+   "type": "steel",
+   "power": 24,
+   "kind": "projectile",
+   "category": "physical",
+   "reach": "ranged",
+   "speed": 12,
+   "range": 4.5,
+   "radius": 0.16,
+   "intervalMul": 0.55,
+   "sprite": "orb-bolt",
+   "tint": "#c8d6e5"
+  },
+  "aura-sphere": {
+   "name": "波导弹",
+   "type": "fighting",
+   "power": 38,
+   "kind": "projectile",
+   "category": "special",
+   "reach": "ranged",
+   "speed": 9,
+   "range": 7.0,
+   "radius": 0.2,
+   "homing": 0.25,
+   "sprite": "orb-bolt",
+   "tint": "#8fb4ff"
+  },
+  "dragon-ascent-z": {
+   "name": "画龙点睛·Z",
+   "type": "dragon",
+   "power": 280,
+   "kind": "zmove",
+   "radius": 5.0
+  },
+  "blast-burn-z": {
+   "name": "爆炸燃烧·Z",
+   "type": "fire",
+   "power": 260,
+   "kind": "zmove",
+   "radius": 4.6
+  },
+  "cross-scissor-z": {
+   "name": "十字剪·Z",
+   "type": "bug",
+   "power": 200,
+   "kind": "zmove",
+   "radius": 3.6
+  },
+  "aura-sphere-z": {
+   "name": "波导弹·Z",
+   "type": "fighting",
+   "power": 240,
+   "kind": "zmove",
+   "radius": 4.5
   }
  }
 }

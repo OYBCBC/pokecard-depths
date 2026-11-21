@@ -133,9 +133,11 @@ function tryGenCore(rand, target, minDead, tol, floorNo = 1) {
     for (const [dx, dy] of N) {
       const nb = cells.get(key(c.x + dx, c.y + dy));
       if (nb) {
-        // 密室门两侧上锁；裂缝门两侧标 fissure（表现=裂缝，冲刺撞开）
+        // 密室门两侧上锁；裂缝门两侧标 fissure（表现=裂缝，冲刺撞开——F4 裂缝房会贴着 Boss 房，fissure 判定必须在前）；
+        // Boss 门两侧标 boss（M10：骷髅门脸）
         const lockedPair = (c.type === 'vault' || nb.type === 'vault') ? 'locked'
           : (c.type === 'fissure' || nb.type === 'fissure') ? 'fissure'
+          : (c.type === 'boss' || nb.type === 'boss') ? 'boss'
           : nb.type === 'secret' ? 'secret' : 'normal';
         c.doors[dx + ',' + dy] = lockedPair;
       }
@@ -172,7 +174,9 @@ function fallbackGen(rand, floorNo) {
     for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
       const nb = cells.get(key(c.x + dx, c.y + dy));
       if (nb) {
-        const lockedPair = (c.type === 'vault' || nb.type === 'vault') ? 'locked' : nb.type === 'secret' ? 'secret' : 'normal';
+        const lockedPair = (c.type === 'vault' || nb.type === 'vault') ? 'locked'
+          : (c.type === 'boss' || nb.type === 'boss') ? 'boss'
+          : nb.type === 'secret' ? 'secret' : 'normal';
         c.doors[dx + ',' + dy] = lockedPair;
       }
     }

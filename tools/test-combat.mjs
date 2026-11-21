@@ -1239,22 +1239,25 @@ test('M7.1 TM 替换：背包只留最新，事件明示 lost→gain', () => {
   delete d.items['tm-x1']; delete d.items['tm-x2'];
 });
 
-test('M7.1 消耗品台座交换：旧的掉脚边不再静默覆盖', () => {
+test('M10 消耗品台座交换：旧件回台座（可反悔）+ rearm 防乒乓', () => {
   const run = createRun(data, 31417, 'pikachu', 'normal');
   const d = data;
   run.player.x = 8; run.player.y = 5;
   run.player.inv.consumable = 'cheri-berry';    // E 槽已有
-  run.pedestals.push({ id: run.nextId++, itemId: 'sitrus-berry', price: 0, priceHp: 0, x: 8, y: 5, taken: false });
+  const pid = run.nextId++;
+  run.pedestals.push({ id: pid, itemId: 'sitrus-berry', price: 0, priceHp: 0, x: 8, y: 5, taken: false });
   const evs = [];
   for (let i = 0; i < 3; i++) { stepRun(run, IDLE, d); evs.push(...run.events); }
   assert.equal(run.player.inv.consumable, 'sitrus-berry', 'E 槽换成新的');
-  const dropped = run.pickups.find((k) => k.kind === 'consumable' && k.itemId === 'cheri-berry');
-  assert.ok(dropped, '旧的应掉在脚边成拾取物');
+  const ped = run.pedestals.find((x) => x.id === pid);
+  assert.equal(ped.taken, false, '台座回到未取状态');
+  assert.equal(ped.itemId, 'cheri-berry', '旧件放回台座（以撒同款，可反悔换回）');
   assert.ok(evs.some((e) => e.t === 'consumable-swap' && e.lost === 'cheri-berry' && e.gain === 'sitrus-berry'));
-  // 捡不起来（E 槽满）：旧品安静躺在原地
+  assert.ok(ped.rearm, '交换后 rearm');
   const n0 = run.pickups.length;
   for (let i = 0; i < 10; i++) stepRun(run, IDLE, d);
-  assert.equal(run.pickups.length, n0, '满槽时拾取物不被吞');
+  assert.equal(run.pickups.length, n0, '不产生地上拾取物');
+  assert.equal(run.player.inv.consumable, 'sitrus-berry', 'rearm 期间站原地不被夺回');
 });
 
 // ==================== M7.1b：门判定 / 雷之石消耗 / 纪念品交换 ====================
@@ -1365,26 +1368,32 @@ test('M7.1b 雷之石 F2 使用：正常进化并消耗（回归）', () => {
   assert.equal(run.player.species, 'raichu');
 });
 
-test('M7.1b 纪念品交换：旧的掉脚边；地上纪念品满槽不吞', () => {
+test('M10 纪念品交换：台座旧件回座；地上纪念品满槽触碰即换（holdT 防乒乓）', () => {
   const run = createRun(data, 3143, 'pikachu', 'normal');
   const d = data;
   run.player.inv.trinket = 'leftovers';       // 已持有剩饭
   run.player.x = 8; run.player.y = 5;
-  run.pedestals.push({ id: run.nextId++, itemId: 'lucky-egg', price: 0, priceHp: 0, x: 8, y: 5, taken: false });
+  const pid = run.nextId++;
+  run.pedestals.push({ id: pid, itemId: 'lucky-egg', price: 0, priceHp: 0, x: 8, y: 5, taken: false });
   const evs = [];
   for (let i = 0; i < 3; i++) { stepRun(run, IDLE, d); evs.push(...run.events); }
   assert.equal(run.player.inv.trinket, 'lucky-egg', '装备新的');
-  const dropped = run.pickups.find((k) => k.kind === 'trinket' && k.itemId === 'leftovers');
-  assert.ok(dropped, '旧的掉脚边');
+  const ped = run.pedestals.find((x) => x.id === pid);
+  assert.equal(ped.taken, false, '台座回座');
+  assert.equal(ped.itemId, 'leftovers', '旧的回台座（可反悔换回）');
   assert.ok(evs.some((e) => e.t === 'trinket-swap'));
-  // 满槽踩过地上的剩饭：不拾取
+  // 地上纪念品满槽触碰即换（M10：不再是死路）
+  run.pickups.push({ id: run.nextId++, kind: 'trinket', itemId: 'bright-powder', x: 6, y: 5, px: 6, py: 5, bob: 0 });
+  run.player.x = 6; run.player.y = 5;
+  for (let i = 0; i < 3; i++) stepRun(run, IDLE, d);
+  assert.equal(run.player.inv.trinket, 'bright-powder', '触碰即换上地上件');
+  const dropped = run.pickups.find((k) => k.kind === 'trinket' && k.itemId === 'lucky-egg');
+  assert.ok(dropped, '手中件换下掉脚边成拾取物');
+  // holdT 保护期内站在上面不乒乓
   run.player.x = dropped.x; run.player.y = dropped.y;
-  const n0 = run.pickups.length;
-  for (let i = 0; i < 8; i++) stepRun(run, IDLE, d);
-  assert.equal(run.pickups.length, n0, '满槽不吞地上纪念品');
-  // 空槽（卸下？无卸下机制——换一只上去掉下来后捡回）：模拟空槽
-  run.player.inv.trinket = null;
-  run.player.x = dropped.x; run.player.y = dropped.y;
-  for (let i = 0; i < 8; i++) stepRun(run, IDLE, d);
-  assert.equal(run.player.inv.trinket, 'leftovers', '空槽可捡回');
+  for (let i = 0; i < 20; i++) stepRun(run, IDLE, d);
+  assert.equal(run.player.inv.trinket, 'bright-powder', '保护期内不立刻换回');
+  // 保护期过后仍站在上面：再触碰即换回
+  for (let i = 0; i < 60; i++) stepRun(run, IDLE, d);
+  assert.equal(run.player.inv.trinket, 'lucky-egg', '保护期后触碰换回');
 });

@@ -1,8 +1,8 @@
 // 存档系统：任意时刻把 run 序列化成纯 JSON（localStorage 友好）。
 // 约定：函数字段（rand/dirOf/hurtPlayer）与数据引用（boss cfg、waves）不序列化，复活时重绑。
-import { makeRng, rngNext } from './rng.js?v=m9';
-import { STEP, dirOf, recompute } from './engine.js?v=m9';
-import { hurtPlayer } from './actors.js?v=m9';
+import { makeRng, rngNext } from './rng.js?v=m9b';
+import { STEP, dirOf, recompute } from './engine.js?v=m9b';
+import { hurtPlayer } from './actors.js?v=m9b';
 
 export const SAVE_KEY = 'depths-save';
 export const SAVE_VERSION = 2;          // v2（M7）：keys/flags；v1 存档兼容读入（新字段补默认值）
@@ -27,9 +27,28 @@ export function serializeRun(state) {
   };
 }
 
+/** 旧档门种迁移（M10）：Boss/裂缝房邻接边 normal → boss（骷髅门贴图）；裂缝已揭示的 revealed → boss。
+ *  vault 的 locked、隐藏房的 secret/fissure 未揭示态不动。 */
+function migrateDoors(state) {
+  for (const [, c] of state.map) {
+    for (const [dk, dt] of Object.entries(c.doors)) {
+      if (dt !== 'normal' && dt !== 'revealed') continue;
+      const [dx, dy] = dk.split(',').map(Number);
+      const nb = state.map.get((c.x + dx) + ',' + (c.y + dy));
+      if (!nb) continue;
+      const bossEdge = c.type === 'boss' || nb.type === 'boss'
+        || ((c.type === 'fissure' || nb.type === 'fissure') && dt === 'revealed');
+      if (bossEdge) {
+        c.doors[dk] = 'boss';
+        const od = nb.doors[(-dx) + ',' + (-dy)];
+        if (od === 'normal' || od === 'revealed') nb.doors[(-dx) + ',' + (-dy)] = 'boss';
+      }
+    }
+  }
+}
+
 /** 反序列化：saved 必须先过 JSON.parse（即经过一轮 stringify 也不丢信息）。 */
-export function deserializeRun(data, saved) {
-  if (!saved || !saved.player || !saved.map) return null;
+export function deserializeRun(data, saved) {  if (!saved || !saved.player || !saved.map) return null;
   if (saved.v !== SAVE_VERSION && saved.v !== 1) return null;   // v1（M6 前）兼容读入
   try {
     const rng = makeRng(saved.rngS);
@@ -59,6 +78,7 @@ export function deserializeRun(data, saved) {
     for (const e of state.enemies) {
       if (e.family === 'boss' && e.b) e.b.cfg = data.enemies[e.eid].boss;   // 重绑数据引用
     }
+    migrateDoors(state);                                 // 旧档门种升级（M10 Boss 骷髅门）
     recompute(state, data);                              // mods/stats 由背包重算
     return state;
   } catch (err) {

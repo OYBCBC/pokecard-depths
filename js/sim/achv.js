@@ -24,19 +24,23 @@ export const ACHVS = [
   { id: 'dex-12', name: '观察力', desc: '图鉴点亮 12 种', unlock: 'eevee' },
   { id: 'dex-all', name: '晶穴图鉴完成', desc: '点亮图鉴全部条目' },
   { id: 'runs-25', name: '晶穴常客', desc: '累计游玩 25 局' },
-  { id: 'kills-300', name: '洞窟清道夫', desc: '累计击倒 300 只' },
+  { id: 'kills-300', name: '洞窟清道夫', desc: '累计击倒 300 只', unlock: 'scizor' },
   { id: 'daily-done', name: '每日打卡', desc: '完成一局每日挑战（通关或战败均算）' },
   { id: 'camp-5', name: '结伴之谊', desc: '累计与 5 只受困宝可梦结伴', unlock: 'poliwhirl' },
   { id: 'companion-win', name: '搭档之力', desc: '有替补同行时击败馆主' },
   // M7 内容批
   { id: 'vault-1', name: '撬锁行家', desc: '打开一间上锁的宝物密室' },
   { id: 'elite-10', name: '精英猎手', desc: '累计击倒 10 只精英宝可梦' },
-  { id: 'mewtwo-down', name: '超越了梦', desc: '在裂缝深处击败超梦' },
+  { id: 'mewtwo-down', name: '超越了梦', desc: '在裂缝深处击败超梦', unlock: 'rayquaza' },
+  // M9.2 跨世代搭档批
+  { id: 'no-hurt-2floors', name: '烈焰之心', desc: '单局连续无伤通过两层', unlock: 'charizard' },
+  { id: 'dex-20', name: '洞窟学者', desc: '图鉴点亮 20 种', unlock: 'lucario' },
 ];
 const BY_ID = new Map(ACHVS.map((a) => [a.id, a]));
 
 /** 成就 id → 解锁的宝可梦（反向索引，species.json 的 unlock 字段同源） */
-export const UNLOCK_SPECIES = { 'no-hurt-floor': 'cubone', 'dex-12': 'eevee', 'camp-5': 'poliwhirl' };
+export const UNLOCK_SPECIES = { 'no-hurt-floor': 'cubone', 'dex-12': 'eevee', 'camp-5': 'poliwhirl',
+  'kills-300': 'scizor', 'mewtwo-down': 'rayquaza', 'no-hurt-2floors': 'charizard', 'dex-20': 'lucario' };
 
 /** 物种是否可选（species.unlock 为空 = 默认解锁；否则查成就集合） */
 export function starterUnlocked(species, achvSet) {
@@ -92,6 +96,8 @@ export function achvApply(achvSet, meta, { run = null, events = [], dexCount = 0
         if (ev.floor === 2) grant('first-surge');
         if (ev.floor === 3) grant('first-sabrina');
         if (run && !(run.stats.hurtFloors || []).includes(ev.floor)) grant('no-hurt-floor');
+        // 连过两层无伤：F2 馆主倒下时检查 1、2 两层（已通关的层）都无伤——不能把未到达的层算进去
+        if (run && ev.floor >= 2 && [1, 2].every((f) => !(run.stats.hurtFloors || []).includes(f))) grant('no-hurt-2floors');
         if (p && p.companion) grant('companion-win');
         break;
       case 'floor-clear':
@@ -130,6 +136,7 @@ export function achvApply(achvSet, meta, { run = null, events = [], dexCount = 0
   if ((m.runs || 0) >= 25) grant('runs-25');
   if ((m.kills || 0) >= 300) grant('kills-300');
   if (dexCount >= 12) grant('dex-12');
+  if (dexCount >= 20) grant('dex-20');
   if (dexTotal > 0 && dexCount >= dexTotal) grant('dex-all');
   return { set, meta: m, unlocked };
 }
@@ -164,6 +171,7 @@ export function achvProgress(id, { meta = {}, dexCount = 0, dexTotal = 0 } = {})
     case 'camp-5': return { cur: Math.min(meta.companions || 0, 5), need: 5 };
     case 'elite-10': return { cur: Math.min(meta.eliteKills || 0, 10), need: 10 };
     case 'dex-12': return { cur: Math.min(dexCount, 12), need: 12 };
+    case 'dex-20': return { cur: Math.min(dexCount, 20), need: 20 };
     case 'dex-all': return dexTotal ? { cur: dexCount, need: dexTotal } : null;
     default: return null;
   }

@@ -2,8 +2,8 @@
 //   弹体：按样式（属性默认 / 特型招式覆盖）换材质——专属像素贴图 + 自旋/脉动/抖动
 //   尾迹：弹体飞行沿途按属性撒粒子（火星/水滴/电火花/幽火……）
 //   命中：hitFx 按属性组合粒子组 + 电弧 + 地面冲击环 + 专属点光
-import { TRAILS, HIT_FX, TYPE_COLORS, styleOf, styleDef } from './vfxdefs.js?v=m9';
-import { makeProjTex } from './projtex.js?v=m9';
+import { TRAILS, HIT_FX, TYPE_COLORS, styleOf, styleDef } from './vfxdefs.js?v=m9b';
+import { makeProjTex } from './projtex.js?v=m9b';
 
 export function createEffects(THREE, scene, ringTex, opts = {}) {
   let clock = 0;
@@ -353,8 +353,55 @@ export function createEffects(THREE, scene, ringTex, opts = {}) {
     if (def.glow) flashLight(pal[0], 8, x + Math.cos(angle) * r * 0.6, z + Math.sin(angle) * r * 0.6, 0.14);
   }
 
+  // ---- 玩家喷息光束（M9.2 硫磺火式）：激活期间常驻锥形光带（核心+柔光两层），
+  //      每帧由 main 刷新位置/朝向；关闭后快速淡出。端点沿程撒属性色碎屑。 ----
+  const beamGeo = new THREE.PlaneGeometry(1, 1);
+  beamGeo.translate(0.5, 0, 0);                       // 原点移到光束起点（左端）
+  const beamCoreMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.85 });
+  const beamSoftMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.3 });
+  const beamGroup = new THREE.Group();
+  const beamCore = new THREE.Mesh(beamGeo, beamCoreMat);
+  const beamSoft = new THREE.Mesh(beamGeo, beamSoftMat);
+  beamCore.rotation.x = beamSoft.rotation.x = -Math.PI / 2;   // 贴地放平（浮空 y 由 group 控制）
+  beamGroup.add(beamCore, beamSoft);
+  beamGroup.visible = false;
+  scene.add(beamGroup);
+  let beamFade = 0, beamAcc = 0;
+  function beamSet(on, x, z, angle, len, halfDeg, color) {
+    if (on) {
+      beamFade = 1;                                    // 1=持续满亮；<1=淡出中
+      beamGroup.visible = true;
+      beamCoreMat.color.set(color); beamSoftMat.color.set(color);
+      const w = 2 * Math.tan((halfDeg || 11) * Math.PI / 180) * len + 0.22;   // 端宽=锥宽+根宽
+      beamCore.scale.set(len, w * 0.62, 1);
+      beamSoft.scale.set(len * 1.03, w * 1.25, 1);
+      beamGroup.position.set(x, 0.5, z);
+      beamGroup.rotation.y = -angle;                  // 本地 +x 对准世界 (cos a, sin a)
+      beamAcc += 1;                                    // 沿程碎屑（节流）
+      if (beamAcc >= 4) {
+        beamAcc = 0;
+        burst(x + Math.cos(angle) * len * (0.3 + Math.random() * 0.6),
+              z + Math.sin(angle) * len * (0.3 + Math.random() * 0.6),
+              2, color, { spd: 1.1, up: 1.6, life: 0.3, y: 0.5 });
+      }
+    } else if (beamGroup.visible && beamFade >= 1) {
+      beamFade = 0.999;                                // 松开：进入淡出
+    }
+  }
+
   function update(dt) {
     clock += dt;
+    if (beamGroup.visible) {
+      if (beamFade < 1) {
+        beamFade -= dt * 9;
+        if (beamFade <= 0) { beamFade = 0; beamGroup.visible = false; }
+      }
+      const flick = 0.9 + 0.1 * Math.sin(clock * 31);  // 满亮时轻微电流感颤动
+      beamCoreMat.opacity = 0.85 * beamFade * flick;
+      beamSoftMat.opacity = 0.3 * beamFade * flick;
+    }
     for (const p of particles) {
       if (p.life <= 0) { if (p.mesh.visible) p.mesh.visible = false; continue; }
       p.life -= dt;
@@ -399,5 +446,5 @@ export function createEffects(THREE, scene, ringTex, opts = {}) {
     }
   }
 
-  return { syncProjectiles, burst, bolt, muzzle, hitFx, zmoveFx, sweepFx, update };
+  return { syncProjectiles, burst, bolt, muzzle, hitFx, zmoveFx, sweepFx, beamSet, update };
 }

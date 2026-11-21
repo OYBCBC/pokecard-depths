@@ -2,18 +2,18 @@
 // 结构：左面板（DOM）选攻击方/招式/靶子 → createRun 的沙盒局（出生房清空，塞一只可控 dummy）
 // → stepRun 驱动真实战斗路径 → consumeEvents 出特效/伤害数字/记录。
 import * as THREE from 'three';
-import { detectTier, createRenderer, resize, viewportSize } from './gfx/renderer.js?v=m9';
-import { createLights } from './gfx/lights.js?v=m9';
-import { createCamera } from './gfx/camera.js?v=m9';
-import { buildRoom } from './gfx/scene.js?v=m9';
-import { createBillboard } from './gfx/sprites.js?v=m9';
-import { createEffects } from './gfx/effects.js?v=m9';
-import { createPostfx } from './gfx/postfx.js?v=m9';
-import { createInput } from './core/input.js?v=m9';
-import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m9';
-import { computeHit, moveTag } from './sim/combat.js?v=m9';
-import { styleOf, styleDef, TYPE_COLORS } from './gfx/vfxdefs.js?v=m9';
-import { makeProjTex } from './gfx/projtex.js?v=m9';
+import { detectTier, createRenderer, resize, viewportSize } from './gfx/renderer.js?v=m9b';
+import { createLights } from './gfx/lights.js?v=m9b';
+import { createCamera } from './gfx/camera.js?v=m9b';
+import { buildRoom } from './gfx/scene.js?v=m9b';
+import { createBillboard } from './gfx/sprites.js?v=m9b';
+import { createEffects } from './gfx/effects.js?v=m9b';
+import { createPostfx } from './gfx/postfx.js?v=m9b';
+import { createInput } from './core/input.js?v=m9b';
+import { createRun, stepRun, recompute, STEP } from './sim/engine.js?v=m9b';
+import { computeHit, moveTag } from './sim/combat.js?v=m9b';
+import { styleOf, styleDef, TYPE_COLORS } from './gfx/vfxdefs.js?v=m9b';
+import { makeProjTex } from './gfx/projtex.js?v=m9b';
 
 const TYPE_ZH = {
   normal: '一般', fire: '火', water: '水', grass: '草', electric: '电', ice: '冰',

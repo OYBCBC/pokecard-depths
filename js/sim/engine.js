@@ -1,10 +1,10 @@
 // 模拟层引擎：多层塔状态机。纯数据变换，无 DOM/three（node 可无头跑）。
 // 坐标：模拟层 (x, y) 平面，y+ = 南；渲染层映射为 (x, 0, y)。
-import { makeRng, rngNext } from './rng.js?v=m9';
-import { genMap } from './genmap.js?v=m9';
-import { applyItems, playerStats } from './items.js?v=m9';
-import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom } from './actors.js?v=m9';
-import { stepTelegraphs } from './boss.js?v=m9';
+import { makeRng, rngNext } from './rng.js?v=m9b';
+import { genMap } from './genmap.js?v=m9b';
+import { applyItems, playerStats } from './items.js?v=m9b';
+import { stepPlayer, stepEnemies, stepProjectiles, stepRoom, hurtPlayer, enterRoom } from './actors.js?v=m9b';
+import { stepTelegraphs } from './boss.js?v=m9b';
 
 export const STEP = 1 / 60;
 export const ROOM_W = 17;
@@ -56,6 +56,7 @@ export function createRun(data, seed = (Date.now() ^ (Math.random() * 0xffffffff
     room: null, roomW: ROOM_W, roomH: ROOM_H,
     enemies: [], projectiles: [], pickups: [], pedestals: [], telegraphs: [],
     hpMul: floorCfg.hpMul * diff.hpMul, waves: floorCfg.waves,
+    floorClearDrops: 0,                        // M10：本层清房奖励已掉次数（掉落概率衰减计数，新层重置）
     difficulty, warnMul: diff.warnMul, bossMul: diff.bossMul,   // 难度三档（《01》§11）
     over: false, win: false,
     player: {
@@ -170,6 +171,7 @@ export function goNextFloor(state, data) {
   const diff = (data.balance.difficulty && data.balance.difficulty[state.difficulty]) || { hpMul: 1 };
   state.hpMul = floorCfg.hpMul * diff.hpMul;
   state.waves = floorCfg.waves;
+  state.floorClearDrops = 0;                 // M10：清房奖励衰减计数新层重置
   state.enemies.length = 0;
   state.projectiles.length = 0;
   state.pickups.length = 0;

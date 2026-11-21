@@ -1,5 +1,5 @@
 // 道具效果系统（纯函数）：背包 → 数值修饰 mods。引擎与测试共用。
-import { damageStat, fireInterval } from './combat.js?v=m9';
+import { damageStat, fireInterval } from './combat.js?v=m9b';
 
 export const BASE_MODS = () => ({
   dmgUps: 0, dmgFlat: 0, dmgMul: 1,
@@ -123,8 +123,9 @@ export function rollItem(items, poolConfig, poolName, rand, opts = {}) {
     (it.pools || []).includes(chosenPool) && !owned.has(id) && learnable(it)
     && (!opts.kinds || opts.kinds.includes(it.kind)));
   if (!cands.length) {
-    // 池空：从全部未拥有里兜底
-    const all = Object.entries(items).filter(([id, it]) => !owned.has(id));
+    // 池空：从全部未拥有里兜底（M10：尊重 kinds 过滤——消耗品掉落不兜底成别的种类）
+    const all = Object.entries(items).filter(([id, it]) => !owned.has(id)
+      && (!opts.kinds || opts.kinds.includes(it.kind)));
     return all.length ? all[Math.floor(rand() * all.length)][0] : null;
   }
   // 品质加权：高品质稍稀有（1 / (0.6 + quality*0.35)）

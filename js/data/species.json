@@ -108,6 +108,105 @@
       "evolved": true,
       "maxHp": 6,
       "moveSpeed": 4.2
+    },
+    "charizard": {
+      "dex": 6,
+      "name": "喷火龙",
+      "types": [
+        "fire",
+        "flying"
+      ],
+      "anim": "charizard",
+      "cry": 6,
+      "moveA": "flamethrower",
+      "zmove": "blast-burn-z",
+      "zmoveEvolved": null,
+      "evolveTo": null,
+      "maxHp": 6,
+      "moveSpeed": 4.2,
+      "luck": 0,
+      "unlock": "no-hurt-2floors",
+      "role": "喷息 · 火",
+      "desc": "按住射击持续喷射火焰（硫磺火式光束）：短射程高 DPS、自带贯穿，考验贴脸走位。",
+      "startTMs": [
+        "tm-tri",
+        "tm-aerial",
+        "tm-hyper"
+      ]
+    },
+    "scizor": {
+      "dex": 212,
+      "name": "巨钳螳螂",
+      "types": [
+        "bug",
+        "steel"
+      ],
+      "anim": "scizor",
+      "cry": 212,
+      "moveA": "bullet-punch",
+      "zmove": "cross-scissor-z",
+      "zmoveEvolved": null,
+      "evolveTo": null,
+      "maxHp": 7,
+      "moveSpeed": 4.1,
+      "luck": 0,
+      "unlock": "kills-300",
+      "role": "速射 · 虫钢",
+      "desc": "子弹拳超快连射：单发轻但如机关枪，配十字剪 Z 近距爆发。",
+      "startTMs": [
+        "tm-tri",
+        "tm-aerial",
+        "tm-hyper"
+      ]
+    },
+    "lucario": {
+      "dex": 448,
+      "name": "路卡利欧",
+      "types": [
+        "fighting",
+        "steel"
+      ],
+      "anim": "lucario",
+      "cry": 448,
+      "moveA": "aura-sphere",
+      "zmove": "aura-sphere-z",
+      "zmoveEvolved": null,
+      "evolveTo": null,
+      "maxHp": 6,
+      "moveSpeed": 4.2,
+      "luck": 0,
+      "unlock": "dex-20",
+      "role": "波导追踪 · 格",
+      "desc": "波导弹自带强追踪（以撒式自瞄），火力稍逊换指哪打哪。",
+      "startTMs": [
+        "tm-tri",
+        "tm-aerial"
+      ]
+    },
+    "rayquaza": {
+      "dex": 384,
+      "name": "裂空座",
+      "types": [
+        "dragon",
+        "flying"
+      ],
+      "anim": "rayquaza",
+      "cry": 384,
+      "moveA": "dragon-pulse",
+      "zmove": "dragon-ascent-z",
+      "zmoveEvolved": null,
+      "evolveTo": null,
+      "maxHp": 6,
+      "moveSpeed": 4.0,
+      "luck": 0.06,
+      "unlock": "mewtwo-down",
+      "role": "喷息 · 龙",
+      "desc": "龙之波动持续喷息（硫磺火式光束）射程最长；画龙点睛 Z 全屏屠戮。击败超梦后觉醒。",
+      "startTMs": [
+        "tm-tri",
+        "tm-aerial",
+        "tm-hyper"
+      ]
     }
   }
 }

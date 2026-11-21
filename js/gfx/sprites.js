@@ -5,7 +5,7 @@
 //   4) 法线朝天倾斜 60°（被环境光打亮）
 //   5) 脚下椭圆假阴影 + 真实投影并存
 // M2 增补：受击闪白（emissive 脉冲）、出生缩放、单例 dispose。
-import { DIRS } from '../sim/engine.js?v=m9';
+import { DIRS } from '../sim/engine.js?v=m9b';
 
 const TEXEL = 16;                     // 16 texel = 1 世界单位
 const NORMAL_TILT = 0.866;            // 法线 y 分量（60° 朝天倾斜）
@@ -134,6 +134,13 @@ export function createBillboard(THREE, atlasTex, atlasData, shadowTex, opts = {}
       mesh.customDistanceMaterial.dispose();
       shadowMesh.geometry.dispose();
       shadowMesh.material.dispose();
+      // 附加件（精英光环等）：标 selfDispose 的 mesh 随宿主释放（sharedGeo 共享几何不释放）
+      group.traverse((o) => {
+        if (o.isMesh && o.userData.selfDispose) {
+          if (!o.userData.sharedGeo) o.geometry.dispose();
+          o.material.dispose();
+        }
+      });
     },
   };
 }

@@ -25,6 +25,11 @@ export const DEX_EXTRA = {
   snorlax: { dex: 143, name: '卡比兽', anim: 'snorlax', tag: '重型' },
   dragonite: { dex: 149, name: '快龙', anim: 'dragonite', tag: '' },
   mewtwo: { dex: 150, name: '超梦', anim: 'mewtwo', tag: '幻之 Boss' },
+  // M9.2 跨世代搭档
+  charizard: { dex: 6, name: '喷火龙', anim: 'charizard', tag: '解锁伙伴' },
+  scizor: { dex: 212, name: '巨钳螳螂', anim: 'scizor', tag: '解锁伙伴' },
+  lucario: { dex: 448, name: '路卡利欧', anim: 'lucario', tag: '解锁伙伴' },
+  rayquaza: { dex: 384, name: '裂空座', anim: 'rayquaza', tag: '传说' },
 };
 // 分裂子种 → 本体（小臭泥并入臭泥）
 export const DEX_ALIAS = { 'grimer-small': 'grimer' };

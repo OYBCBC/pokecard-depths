@@ -256,6 +256,107 @@ def make_orb(name, core, mid, edge, size=10):
     return img
 
 
+def make_boss_door():
+    """Boss 门洞贴图（24×32，M10）：暗红石拱框 + 顶部骷髅浮雕 + 红眼窝（以撒 boss 门转译）。
+    全亮贴图走 MeshBasicMaterial——骷髅眼窝自带"发光"观感。"""
+    w, h = 24, 32
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    px = img.load()
+    FRAME = (82, 42, 38)        # 暗红褐石框
+    FRAME_D = (54, 27, 26)      # 石缝
+    FRAME_L = (116, 62, 50)     # 石面高光
+    BONE = (228, 216, 192)      # 骨白
+    BONE_D = (186, 172, 146)    # 骨影
+    BONE_O = (62, 34, 28)       # 骨骼描边
+    EYE = (255, 58, 44)         # 眼窝红光
+    EYE_D = (150, 22, 20)       # 眼窝暗缘
+    HOLE = (12, 10, 18)         # 门洞内芯
+    RIM = (146, 50, 42)         # 门洞内缘
+
+    # 1) 拱形剪影：上部大半圆 + 下部矩形，剪影外全透明
+    def inside(x, y):
+        if y < 14:
+            dx = (x - 11.5) / 10.8
+            dy = (y - 13) / 13
+            return dx * dx + dy * dy <= 1
+        return 1 <= x <= 22
+
+    # 2) 门洞（下半）：暗芯 + 红内缘，洞口上缘半圆
+    def in_hole(x, y):
+        if y < 14:
+            return False
+        dx = (x - 11.5) / 8.6
+        dy = (y - 14.5) / 11.5
+        if dy > 0 and dx * dx + dy * dy <= 1:
+            return True
+        return y >= 15 and 3 <= x <= 20
+
+    for y in range(h):
+        for x in range(w):
+            if not inside(x, y):
+                continue
+            if in_hole(x, y):
+                # 洞缘（距洞边 1 格内）泛红，内芯纯暗
+                nb = any(not in_hole(nx, ny) for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)))
+                px[x, y] = (RIM if nb else HOLE) + (255,)
+                continue
+            # 3) 骷髅浮雕（洞顶上方）
+            bone = eye = False
+            if 1 <= y <= 10 and 5 <= x <= 18:
+                if y == 1:
+                    bone = 8 <= x <= 15
+                elif y == 2:
+                    bone = 6 <= x <= 17
+                elif y in (3, 4):
+                    bone = 5 <= x <= 18
+                elif y in (5, 6):
+                    bone = 5 <= x <= 18          # 眉骨带
+                elif y in (7, 8):
+                    if 7 <= x <= 9 or 14 <= x <= 16:
+                        eye = True               # 眼窝红光
+                    elif 10 <= x <= 12 and y == 8:
+                        bone = False             # 鼻梁留白（描边色后面画）
+                        px[x, y] = BONE_O + (255,)
+                        continue
+                    else:
+                        bone = True
+                elif y in (9, 10):
+                    bone = 6 <= x <= 17          # 颌骨
+            if eye:
+                nb = any((7 <= nx <= 9 or 14 <= nx <= 16) and 7 <= ny <= 8 for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1))) \
+                    and not ((7 <= x <= 9 or 14 <= x <= 16) and 7 <= y <= 8)
+                px[x, y] = (EYE if not nb else EYE_D) + (255,)
+                continue
+            if bone:
+                edge = y in (1, 9, 10) or x in (5, 6, 17, 18)
+                px[x, y] = (BONE_D if edge else BONE) + (255,)
+                continue
+            # 4) 石框：砖缝横线 + 少量高光
+            if y in (0, 13, 14, 26, 27) or x in (0, 1, 22, 23):
+                px[x, y] = FRAME_D + (255,)
+            elif y in (11, 12) and not bone:
+                px[x, y] = FRAME_L + (255,)      # 骷髅底座亮带
+            else:
+                px[x, y] = (FRAME if (x * 7 + y * 3) % 11 else FRAME_L) + (255,)
+    # 牙齿竖缝
+    for tx in (9, 12, 15):
+        px[tx, 9] = BONE_O + (255,)
+        px[tx, 10] = BONE_O + (255,)
+    # 骷髅外描边（骨形外一圈暗线，浮雕感）
+    for y in range(h):
+        for x in range(w):
+            if px[x, y][3] == 0:
+                continue
+            if not (1 <= y <= 10 and 5 <= x <= 18):
+                continue
+            is_bone = px[x, y][:3] in (BONE, BONE_D)
+            if is_bone and any(inside(nx, ny) and not in_hole(nx, ny)
+                               and not (1 <= ny <= 10 and 5 <= nx <= 18)
+                               for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1))):
+                px[x, y] = BONE_O + (255,)
+    return img
+
+
 def make_door():
     """门洞贴图（16×24）：拱形发光洞（open 态，关态用墙体材质盖住）。"""
     w, h = 16, 24
@@ -326,7 +427,8 @@ def main():
         set_theme(theme)
         r1 = random.Random(20261103 if theme == 'cave' else (20261105 if theme == 'plant' else 20261106))
         make_floor(r1).save(os.path.join(OUT, f'{theme}-floor.png'))
-        make_floor(random.Random(hash(theme) % 99991 + 7), boss=True, w=24, h=16).save(os.path.join(OUT, f'{theme}-floor-boss.png'))
+        # Boss 地板 seed 用主题名派生的固定整数（hash(str) 每进程随机，会让重跑洗掉成品图块）
+        make_floor(random.Random((20261103 + sum(map(ord, theme)) * 7) % 99991), boss=True, w=24, h=16).save(os.path.join(OUT, f'{theme}-floor-boss.png'))
         make_wall_side(r1).save(os.path.join(OUT, f'{theme}-wall.png'))
         make_wall_top(r1).save(os.path.join(OUT, f'{theme}-wall-top.png'))
     set_theme('cave')
@@ -341,6 +443,7 @@ def main():
     make_orb('bolt', (255, 255, 220), (255, 234, 106), (255, 200, 40)).save(os.path.join(OUT, 'orb-bolt.png'))
     make_orb('acid', (240, 255, 210), (150, 220, 90), (80, 160, 60)).save(os.path.join(OUT, 'orb-acid.png'))
     make_door().save(os.path.join(OUT, 'door.png'))
+    make_boss_door().save(os.path.join(OUT, 'door-boss.png'))
     print('tiles ->', OUT)
 
 

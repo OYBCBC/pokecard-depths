@@ -6,7 +6,7 @@ COMMIT=6226934f1bd2de67df85724348d423c901177e8d
 SBASE="https://raw.githubusercontent.com/PMDCollab/SpriteCollab/$COMMIT/sprite"
 PBASE="https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest"
 
-SPECIES="35 39 74 96 113 123 129 130 132 143 149 150"
+SPECIES="6 35 39 74 96 113 123 129 130 132 143 149 150 212 448 384"
 ANIMS="Walk Idle Hurt Attack Charge"
 
 fetch() { # url dest

@@ -36,36 +36,68 @@
  "pickup": {
   "coinValue": 1,
   "heartHeal": 1,
-  "dropBands": [
+  "killCoinChance": 0.18,
+  "killCoinLuckScale": 0.03,
+  "_clearReward": "M10 以撒化：清房奖励概率 = base - decay×本层已掉次数（下限 min），进新层重置；Luck 仍按 +0.1 加权",
+  "clearReward": {
+   "base": 0.6,
+   "decay": 0.1,
+   "min": 0.1
+  },
+  "_clearTable": "奖励种类权重表（sum=100）；consumable 由 rollItem('drop', kinds:[consumable]) 落真道具",
+  "clearTable": [
    [
-    0.18,
-    null
+    "coin",
+    40
    ],
    [
-    0.26,
-    "consumable"
+    "heart",
+    18
    ],
    [
-    0.56,
-    "coin"
+    "key",
+    10
    ],
    [
-    0.72,
-    "heart"
+    "coin2",
+    8
    ],
    [
-    0.82,
-    "coin2"
+    "consumable",
+    14
    ],
    [
-    0.88,
-    "key"
-   ],
-   [
-    1.01,
-    null
+    "chest",
+    10
    ]
   ],
+  "chestSpill": {
+   "_comment": "木箱开箱内容权重与件数（M10）",
+   "table": [
+    [
+     "coin",
+     46
+    ],
+    [
+     "heart",
+     24
+    ],
+    [
+     "coin2",
+     14
+    ],
+    [
+     "key",
+     10
+    ],
+    [
+     "consumable",
+     6
+    ]
+   ],
+   "minN": 1,
+   "maxN": 3
+  },
   "magnetSpeed": 7
  },
  "shop": {
@@ -74,7 +106,7 @@
    11,
    14
   ],
-  "heartPrice": 4,
+  "heartPrice": 3,
   "perRoomInflation": 1.0
  },
  "difficulty": {
@@ -105,5 +137,22 @@
   "keyDropBoss": 1,
   "openBand": 0.88
  },
- "eventRoomChance": 0.55
+ "elite": {
+  "_comment": "精英层（M9.2 提前）：fromFloor 起按 chance 数组逐层取概率（越深索引越大，超长钳尾）",
+  "fromFloor": 2,
+  "chance": [
+   0.08,
+   0.15
+  ]
+ },
+ "eventRoomChance": 0.55,
+ "combatRoom": {
+  "_comment": "M10 普通房以撒化：两波概率按层取（索引=层号-1，超长钳尾）；大房型 wide/tall 固定两波",
+  "twoWaveChance": [
+   0.15,
+   0.25,
+   0.3,
+   0.4
+  ]
+ }
 }

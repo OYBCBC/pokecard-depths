@@ -207,3 +207,37 @@ test('M7 连通性保持：vault/fissure 不产生孤岛（BFS 全可达）', ()
     }
   }
 });
+
+// ---------- M10：Boss 骷髅门 ----------
+
+test('M10 Boss 门：boss 房邻接边两侧标记 boss；其余边不标 boss', () => {
+  for (let seed = 1; seed <= 300; seed++) {
+    for (const floorNo of [1, 2, 3, 4]) {
+      const m = genMap(makeRng(seed + floorNo * 131), floorNo);
+      const byKey = new Map(m.cells.map((c) => [c.x + ',' + c.y, c]));
+      let bossEdges = 0;
+      for (const c of m.cells) {
+        for (const [dk, dt] of Object.entries(c.doors)) {
+          const [dx, dy] = dk.split(',').map(Number);
+          const nb = byKey.get((c.x + dx) + ',' + (c.y + dy));
+          if (!nb) continue;
+          const bossEdge = c.type === 'boss' || nb.type === 'boss';
+          const fisEdge = c.type === 'fissure' || nb.type === 'fissure';
+          if (bossEdge && !fisEdge) {
+            // boss↔普通房：两侧骷髅门
+            assert.equal(dt, 'boss', `seed ${seed} F${floorNo} boss 边标记`);
+            assert.equal(nb.doors[(-dx) + ',' + (-dy)], 'boss', '对侧也是 boss');
+            bossEdges++;
+          } else if (!bossEdge) {
+            assert.notEqual(dt, 'boss', `seed ${seed} F${floorNo} 非 boss 边不应标 boss`);
+          }
+          if (fisEdge) {
+            // 裂缝边（含 boss↔fissure）：未揭示前必须是 fissure（冲刺撞开的门禁不可被 boss 门绕过）
+            assert.equal(dt, 'fissure', `seed ${seed} F${floorNo} fissure 边标记`);
+          }
+        }
+      }
+      assert.equal(bossEdges, 2, `seed ${seed} F${floorNo} boss 边数 ${bossEdges}（boss 是死端，恰好一条边两侧各一）`);
+    }
+  }
+});

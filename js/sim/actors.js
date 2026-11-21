@@ -1,9 +1,9 @@
 // 战斗与房间行为系统：玩家/弹体/敌人三族/波次/多房间楼层/拾取经济/台座。
 // 全部纯数据变换；事件写进 state.events 供表现层消费。
-import { computeHit } from './combat.js?v=m9';
-import { fireInterval } from './combat.js?v=m9';
-import { rollItem } from './items.js?v=m9';
-import { spawnBoss, stepBoss } from './boss.js?v=m9';
+import { computeHit } from './combat.js?v=m9b';
+import { fireInterval } from './combat.js?v=m9b';
+import { rollItem } from './items.js?v=m9b';
+import { spawnBoss, stepBoss } from './boss.js?v=m9b';
 
 const EPS = 1e-6;
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -97,6 +97,29 @@ export function enterRoom(state, data, cellKey) {
   switch (cell.type) {
     case 'combat':
     case 'challenge':
+      // M10 以撒化：普通房 1~2 波（大房型固定 2 波），波次从本层池随机抽（同房不重复）；
+      // 挑战房维持原 3 波阶梯。wavePlan 存的是本层 waves 数组的下标。
+      {
+        const pool = state.waves || data.waves;
+        if (cell.type === 'challenge') {
+          state.room.wavePlan = [0, 1, 2].map((i) => Math.min(i, pool.length - 1));
+        } else {
+          const bal = data.balance.combatRoom || {};
+          const chances = Array.isArray(bal.twoWaveChance) && bal.twoWaveChance.length ? bal.twoWaveChance : [0.2];
+          const p2 = chances[Math.min(state.floorNo - 1, chances.length - 1)];
+          const nWaves = (cell.big || state.rand() < p2) ? 2 : 1;
+          const half = Math.max(1, Math.ceil(pool.length / 2));
+          const pick = (from, to) => from + Math.floor(state.rand() * (to - from + 1));
+          const plan = [state.rand() < 0.7 ? pick(0, half - 1) : pick(0, pool.length - 1)];   // 单波偏弱
+          if (nWaves === 2) {
+            let second = pick(half, pool.length - 1);                                        // 第二波偏强
+            if (second === plan[0]) second = (second + 1) % pool.length;
+            plan.push(second);
+          }
+          state.room.wavePlan = plan;
+        }
+        state.room.totalWaves = state.room.wavePlan.length;
+      }
       spawnWave(state, data);
       if (cell.type === 'challenge') state.room.waveIdx = -1;   // 挑战房 3 波（负偏移计数用）
       // 电气种子：上一房清空的奖励连锁弹，本房生效
@@ -260,8 +283,11 @@ function addEventPedestal(state, data, kind) {
   }
 }
 
-function mkPickup(state, kind, x, y, itemId) {
-  return { id: state.nextId++, kind, itemId: itemId || null, x, y, px: x, py: y, bob: state.rand() * 6 };
+function mkPickup(state, kind, x, y, itemId, opts = {}) {
+  // 落点钳进房内（M10）：换下的道具/开箱撒落贴墙生成会掉进墙缝捡不到
+  const cx = clamp(x, 1.2, state.roomW - 1.2), cy = clamp(y, 1.2, state.roomH - 1.2);
+  return { id: state.nextId++, kind, itemId: itemId || null, x: cx, y: cy, px: cx, py: cy, bob: state.rand() * 6,
+    holdT: opts.holdT || 0 };               // holdT：交换落地的件短暂免磁吸/免拾取，防原地乒乓
 }
 
 function addPedestal(state, data, poolName, slotIdx, opts = {}) {
@@ -356,17 +382,20 @@ export function stepPlayer(state, input, data) {
       const zid = side !== p ? side.zmove : (p.evolved ? (p.zmoveEvolved || 'thunder-z') : (p.zmove || 'thunderbolt-z'));
       const zm = data.moves[zid];
       side.pp = 0;
-      // 全场/近场 AoE：以玩家为圆心，走属性克制（免疫按 ×0.5 防卡关）
+      // 全场/近场 AoE：以玩家为圆心，走属性克制（免疫地板 ×0.75——大招不被抗性废掉，普弹仍 0.5）
       let hits = 0;
       for (const e of state.enemies) {
         if (e.state === 'spawning' || e.state === 'dead') continue;
         const d = Math.hypot(e.x - p.x, e.y - p.y);
         if (d <= zm.radius) {
+          const isBoss = e.family === 'boss';
           const hit = computeHit({
-            D: p.stats.damage, power: zm.power * 0.5, moveType: zm.type,   // AoE 打 5 折换覆盖面
+            D: p.stats.damage,
+            power: isBoss ? zm.power : zm.power * 0.5,   // Boss 单体不吃清群五折（实测电Z打小刚曾只剩 2.7% 血量）
+            moveType: zm.type,
             atkTypes: side.types || ['electric'], defTypes: e.types, spdMod: e.spdMod,
             critChance: 0, rng01: 0.5, stabMul: 1.5, chart: data.typechart,
-            immuneFloor: 0.5,
+            immuneFloor: 0.75,
           });
           e.hp -= hit.dmg;
           e.flash = 0.2;
@@ -463,20 +492,36 @@ export function stepPlayer(state, input, data) {
 
   // 射击
   p.fireCd -= state.dt;
-  if (input.fire && p.fireCd <= 0) {
-    // A/B 槽都按上场侧取各自招式（换宠=换 Build 载体，B 槽技能机也不共用）
-    const side = sideOf(p);
-    const moveA_eff = side.moveA;
-    const moveId = p.slot === 'B' && side.moveB && !p.mods.lockB ? side.moveB : moveA_eff;
-    const mv = data.moves[moveId];
-    // 电气种子：清房奖励的连锁弹（发射时扣数）
-    const chain = p.chainLeft > 0;
-    if (chain) p.chainLeft -= 1;
-    // 近战/远程按招式 reach 分派（M9）：melee=扇形瞬发横扫，ranged=弹道
-    state.stats.shots += mv.reach === 'melee'
-      ? meleeSwing(state, data, p, mv, moveId, input.aim, chain)
-      : fireProjectiles(state, p, mv, moveId, input.aim, chain);
-    p.fireCd = p.stats.fireInterval * (mv.intervalMul || 1);
+  // A/B 槽都按上场侧取各自招式（换宠=换 Build 载体，B 槽技能机也不共用）
+  const side = sideOf(p);
+  const moveA_eff = side.moveA;
+  const moveId = p.slot === 'B' && side.moveB && !p.mods.lockB ? side.moveB : moveA_eff;
+  const mv = data.moves[moveId];
+  if (mv && mv.kind === 'beam') {
+    // 喷息型（M9.2 硫磺火式）：按住即持续锥形 tick DPS，不吃 fireCd/射速加成；松开即停
+    p.beamOn = !!(input.fire && p.alive && !state.over);
+    p.beamId = moveId;
+    if (p.beamOn) {
+      p.beamAim = { x: input.aim.x || 1, y: input.aim.y || 0 };
+      p.beamT = (p.beamT || 0) - state.dt;
+      if (p.beamT <= 0) {
+        p.beamT = mv.tick || 0.12;
+        beamTick(state, data, p, mv, moveId);
+        state.stats.shots += 1;
+      }
+    } else p.beamT = 0;
+  } else {
+    p.beamOn = false;
+    if (input.fire && p.fireCd <= 0) {
+      // 电气种子：清房奖励的连锁弹（发射时扣数）
+      const chain = p.chainLeft > 0;
+      if (chain) p.chainLeft -= 1;
+      // 近战/远程按招式 reach 分派（M9）：melee=扇形瞬发横扫，ranged=弹道
+      state.stats.shots += mv.reach === 'melee'
+        ? meleeSwing(state, data, p, mv, moveId, input.aim, chain)
+        : fireProjectiles(state, p, mv, moveId, input.aim, chain);
+      p.fireCd = p.stats.fireInterval * (mv.intervalMul || 1);
+    }
   }
 }
 
@@ -541,6 +586,40 @@ function meleeSwing(state, data, p, mv, moveId, aim, chain) {
   }
   state.events.push({ t: 'swing', x: p.x, y: p.y, a: a0, arc: mv.sweepDeg, r, moveId, hits: targets.length });
   return 1;
+}
+
+// 喷息 tick（M9.2）：与 meleeSwing 同款扇形几何但半角窄、射程长——持续光束每 tick 结算一次，
+// 伪弹体走 applyHit（克制/STAB/属性道具/节拍器/连锁/PP 全联动）；power 字段=每 tick 伤害基准。
+// 击退刻意弱（光束推不动人）；射速类道具对 beam 无效（伤害/范围类照常生效）。
+function beamTick(state, data, p, mv, moveId) {
+  const m = p.mods;
+  const r = mv.range * m.rangeMul * (1 + (m.sizeMul - 1) * 0.5);
+  const half = ((mv.halfDeg || 11) * Math.PI) / 180;
+  const aim = p.beamAim || { x: 1, y: 0 };
+  const a0 = Math.atan2(aim.y, aim.x);
+  const targets = [];
+  for (const e of state.enemies) {
+    if (e.state === 'spawning' || e.state === 'dead') continue;
+    const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
+    if (d > r + e.radius) continue;
+    if (d > PLAYER_R + e.radius) {                      // 贴身重叠的无视角度
+      let da = Math.abs(Math.atan2(dy, dx) - a0);
+      if (da > Math.PI) da = 2 * Math.PI - da;
+      if (da > half + Math.atan2(e.radius, d)) continue; // 体积容差：擦到光束边也算
+    }
+    targets.push(e);
+  }
+  const hitIds = targets.map((e) => e.id);
+  const spd = 1.2;                                      // 弱击退
+  for (const e of targets) {
+    if (e.state === 'dead') continue;
+    const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
+    const ux = d > 1e-3 ? dx / d : Math.cos(a0), uy = d > 1e-3 ? dy / d : Math.sin(a0);
+    applyHit(state, e, {
+      owner: 'player', moveId, x: e.x, y: e.y, vx: ux * spd, vy: uy * spd,
+      radius: mv.radius || 0.2, hitIds,
+    }, data);
+  }
 }
 
 function tryRevealSecret(state, data) {
@@ -849,6 +928,19 @@ function killEnemy(state, e, kind = 'normal', moveId = null) {
       state.pickups.push(mkPickup(state, 'heart',
         Math.max(1, Math.min(state.roomW - 1, e.x + (state.rand() - 0.5) * 1.6)),
         Math.max(1, Math.min(state.roomH - 1, e.y + (state.rand() - 0.5) * 1.6))));
+    }
+  }
+  // M9.1 基础经济：击杀掉钱——普通敌概率 coin，精英必掉 coin2；奶妈系（掉心）与 Boss 不叠
+  if (e.family !== 'boss' && !e.dropHearts) {
+    const pk = (state._data && state._data.balance && state._data.balance.pickup) || {};
+    const luck = (state.player.mods && state.player.mods.luckAdd) || 0;
+    const kind = e.elite ? 'coin2'
+      : (state.rand() < (pk.killCoinChance || 0) + luck * (pk.killCoinLuckScale || 0) ? 'coin' : null);
+    if (kind) {
+      state.pickups.push(mkPickup(state, kind,
+        Math.max(1, Math.min(state.roomW - 1, e.x + (state.rand() - 0.5) * 0.9)),
+        Math.max(1, Math.min(state.roomH - 1, e.y + (state.rand() - 0.5) * 0.9))));
+      state.events.push({ t: 'coin-drop', x: e.x, y: e.y });
     }
   }
   state.events.push({ t: 'enemy-die', id: e.id, eid: e.eid, x: e.x, y: e.y, kind, name: e.name, floor: state.floorNo, elite: e.elite, moveId });
@@ -1280,16 +1372,23 @@ export function stepEnemies(state, input, data) {
 export function spawnWave(state, data) {
   const cell = state.map.get(state.cellKey);
   const waves = state.waves || data.waves;
-  const waveDef = waves[Math.min(Math.max(state.room.waveIdx, 0), waves.length - 1)];
+  // M10：wavePlan 下标制（普通房 1~2 波随机抽）；旧存档无 wavePlan 时退回阶梯
+  const plan = state.room.wavePlan;
+  const wi = Math.min(Math.max(state.room.waveIdx, 0), (plan ? plan.length : waves.length) - 1);
+  const waveDef = waves[plan ? Math.min(plan[wi], waves.length - 1) : wi];
   const eMul = state.player.mods ? state.player.mods.enemyMul : 1;   // 白银喷雾
-  // 精英层（M7）：F3 起 15% 个体精英——血 ×2.2 速 ×1.12 体形 ×1.12，击杀必掉币
-  const eliteRoll = state.floorNo >= 3;
+  // 精英层（M7；M9.2 参数化提前）：F2 起 roll（越深概率越高）——血 ×2.2 速 ×1.12 体形 ×1.12，击杀必掉币
+  const eliteCfg = (data.balance && data.balance.elite) || {};
+  const eliteFrom = eliteCfg.fromFloor != null ? eliteCfg.fromFloor : 3;
+  const eliteChances = Array.isArray(eliteCfg.chance) && eliteCfg.chance.length ? eliteCfg.chance : [0.15];
+  const eliteChance = eliteChances[Math.min(Math.max(state.floorNo - eliteFrom, 0), eliteChances.length - 1)];
+  const eliteRoll = state.floorNo >= eliteFrom;
   for (const { id, n } of waveDef) {
     let count = n;
     if (eMul < 1 && n > 1) count = n - (state.rand() < (1 - eMul) * n ? 1 : 0);
     for (let k = 0; k < count; k++) {
       const spec = data.enemies[id];
-      const elite = eliteRoll && spec.family !== 'flopper' && state.rand() < 0.15;
+      const elite = eliteRoll && spec.family !== 'flopper' && state.rand() < eliteChance;
       let x = 0, y = 0, ok = false;
       for (let tries = 0; tries < 24 && !ok; tries++) {
         x = 1.5 + state.rand() * (state.roomW - 3);
@@ -1326,9 +1425,11 @@ export function stepRoom(state, input, data) {
   const cell = state.map.get(state.cellKey);
   const p = state.player;
 
-  // 波次推进
+  // 波次推进（M10：普通房按 wavePlan 的 1~2 波；旧档无 plan 退回整层阶梯）
   if (!r.cleared && p.alive && state.enemies.length === 0 && (cell.type === 'combat' || cell.type === 'challenge')) {
-    const totalWaves = cell.type === 'challenge' ? 3 : data.waves.length;
+    const totalWaves = r.wavePlan ? r.wavePlan.length
+      : (cell.type === 'challenge' ? 3 : data.waves.length);
+    r.totalWaves = totalWaves;
     if (r.waveIdx + 1 >= totalWaves) {
       clearRoom(state, data, cell);
     } else {
@@ -1344,6 +1445,10 @@ export function stepRoom(state, input, data) {
   // 台座交互（接触购买/拾取）
   for (const d of state.pedestals) {
     if (d.taken) continue;
+    if (d.rearm) {                                  // M10：交换回台座的件，走开一次才重新可取
+      if (dist2(p.x, p.y, d.x, d.y) > 1.2 * 1.2) d.rearm = false;
+      continue;
+    }
     if (dist2(p.x, p.y, d.x, d.y) < 0.85 * 0.85 && p.alive) {
       // 重铸工房：没有可烧的被动就不收钱（台座留下，提示节流）
       if (d.event === 'forge' && !p.inv.passives.some((id) => !data.items[id].effect.tm)) {
@@ -1391,8 +1496,8 @@ export function stepRoom(state, input, data) {
       const other = state.map.get((cell.x + dx) + ',' + (cell.y + dy));
       if (dtype === 'fissure') {
         if (!p.dashActive) continue;              // 与隐藏房同机制：冲刺撞裂缝
-        cell.doors[dkey] = 'revealed';
-        if (other) other.doors[(-dx) + ',' + (-dy)] = 'revealed';
+        cell.doors[dkey] = 'boss';                // 揭示后按 Boss 骷髅门渲染（M10）
+        if (other) other.doors[(-dx) + ',' + (-dy)] = 'boss';
         state.events.push({ t: 'secret-reveal', side: dkey });
         state.events.push({ t: 'fissure-open', x: p.x, y: p.y });
         continue;
@@ -1450,19 +1555,59 @@ function clearRoom(state, data, cell) {
   state.events.push({ t: 'clear', cell: state.cellKey, type: cell.type });
 }
 
+/** 权重表落种：table = [[kind, weight], ...] */
+function weightedKind(state, table) {
+  if (!Array.isArray(table) || !table.length) return 'coin';
+  let r = state.rand() * table.reduce((a, [, w]) => a + w, 0);
+  for (const [kind, w] of table) { r -= w; if (r <= 0) return kind; }
+  return table[table.length - 1][0];
+}
+
+/** 消耗品掉落落真道具（'drop' 池 kinds 过滤）——修旧版漏传 itemId 的"假币"（视图退化成不转的伪金币、拾取白拿） */
+function rollConsumable(state, data) {
+  return rollItem(data.items, data.itemPools, 'drop', state.rand, { kinds: ['consumable'] });
+}
+
 function rollDrop(state, data) {
   const luck = (state.player.luckBase || 0) + (state.player.mods && state.player.mods.luckAdd || 0);   // 伊布 + 幸运蛋
-  const roll = state.rand() + luck * 0.1;
-  for (const [limit, kind] of data.balance.pickup.dropBands) {
-    if (roll < limit) {
-      if (kind) {
-        const [w, h] = [state.roomW, state.roomH];
-        let x = 2 + state.rand() * (w - 4), y = 2 + state.rand() * (h - 4);
-        state.pickups.push(mkPickup(state, kind, x, y));
-      }
-      return;
-    }
+  // M10 以撒化：奖励概率随本层已掉次数衰减（base 60% -10%/次，下限 10%），进新层重置；Luck 仍 +0.1 加权
+  const cfg = data.balance.pickup.clearReward || { base: 0.6, decay: 0.1, min: 0.1 };
+  const chance = Math.max(cfg.min, cfg.base - cfg.decay * (state.floorClearDrops || 0));
+  if (state.rand() + luck * 0.1 >= chance) return;
+  state.floorClearDrops = (state.floorClearDrops || 0) + 1;
+  const kind = weightedKind(state, data.balance.pickup.clearTable);
+  const [w, h] = [state.roomW, state.roomH];
+  const x = clamp(2 + state.rand() * (w - 4), 1.2, w - 1.2);
+  const y = clamp(2 + state.rand() * (h - 4), 1.2, h - 1.2);
+  const itemId = kind === 'consumable' ? rollConsumable(state, data) : null;
+  state.pickups.push(mkPickup(state, kind, x, y, itemId));
+  state.events.push({ t: 'item-drop', kind, x, y });
+}
+
+/** 木箱开箱（M10 以撒木箱转译）：触碰即开，原地撒 1~3 件 */
+function openChest(state, data, x, y) {
+  const cfg = data.balance.pickup.chestSpill || {};
+  const table = Array.isArray(cfg.table) && cfg.table.length ? cfg.table : [['coin', 1]];
+  const minN = cfg.minN != null ? cfg.minN : 1, maxN = cfg.maxN != null ? cfg.maxN : 3;
+  const n = minN + Math.floor(state.rand() * (maxN - minN + 1));
+  for (let i = 0; i < n; i++) {
+    const kind = weightedKind(state, table);
+    const itemId = kind === 'consumable' ? rollConsumable(state, data) : null;
+    const ang = state.rand() * Math.PI * 2, r = 0.7 + state.rand() * 0.9;
+    state.pickups.push(mkPickup(state, kind, x + Math.cos(ang) * r, y + Math.sin(ang) * r, itemId));
+    state.events.push({ t: 'item-drop', kind, x, y });
   }
+  state.events.push({ t: 'chest-open', x, y });
+}
+
+/** 槽满触碰交换（M10 以撒制）：手中件掉脚边（短暂免磁吸/免拾取），地上件入手 */
+function swapToSlot(state, kind, k) {
+  const p = state.player;
+  const old = kind === 'trinket' ? p.inv.trinket : p.inv.consumable;
+  state.pickups.push(mkPickup(state, kind, p.x + 0.9, p.y + 0.5, old, { holdT: state.t + 0.75 }));
+  if (kind === 'trinket') p.inv.trinket = k.itemId;
+  else p.inv.consumable = k.itemId;
+  state.events.push({ t: kind === 'trinket' ? 'trinket-swap' : 'consumable-swap', lost: old, gain: k.itemId, x: p.x, y: p.y, src: 'ground' });
 }
 
 function stepPickups(state, data) {
@@ -1471,6 +1616,7 @@ function stepPickups(state, data) {
   for (let i = state.pickups.length - 1; i >= 0; i--) {
     const k = state.pickups[i];
     k.px = k.x; k.py = k.y;
+    if (k.holdT && state.t < k.holdT) continue;      // 交换落地保护：刚换下的件不给磁吸/立即再拾（防原地乒乓）
     const dx = p.x - k.x, dy = p.y - k.y;
     const d = Math.hypot(dx, dy);
     if (m.magnet > 0 && d < m.magnet && d > 0.01) {
@@ -1493,15 +1639,17 @@ function stepPickups(state, data) {
           p.inv.keys = (p.inv.keys || 0) + 1; break;
         case 'trinket':
           if (!p.inv.trinket) p.inv.trinket = k.itemId;
-          else taken = false;                             // 单件槽满：安静躺在原地
+          else swapToSlot(state, 'trinket', k);       // M10：槽满触碰即换（不再"安静躺在原地"）
           break;
         case 'heart':
           if (p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + data.balance.pickup.heartHeal); state.events.push({ t: 'heal', heal: data.balance.pickup.heartHeal }); }
           else taken = false;
           break;
+        case 'chest':
+          openChest(state, data, k.x, k.y); break;    // M10 以撒木箱：触碰即开（本体消失，撒 1~3 件）
         case 'consumable':
           if (!p.inv.consumable) p.inv.consumable = k.itemId;
-          else taken = false;
+          else swapToSlot(state, 'consumable', k);
           break;
         default: break;
       }
@@ -1511,6 +1659,14 @@ function stepPickups(state, data) {
       }
     }
   }
+}
+
+/** M10 以撒同款：换下来的道具放回台座（免费、可反悔换回）。rearm=走开一次才重新可取，防站立原地乒乓。 */
+function backToPedestal(state, d, itemId) {
+  d.taken = false;
+  d.itemId = itemId;
+  d.price = 0; d.priceHp = 0;
+  d.rearm = true;
 }
 
 function takePedestal(state, data, d) {
@@ -1541,17 +1697,18 @@ function takePedestal(state, data, d) {
     }
     return;
   }
-  const it = data.items[d.itemId];
+  const gain = d.itemId;        // M10：台座交换可能把旧件写回 d.itemId，先捕获要拿的件
   d.taken = true;
+  const it = data.items[gain];
   // 重铸工房（M7）：钱已在台座交互扣过——烧掉一件随机被动换台座上的目标件
   if (d.event === 'forge') {
     const burnable = p.inv.passives.filter((id) => !data.items[id].effect.tm);
     const lost = burnable.length ? burnable[Math.floor(state.rand() * burnable.length)] : null;
     if (lost) p.inv.passives = p.inv.passives.filter((id) => id !== lost);
-    p.inv.passives.push(d.itemId);
+    p.inv.passives.push(gain);
     state.stats.items += 1;
-    state.events.push({ t: 'forge-trade', lost, gain: d.itemId, x: p.x, y: p.y });
-    state.events.push({ t: 'item-take', id: d.itemId, name: it.name, desc: it.desc, icon: it.icon, quality: it.quality, kind: it.kind, price: d.price });
+    state.events.push({ t: 'forge-trade', lost, gain: gain, x: p.x, y: p.y });
+    state.events.push({ t: 'item-take', id: gain, name: it.name, desc: it.desc, icon: it.icon, quality: it.quality, kind: it.kind, price: d.price });
     engine_recompute(state, data);
     return;
   }
@@ -1570,25 +1727,25 @@ function takePedestal(state, data, d) {
       if (it.effect.tm && p.activeSide === 'companion' && p.companion) {
         // 技能机归属上场侧：替补上场捡的进替补自己的 B 槽（与主力互不共用；learn 表只登记主力物种，替补不受限）
         const prevCompTm = p.companion.tmItem;
-        p.companion.tmItem = d.itemId;
+        p.companion.tmItem = gain;
         p.companion.moveB = it.effect.tm;
-        if (prevCompTm) state.events.push({ t: 'tm-replace', lost: prevCompTm, gain: d.itemId, x: p.x, y: p.y, side: 'companion' });
+        if (prevCompTm) state.events.push({ t: 'tm-replace', lost: prevCompTm, gain: gain, x: p.x, y: p.y, side: 'companion' });
         break;
       }
       if (it.effect.tm) {
         // 只保留最新技能机（B 槽一格）；有替换时明示——无声消失会被当成"被动只能有一个"（M7.1 用户反馈）
         const prevTm = p.inv.passives.find((id) => data.items[id] && data.items[id].effect.tm);
         p.inv.passives = p.inv.passives.filter((id) => !(data.items[id] && data.items[id].effect.tm));
-        if (prevTm) state.events.push({ t: 'tm-replace', lost: prevTm, gain: d.itemId, x: p.x, y: p.y });
+        if (prevTm) state.events.push({ t: 'tm-replace', lost: prevTm, gain: gain, x: p.x, y: p.y });
       }
-      p.inv.passives.push(d.itemId);
+      p.inv.passives.push(gain);
       break;
     case 'stat':
-      p.inv.passives.push(d.itemId);
+      p.inv.passives.push(gain);
       if (it.effect.maxHp) p.hp += it.effect.maxHp;      // 血上限类立即回满增量
       break;
     case 'consumable':
-      if (d.itemId === 'thunder-stone') {
+      if (gain === 'thunder-stone') {
         // 雷之石：即拾即用（第 2 层起进化；只有配了进化链的物种响应）
         if (state.floorNo >= 2 && !p.evolved && p.evolveTo) {
           const from = data.species[p.species] ? data.species[p.species].name : p.species;
@@ -1596,35 +1753,35 @@ function takePedestal(state, data, d) {
           engine_recompute(state, data);
           state.events.push({ t: 'evolve', to: p.evolveTo, from, name: data.species[p.evolveTo].name });
         } else {
-          if (p.inv.consumable) {                      // E 槽已有：换下来的掉脚边（不静默丢失）
-            state.pickups.push(mkPickup(state, 'consumable', p.x + 0.9, p.y + 0.5, p.inv.consumable));
-            state.events.push({ t: 'consumable-swap', lost: p.inv.consumable, gain: d.itemId, x: p.x, y: p.y });
+          if (p.inv.consumable) {                      // M10 以撒同款：E 槽已有 → 换下来的回台座（可反悔换回）
+            backToPedestal(state, d, p.inv.consumable);
+            state.events.push({ t: 'consumable-swap', lost: p.inv.consumable, gain: gain, x: p.x, y: p.y, src: 'pedestal' });
           }
-          p.inv.consumable = d.itemId;                 // 不满足条件先存着
-          state.events.push({ t: 'item-take', id: d.itemId, name: it.name, desc: (state.floorNo < 2 || !p.evolveTo) ? '（第 2 层起可用；无进化链的搭档不消耗）' : it.desc, icon: it.icon, quality: it.quality, kind: it.kind, price: 0 });
+          p.inv.consumable = gain;                 // 不满足条件先存着
+          state.events.push({ t: 'item-take', id: gain, name: it.name, desc: (state.floorNo < 2 || !p.evolveTo) ? '（第 2 层起可用；无进化链的搭档不消耗）' : it.desc, icon: it.icon, quality: it.quality, kind: it.kind, price: 0 });
           return;
         }
         break;
       }
-      if (p.inv.consumable) {                          // 以撒式交换：E 槽一件，旧的掉脚边
-        state.pickups.push(mkPickup(state, 'consumable', p.x + 0.9, p.y + 0.5, p.inv.consumable));
-        state.events.push({ t: 'consumable-swap', lost: p.inv.consumable, gain: d.itemId, x: p.x, y: p.y });
+      if (p.inv.consumable) {                          // M10 以撒同款：E 槽一件，旧的回台座（可反悔换回）
+        backToPedestal(state, d, p.inv.consumable);
+        state.events.push({ t: 'consumable-swap', lost: p.inv.consumable, gain: gain, x: p.x, y: p.y, src: 'pedestal' });
       }
-      p.inv.consumable = d.itemId; break;
+      p.inv.consumable = gain; break;
     case 'trinket':
-      if (p.inv.trinket && p.inv.trinket !== d.itemId) {        // 单件槽：旧的掉脚边，不静默蒸发
-        state.pickups.push(mkPickup(state, 'trinket', p.x + 0.9, p.y + 0.5, p.inv.trinket));
-        state.events.push({ t: 'trinket-swap', lost: p.inv.trinket, gain: d.itemId, x: p.x, y: p.y });
+      if (p.inv.trinket && p.inv.trinket !== gain) {        // M10：旧的回台座（可反悔换回，不再掉脚边）
+        backToPedestal(state, d, p.inv.trinket);
+        state.events.push({ t: 'trinket-swap', lost: p.inv.trinket, gain: gain, x: p.x, y: p.y, src: 'pedestal' });
       }
-      p.inv.trinket = d.itemId; break;
-    case 'badge': p.inv.badges.push(d.itemId); break;
+      p.inv.trinket = gain; break;
+    case 'badge': p.inv.badges.push(gain); break;
     default: break;
   }
   state.stats.items += 1;
-  state.events.push({ t: 'item-take', id: d.itemId, name: it.name, desc: it.desc, icon: it.icon, quality: it.quality, kind: it.kind, price: d.price });
+  state.events.push({ t: 'item-take', id: gain, name: it.name, desc: it.desc, icon: it.icon, quality: it.quality, kind: it.kind, price: d.price });
   // 重新计算面板
   engine_recompute(state, data);
 }
 
 // 规避循环 import：engine.recompute 通过事件总线由调用方重算——这里直接内联等价逻辑
-import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m9';
+import { recompute as engine_recompute, goNextFloor } from './engine.js?v=m9b';
